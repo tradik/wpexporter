@@ -45,7 +45,7 @@ XMLRPC_BINARY := wpxmlrpc
 LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT) -s -w"
 PROD_LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT) -s -w -extldflags '-static'"
 
-.PHONY: help build clean test deps run install dev lint format build-prod release package docker-build docker-push version tag
+.PHONY: help build clean test deps run install dev lint format build-prod release package packages docker-build docker-push version tag
 
 help: ## Show this help message
 	@grep -h -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-40s\033[0m %s\n", $$1, $$2}'
@@ -138,7 +138,7 @@ release: deps ## Build release binaries for all platforms
 	@echo "${GREEN}Release binaries built in $(DIST_DIR)/${RESET}"
 	@ls -la $(DIST_DIR)/
 
-package: release ## Create distribution packages
+package: release ## Create basic TAR.GZ distribution packages
 	@echo "${BLUE}Creating distribution packages...${RESET}"
 	@mkdir -p $(DIST_DIR)/packages
 	@for os in linux freebsd darwin windows; do \
@@ -154,6 +154,11 @@ package: release ## Create distribution packages
 	done
 	@echo "${GREEN}Distribution packages created in $(DIST_DIR)/packages/${RESET}"
 	@ls -la $(DIST_DIR)/packages/
+
+packages: release ## Create DEB, RPM, and TGZ packages for distribution
+	@echo "${BLUE}Creating DEB, RPM, and TGZ packages...${RESET}"
+	@./scripts/build-packages.sh
+	@echo "${GREEN}All packages created in $(DIST_DIR)/packages/${RESET}"
 
 version: ## Show version information
 	@echo "${BLUE}Version Information:${RESET}"
