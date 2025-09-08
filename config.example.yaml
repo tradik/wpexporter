@@ -1,0 +1,37 @@
+# WordPress Export JSON Configuration
+
+# WordPress site URL (required)
+url: "https://example.com"
+
+# Output directory or file path
+# If not specified, defaults to: export/{domain-name}.{date}{time}
+# For JSON format: specify a .json file or directory
+# For Markdown format: specify a directory
+# output: "./export"
+
+# Export format: json or markdown
+format: "json"
+
+# Enable brute force ID discovery to find unlisted content
+brute_force: false
+
+# Maximum ID to check during brute force scanning
+max_id: 10000
+
+# Download media files (images, videos, etc.)
+download_media: true
+
+# Number of concurrent downloads
+concurrent: 5
+
+# HTTP request timeout in seconds
+timeout: 30
+
+# Number of retries for failed requests
+retries: 3
+
+# User agent string for HTTP requests
+user_agent: "WordPress-Export-JSON/1.0"
+
+# Enable verbose output
+verbose: false

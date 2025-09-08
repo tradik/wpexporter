@@ -1,0 +1,56 @@
+# Build artifacts
+build/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*.test
+coverage.out
+coverage.html
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Documentation (except README)
+docs/
+*.md
+!README.md
+
+# Config files (keep example)
+config.yaml
+*.yaml
+!config.example.yaml
+
+# Export directories
+export/
+test-*/
+markdown-test/
+
+# Development files
+Makefile
+air.toml
+.air.toml
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Dependencies
+vendor/
