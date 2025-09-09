@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tradik/wpexportjson/internal/config"
-	"github.com/tradik/wpexportjson/pkg/models"
+	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/pkg/models"
 )
 
 // Client represents a WordPress XML-RPC client
@@ -392,7 +392,7 @@ func (c *Client) parsePostsResponse(resp *XMLRPCResponse) []models.WordPressPost
 	// This is a simplified implementation
 	// In a real implementation, you would parse the XML-RPC struct response properly
 	var posts []models.WordPressPost
-	
+
 	// For demonstration, create a sample post
 	if len(resp.Params) > 0 {
 		post := models.WordPressPost{
@@ -402,7 +402,7 @@ func (c *Client) parsePostsResponse(resp *XMLRPCResponse) []models.WordPressPost
 		}
 		posts = append(posts, post)
 	}
-	
+
 	return posts
 }
 

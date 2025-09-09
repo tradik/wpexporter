@@ -7,23 +7,23 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tradik/wpexportjson/internal/api"
-	"github.com/tradik/wpexportjson/internal/bruteforce"
-	"github.com/tradik/wpexportjson/internal/config"
-	"github.com/tradik/wpexportjson/internal/export"
-	"github.com/tradik/wpexportjson/pkg/models"
+	"github.com/tradik/wpexporter/internal/api"
+	"github.com/tradik/wpexporter/internal/bruteforce"
+	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/export"
+	"github.com/tradik/wpexporter/pkg/models"
 )
 
 var (
-	cfgFile     string
-	url         string
-	output      string
-	format      string
-	bruteForce  bool
-	maxID       int
+	cfgFile       string
+	url           string
+	output        string
+	format        string
+	bruteForce    bool
+	maxID         int
 	downloadMedia bool
-	concurrent  int
-	verbose     bool
+	concurrent    int
+	verbose       bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -81,7 +81,7 @@ func configFileExists() bool {
 		"/etc/wpexportjson/config.yaml",
 		"/etc/wpexportjson/config.yml",
 	}
-	
+
 	for _, path := range configPaths {
 		if _, err := os.Stat(path); err == nil {
 			return true
@@ -93,7 +93,7 @@ func configFileExists() bool {
 func runExport(cmd *cobra.Command, args []string) error {
 	// Start with default configuration
 	cfg := config.DefaultConfig()
-	
+
 	// Load configuration file if specified or found
 	if cfgFile != "" || configFileExists() {
 		loadedCfg, err := config.LoadConfig(cfgFile)
@@ -153,11 +153,11 @@ func runExport(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Starting WordPress export from: %s\n", cfg.URL)
 	fmt.Printf("Output: %s (format: %s)\n", cfg.Output, cfg.Format)
-	
+
 	if cfg.BruteForce {
 		fmt.Printf("Brute force enabled (max ID: %d)\n", cfg.MaxID)
 	}
-	
+
 	if cfg.DownloadMedia {
 		fmt.Printf("Media download enabled (concurrent: %d)\n", cfg.Concurrent)
 	}
@@ -266,15 +266,15 @@ func runExport(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Categories: %d\n", len(categories))
 	fmt.Printf("Tags: %d\n", len(tags))
 	fmt.Printf("Users: %d\n", len(users))
-	
+
 	if cfg.BruteForce && bruteForceFound > 0 {
 		fmt.Printf("Brute force found: %d\n", bruteForceFound)
 	}
-	
+
 	if cfg.DownloadMedia {
 		fmt.Printf("Media downloaded: %d\n", exportData.Stats.MediaDownloaded)
 	}
-	
+
 	fmt.Printf("Duration: %v\n", duration)
 	fmt.Printf("Output: %s\n", cfg.Output)
 

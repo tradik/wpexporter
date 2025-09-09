@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/schollz/progressbar/v3"
-	"github.com/tradik/wpexportjson/internal/api"
-	"github.com/tradik/wpexportjson/internal/config"
-	"github.com/tradik/wpexportjson/pkg/models"
+	"github.com/tradik/wpexporter/internal/api"
+	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/pkg/models"
 )
 
 // Scanner handles brute force content discovery
@@ -101,7 +101,7 @@ func (s *Scanner) ScanForContent(existingPosts, existingPages []models.WordPress
 // scanPosts scans for posts using brute force
 func (s *Scanner) scanPosts(existingIDs map[int]bool) []models.WordPressPost {
 	fmt.Println("Scanning for missing posts...")
-	
+
 	progress := progressbar.NewOptions(s.config.MaxID,
 		progressbar.OptionSetDescription("Scanning posts"),
 		progressbar.OptionSetWidth(50),
@@ -134,14 +134,14 @@ func (s *Scanner) scanPosts(existingIDs map[int]bool) []models.WordPressPost {
 						mutex.Lock()
 						foundPosts = append(foundPosts, *post)
 						mutex.Unlock()
-						
+
 						if s.config.Verbose {
 							fmt.Printf("Found post: ID %d - %s\n", post.ID, post.Title.Rendered)
 						}
 					}
 				}
 				progress.Add(1)
-				
+
 				// Small delay to avoid overwhelming the server
 				time.Sleep(10 * time.Millisecond)
 			}
@@ -163,7 +163,7 @@ func (s *Scanner) scanPosts(existingIDs map[int]bool) []models.WordPressPost {
 // scanPages scans for pages using brute force
 func (s *Scanner) scanPages(existingIDs map[int]bool) []models.WordPressPost {
 	fmt.Println("Scanning for missing pages...")
-	
+
 	progress := progressbar.NewOptions(s.config.MaxID,
 		progressbar.OptionSetDescription("Scanning pages"),
 		progressbar.OptionSetWidth(50),
@@ -196,14 +196,14 @@ func (s *Scanner) scanPages(existingIDs map[int]bool) []models.WordPressPost {
 						mutex.Lock()
 						foundPages = append(foundPages, *page)
 						mutex.Unlock()
-						
+
 						if s.config.Verbose {
 							fmt.Printf("Found page: ID %d - %s\n", page.ID, page.Title.Rendered)
 						}
 					}
 				}
 				progress.Add(1)
-				
+
 				// Small delay to avoid overwhelming the server
 				time.Sleep(10 * time.Millisecond)
 			}
@@ -225,7 +225,7 @@ func (s *Scanner) scanPages(existingIDs map[int]bool) []models.WordPressPost {
 // scanMedia scans for media using brute force
 func (s *Scanner) scanMedia(existingIDs map[int]bool) []models.WordPressMedia {
 	fmt.Println("Scanning for missing media...")
-	
+
 	progress := progressbar.NewOptions(s.config.MaxID,
 		progressbar.OptionSetDescription("Scanning media"),
 		progressbar.OptionSetWidth(50),
@@ -258,14 +258,14 @@ func (s *Scanner) scanMedia(existingIDs map[int]bool) []models.WordPressMedia {
 						mutex.Lock()
 						foundMedia = append(foundMedia, *media)
 						mutex.Unlock()
-						
+
 						if s.config.Verbose {
 							fmt.Printf("Found media: ID %d - %s\n", media.ID, media.Title.Rendered)
 						}
 					}
 				}
 				progress.Add(1)
-				
+
 				// Small delay to avoid overwhelming the server
 				time.Sleep(10 * time.Millisecond)
 			}
@@ -287,7 +287,7 @@ func (s *Scanner) scanMedia(existingIDs map[int]bool) []models.WordPressMedia {
 // ScanSpecificRange scans a specific range of IDs for a content type
 func (s *Scanner) ScanSpecificRange(contentType string, startID, endID int) (interface{}, error) {
 	fmt.Printf("Scanning %s IDs from %d to %d...\n", contentType, startID, endID)
-	
+
 	total := endID - startID + 1
 	progress := progressbar.NewOptions(total,
 		progressbar.OptionSetDescription(fmt.Sprintf("Scanning %s", contentType)),
@@ -308,7 +308,7 @@ func (s *Scanner) ScanSpecificRange(contentType string, startID, endID int) (int
 		}
 		progress.Finish()
 		return posts, nil
-		
+
 	case "pages":
 		var pages []models.WordPressPost
 		for id := startID; id <= endID; id++ {
@@ -321,7 +321,7 @@ func (s *Scanner) ScanSpecificRange(contentType string, startID, endID int) (int
 		}
 		progress.Finish()
 		return pages, nil
-		
+
 	case "media":
 		var media []models.WordPressMedia
 		for id := startID; id <= endID; id++ {
@@ -334,7 +334,7 @@ func (s *Scanner) ScanSpecificRange(contentType string, startID, endID int) (int
 		}
 		progress.Finish()
 		return media, nil
-		
+
 	default:
 		return nil, fmt.Errorf("unsupported content type: %s", contentType)
 	}

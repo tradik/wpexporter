@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/tradik/wpexportjson/internal/config"
-	"github.com/tradik/wpexportjson/pkg/models"
+	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/pkg/models"
 )
 
 // Client represents a WordPress REST API client
@@ -47,7 +47,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 // GetSiteInfo retrieves WordPress site information
 func (c *Client) GetSiteInfo() (*models.SiteInfo, error) {
 	settingsURL := strings.Replace(c.baseURL, "/wp/v2", "", 1) + "/wp/v2/settings"
-	
+
 	resp, err := c.httpClient.R().Get(settingsURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get site info: %w", err)
@@ -95,7 +95,7 @@ func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
 
 	for {
 		url := fmt.Sprintf("%s/media?page=%d&per_page=%d", c.baseURL, page, perPage)
-		
+
 		resp, err := c.httpClient.R().Get(url)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get media page %d: %w", page, err)
@@ -134,7 +134,7 @@ func (c *Client) GetCategories() ([]models.WordPressCategory, error) {
 
 	for {
 		url := fmt.Sprintf("%s/categories?page=%d&per_page=%d", c.baseURL, page, perPage)
-		
+
 		resp, err := c.httpClient.R().Get(url)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get categories page %d: %w", page, err)
@@ -172,7 +172,7 @@ func (c *Client) GetTags() ([]models.WordPressTag, error) {
 
 	for {
 		url := fmt.Sprintf("%s/tags?page=%d&per_page=%d", c.baseURL, page, perPage)
-		
+
 		resp, err := c.httpClient.R().Get(url)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get tags page %d: %w", page, err)
@@ -210,7 +210,7 @@ func (c *Client) GetUsers() ([]models.WordPressUser, error) {
 
 	for {
 		url := fmt.Sprintf("%s/users?page=%d&per_page=%d", c.baseURL, page, perPage)
-		
+
 		resp, err := c.httpClient.R().Get(url)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get users page %d: %w", page, err)
@@ -243,7 +243,7 @@ func (c *Client) GetUsers() ([]models.WordPressUser, error) {
 // GetPostByID retrieves a specific post by ID
 func (c *Client) GetPostByID(id int) (*models.WordPressPost, error) {
 	url := fmt.Sprintf("%s/posts/%d", c.baseURL, id)
-	
+
 	resp, err := c.httpClient.R().Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get post %d: %w", id, err)
@@ -268,7 +268,7 @@ func (c *Client) GetPostByID(id int) (*models.WordPressPost, error) {
 // GetPageByID retrieves a specific page by ID
 func (c *Client) GetPageByID(id int) (*models.WordPressPost, error) {
 	url := fmt.Sprintf("%s/pages/%d", c.baseURL, id)
-	
+
 	resp, err := c.httpClient.R().Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get page %d: %w", id, err)
@@ -293,7 +293,7 @@ func (c *Client) GetPageByID(id int) (*models.WordPressPost, error) {
 // GetMediaByID retrieves a specific media item by ID
 func (c *Client) GetMediaByID(id int) (*models.WordPressMedia, error) {
 	url := fmt.Sprintf("%s/media/%d", c.baseURL, id)
-	
+
 	resp, err := c.httpClient.R().Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get media %d: %w", id, err)
@@ -323,7 +323,7 @@ func (c *Client) getAllContent(endpoint string, factory func() interface{}) ([]m
 
 	for {
 		url := fmt.Sprintf("%s/%s?page=%d&per_page=%d", c.baseURL, endpoint, page, perPage)
-		
+
 		resp, err := c.httpClient.R().Get(url)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get %s page %d: %w", endpoint, page, err)

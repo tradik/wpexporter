@@ -7,20 +7,20 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tradik/wpexportjson/internal/config"
-	"github.com/tradik/wpexportjson/internal/export"
-	"github.com/tradik/wpexportjson/internal/xmlrpc"
-	"github.com/tradik/wpexportjson/pkg/models"
+	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/export"
+	"github.com/tradik/wpexporter/internal/xmlrpc"
+	"github.com/tradik/wpexporter/pkg/models"
 )
 
 var (
-	cfgFile     string
-	url         string
-	username    string
-	password    string
-	output      string
-	format      string
-	verbose     bool
+	cfgFile  string
+	url      string
+	username string
+	password string
+	output   string
+	format   string
+	verbose  bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -76,7 +76,7 @@ func configFileExists() bool {
 		"/etc/wpxmlrpc/config.yaml",
 		"/etc/wpxmlrpc/config.yml",
 	}
-	
+
 	for _, path := range configPaths {
 		if _, err := os.Stat(path); err == nil {
 			return true
@@ -89,7 +89,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// Start with default configuration
 	cfg := config.DefaultConfig()
 	cfg.Output = "./xmlrpc-export" // Different default for XML-RPC
-	
+
 	// Load configuration file if specified or found
 	if cfgFile != "" || configFileExists() {
 		loadedCfg, err := config.LoadConfig(cfgFile)

@@ -21,7 +21,7 @@ DIST_DIR="dist"
 PKG_DIR="$DIST_DIR/packages"
 MAINTAINER="WordPress Export JSON Team <info@example.com>"
 DESCRIPTION="WordPress content export tool with REST API and XML-RPC support"
-HOMEPAGE="https://github.com/tradik/wpexportjson"
+HOMEPAGE="https://github.com/tradik/wpexporter"
 
 # Create package directories
 mkdir -p "$PKG_DIR"/{deb,rpm,tgz}

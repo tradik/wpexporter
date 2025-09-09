@@ -38,6 +38,7 @@ GOCLEAN := $(GOCMD) clean
 GOTEST := $(GOCMD) test
 GOGET := $(GOCMD) get
 GOMOD := $(GOCMD) mod
+GOENV := $(GOCMD) env
 BINARY_NAME := $(APP_NAME)
 XMLRPC_BINARY := wpxmlrpc
 
@@ -52,6 +53,9 @@ help: ## Show this help message
 
 deps: ## Download dependencies
 	@echo "${BLUE}Downloading dependencies...${RESET}"
+	$(GOENV) -w GOPRIVATE=github.com/tradik/*
+	$(GOENV) -w GONOSUMDB=github.com/tradik/*
+	$(GOENV) -w GOPROXY=https://proxy.golang.org,direct
 	$(GOMOD) download
 	$(GOMOD) tidy
 

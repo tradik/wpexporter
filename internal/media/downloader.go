@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/schollz/progressbar/v3"
-	"github.com/tradik/wpexportjson/internal/config"
-	"github.com/tradik/wpexportjson/pkg/models"
+	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/pkg/models"
 )
 
 // Downloader handles media file downloads
@@ -127,7 +127,7 @@ func (d *Downloader) downloadMediaItem(media models.WordPressMedia) bool {
 		if d.downloadFile(media.SourceURL, filePath) {
 			return true
 		}
-		
+
 		if attempt < d.config.Retries {
 			time.Sleep(time.Duration(attempt+1) * time.Second)
 		}
@@ -172,7 +172,7 @@ func (d *Downloader) downloadFile(url, filePath string) bool {
 func (d *Downloader) generateFilename(media models.WordPressMedia, parsedURL *url.URL) string {
 	// Get original filename from URL
 	originalName := filepath.Base(parsedURL.Path)
-	
+
 	// If no filename in URL, generate one
 	if originalName == "" || originalName == "." || originalName == "/" {
 		ext := d.getExtensionFromMimeType(media.MimeType)
@@ -181,12 +181,12 @@ func (d *Downloader) generateFilename(media models.WordPressMedia, parsedURL *ur
 
 	// Sanitize filename
 	filename := d.sanitizeFilename(originalName)
-	
+
 	// Add ID prefix to avoid conflicts
 	name := filepath.Base(filename)
 	ext := filepath.Ext(name)
 	nameWithoutExt := strings.TrimSuffix(name, ext)
-	
+
 	return fmt.Sprintf("%d_%s%s", media.ID, nameWithoutExt, ext)
 }
 
@@ -195,18 +195,18 @@ func (d *Downloader) sanitizeFilename(filename string) string {
 	// Replace invalid characters
 	invalid := []string{"/", "\\", ":", "*", "?", "\"", "<", ">", "|"}
 	sanitized := filename
-	
+
 	for _, char := range invalid {
 		sanitized = strings.ReplaceAll(sanitized, char, "_")
 	}
-	
+
 	// Limit length
 	if len(sanitized) > 200 {
 		ext := filepath.Ext(sanitized)
 		name := strings.TrimSuffix(sanitized, ext)
 		sanitized = name[:200-len(ext)] + ext
 	}
-	
+
 	return sanitized
 }
 
@@ -234,11 +234,11 @@ func (d *Downloader) getExtensionFromMimeType(mimeType string) string {
 		"text/plain":      ".txt",
 		"application/zip": ".zip",
 	}
-	
+
 	if ext, exists := extensions[mimeType]; exists {
 		return ext
 	}
-	
+
 	return ".bin" // Default extension
 }
 
@@ -249,24 +249,24 @@ func (d *Downloader) UpdateMediaPaths(content string, mediaItems []models.WordPr
 	}
 
 	updated := content
-	
+
 	for _, media := range mediaItems {
 		if media.SourceURL == "" {
 			continue
 		}
-		
+
 		// Parse URL to generate local filename
 		parsedURL, err := url.Parse(media.SourceURL)
 		if err != nil {
 			continue
 		}
-		
+
 		filename := d.generateFilename(media, parsedURL)
 		localPath := filepath.Join("media", filename)
-		
+
 		// Replace absolute URLs with relative paths
 		updated = strings.ReplaceAll(updated, media.SourceURL, localPath)
-		
+
 		// Also check for different size variants
 		if media.MediaDetails.Sizes != nil {
 			for _, size := range media.MediaDetails.Sizes {
@@ -278,7 +278,7 @@ func (d *Downloader) UpdateMediaPaths(content string, mediaItems []models.WordPr
 			}
 		}
 	}
-	
+
 	return updated
 }
 
@@ -289,18 +289,18 @@ func (d *Downloader) generateSizeFilename(media models.WordPressMedia, size mode
 	if err != nil {
 		return d.generateFilename(media, originalURL)
 	}
-	
+
 	// Get size filename
 	sizeFilename := filepath.Base(sizeURL.Path)
 	if sizeFilename == "" {
 		return d.generateFilename(media, originalURL)
 	}
-	
+
 	// Sanitize and add ID prefix
 	sanitized := d.sanitizeFilename(sizeFilename)
 	name := filepath.Base(sanitized)
 	ext := filepath.Ext(name)
 	nameWithoutExt := strings.TrimSuffix(name, ext)
-	
+
 	return fmt.Sprintf("%d_%s%s", media.ID, nameWithoutExt, ext)
 }

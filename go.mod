@@ -1,4 +1,4 @@
-module github.com/tradik/wpexportjson
+module github.com/tradik/wpexporter
 
 go 1.24
 
