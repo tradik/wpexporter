@@ -3,8 +3,8 @@ package export
 import (
 	"testing"
 
-	"github.com/tradik/wpexportjson/internal/config"
-	"github.com/tradik/wpexportjson/internal/media"
+	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/media"
 )
 
 func TestExtractCategoriesFromLink(t *testing.T) {

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tradik/wpexportjson/internal/config"
-	"github.com/tradik/wpexportjson/internal/media"
-	"github.com/tradik/wpexportjson/pkg/models"
+	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/media"
+	"github.com/tradik/wpexporter/pkg/models"
 )
 
 // Exporter handles data export functionality
