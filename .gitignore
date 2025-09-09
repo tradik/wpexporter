@@ -17,7 +17,7 @@ vendor/
 # Go workspace file
 go.work
 
-export/
+/export/
 
 # IDE files
 .vscode/
