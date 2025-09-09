@@ -90,7 +90,7 @@ func (e *Exporter) exportJSON(data *models.ExportData) error {
 func (e *Exporter) exportMarkdown(data *models.ExportData) error {
 	// Create base directory structure
 	pagesDir := filepath.Join(e.config.Output, "pages")
-	
+
 	if err := os.MkdirAll(pagesDir, 0755); err != nil {
 		return fmt.Errorf("failed to create pages directory: %w", err)
 	}
@@ -133,7 +133,7 @@ func (e *Exporter) exportSiteInfo(site models.SiteInfo) error {
 ---
 
 *Exported on %s*
-`, 
+`,
 		site.Name,
 		site.Description,
 		site.URL,
@@ -155,30 +155,30 @@ func (e *Exporter) exportPostsWithCategories(posts []models.WordPressPost, categ
 	for _, cat := range categories {
 		categoryMap[cat.ID] = cat
 	}
-	
+
 	// Create category hierarchy map
 	categoryHierarchy := e.buildCategoryHierarchy(categories)
-	
+
 	for _, post := range posts {
 		// Determine the category path for this post
 		categoryPath := e.getCategoryPath(post, categoryMap, categoryHierarchy)
-		
+
 		// Create the full directory path
 		postDir := filepath.Join(e.config.Output, "posts", categoryPath)
 		if err := os.MkdirAll(postDir, 0755); err != nil {
 			return fmt.Errorf("failed to create category directory %s: %w", postDir, err)
 		}
-		
+
 		// Generate filename and content
 		filename := e.generateMarkdownFilename(post)
 		filePath := filepath.Join(postDir, filename)
 		content := e.generateMarkdownContent(post, contentType)
-		
+
 		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 			return fmt.Errorf("failed to write %s file %s: %w", contentType, filename, err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -187,14 +187,14 @@ func (e *Exporter) exportPostsMarkdown(posts []models.WordPressPost, dir, conten
 	for _, post := range posts {
 		filename := e.generateMarkdownFilename(post)
 		filePath := filepath.Join(dir, filename)
-		
+
 		content := e.generateMarkdownContent(post, contentType)
-		
+
 		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 			return fmt.Errorf("failed to write %s file %s: %w", contentType, filename, err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -202,16 +202,16 @@ func (e *Exporter) exportPostsMarkdown(posts []models.WordPressPost, dir, conten
 func (e *Exporter) generateMarkdownFilename(post models.WordPressPost) string {
 	// Use only slug for filename (no date)
 	slug := post.Slug
-	
+
 	if slug == "" {
 		slug = fmt.Sprintf("post-%d", post.ID)
 	}
-	
+
 	// Sanitize slug
 	slug = strings.ReplaceAll(slug, "/", "-")
 	slug = strings.ReplaceAll(slug, "\\", "-")
 	slug = strings.ReplaceAll(slug, ":", "-")
-	
+
 	return fmt.Sprintf("%s.md", slug)
 }
 
@@ -219,24 +219,24 @@ func (e *Exporter) generateMarkdownFilename(post models.WordPressPost) string {
 func (e *Exporter) buildCategoryHierarchy(categories []models.WordPressCategory) map[int][]string {
 	hierarchy := make(map[int][]string)
 	categoryMap := make(map[int]models.WordPressCategory)
-	
+
 	// Create category lookup map
 	for _, cat := range categories {
 		categoryMap[cat.ID] = cat
 	}
-	
+
 	// Build hierarchy paths
 	var buildPath func(int) []string
 	buildPath = func(catID int) []string {
 		if path, exists := hierarchy[catID]; exists {
 			return path
 		}
-		
+
 		cat, exists := categoryMap[catID]
 		if !exists {
 			return []string{}
 		}
-		
+
 		var path []string
 		if cat.Parent > 0 {
 			parentPath := buildPath(cat.Parent)
@@ -244,16 +244,16 @@ func (e *Exporter) buildCategoryHierarchy(categories []models.WordPressCategory)
 		} else {
 			path = []string{e.sanitizeDirectoryName(cat.Slug)}
 		}
-		
+
 		hierarchy[catID] = path
 		return path
 	}
-	
+
 	// Build paths for all categories
 	for _, cat := range categories {
 		buildPath(cat.ID)
 	}
-	
+
 	return hierarchy
 }
 
@@ -263,37 +263,37 @@ func (e *Exporter) getCategoryPath(post models.WordPressPost, categoryMap map[in
 	if linkCategories := e.extractCategoriesFromLink(post.Link); linkCategories != "" {
 		return linkCategories
 	}
-	
+
 	if len(post.Categories) == 0 {
 		return "uncategorized"
 	}
-	
+
 	// Use the first category for the primary path
 	primaryCategoryID := post.Categories[0]
-	
+
 	if path, exists := hierarchy[primaryCategoryID]; exists && len(path) > 0 {
 		categoryPath := filepath.Join(path...)
-		
+
 		// Skip generic "posts" category and use uncategorized instead
 		if categoryPath == "posts" {
 			return "uncategorized"
 		}
-		
+
 		return categoryPath
 	}
-	
+
 	// Fallback to category slug if hierarchy lookup fails
 	if cat, exists := categoryMap[primaryCategoryID]; exists {
 		slug := e.sanitizeDirectoryName(cat.Slug)
-		
+
 		// Skip generic "posts" category
 		if slug == "posts" {
 			return "uncategorized"
 		}
-		
+
 		return slug
 	}
-	
+
 	return "uncategorized"
 }
 
@@ -302,24 +302,24 @@ func (e *Exporter) sanitizeDirectoryName(name string) string {
 	// Replace invalid characters with hyphens
 	invalid := []string{"/", "\\", ":", "*", "?", "\"", "<", ">", "|", " "}
 	sanitized := name
-	
+
 	for _, char := range invalid {
 		sanitized = strings.ReplaceAll(sanitized, char, "-")
 	}
-	
+
 	// Remove multiple consecutive hyphens
 	for strings.Contains(sanitized, "--") {
 		sanitized = strings.ReplaceAll(sanitized, "--", "-")
 	}
-	
+
 	// Trim hyphens from start and end
 	sanitized = strings.Trim(sanitized, "-")
-	
+
 	// Ensure it's not empty
 	if sanitized == "" {
 		sanitized = "category"
 	}
-	
+
 	return sanitized
 }
 
@@ -328,35 +328,35 @@ func (e *Exporter) extractCategoriesFromLink(link string) string {
 	if link == "" {
 		return ""
 	}
-	
+
 	// Parse the URL to get the path
 	parsedURL, err := url.Parse(link)
 	if err != nil {
 		return ""
 	}
-	
+
 	path := strings.Trim(parsedURL.Path, "/")
 	if path == "" {
 		return ""
 	}
-	
+
 	// Split the path into segments
 	segments := strings.Split(path, "/")
-	
+
 	// Common WordPress permalink structures:
 	// 1. /%category%/%postname%/
 	// 2. /%category%/%subcategory%/%postname%/
 	// 3. /%year%/%monthnum%/%day%/%postname%/
 	// 4. /%postname%/ (no categories)
-	
+
 	// If there's only one segment, it's likely just the post slug
 	if len(segments) <= 1 {
 		return ""
 	}
-	
+
 	// Check if the last segment looks like a post slug (no file extension, reasonable length)
 	_ = segments[len(segments)-1] // Last segment is the post slug
-	
+
 	// Skip if it looks like a date-based permalink (YYYY/MM/DD structure)
 	if len(segments) >= 3 {
 		// Check if first three segments are numeric (year/month/day)
@@ -364,10 +364,10 @@ func (e *Exporter) extractCategoriesFromLink(link string) string {
 			return ""
 		}
 	}
-	
+
 	// Extract category segments (all but the last one, which should be the post slug)
 	categorySegments := segments[:len(segments)-1]
-	
+
 	// Filter out common non-category segments
 	var validCategories []string
 	for _, segment := range categorySegments {
@@ -375,24 +375,24 @@ func (e *Exporter) extractCategoriesFromLink(link string) string {
 		if e.isNumeric(segment) {
 			continue
 		}
-		
+
 		// Skip common WordPress segments that aren't categories
 		if segment == "blog" || segment == "news" || segment == "posts" || segment == "archives" {
 			continue
 		}
-		
+
 		// Sanitize and add valid category segments
 		sanitized := e.sanitizeDirectoryName(segment)
 		if sanitized != "" && sanitized != "category" {
 			validCategories = append(validCategories, sanitized)
 		}
 	}
-	
+
 	// Return the category path
 	if len(validCategories) > 0 {
 		return filepath.Join(validCategories...)
 	}
-	
+
 	return ""
 }
 
@@ -412,7 +412,7 @@ func (e *Exporter) isNumeric(s string) bool {
 // generateMarkdownContent generates markdown content for a post
 func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentType string) string {
 	var builder strings.Builder
-	
+
 	// Front matter
 	builder.WriteString("---\n")
 	builder.WriteString(fmt.Sprintf("id: %d\n", post.ID))
@@ -423,64 +423,64 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 	builder.WriteString(fmt.Sprintf("status: \"%s\"\n", post.Status))
 	builder.WriteString(fmt.Sprintf("type: \"%s\"\n", contentType))
 	builder.WriteString(fmt.Sprintf("link: \"%s\"\n", post.Link))
-	
+
 	if post.Author > 0 {
 		builder.WriteString(fmt.Sprintf("author: %d\n", post.Author))
 	}
-	
+
 	if post.FeaturedMedia > 0 {
 		builder.WriteString(fmt.Sprintf("featured_media: %d\n", post.FeaturedMedia))
 	}
-	
+
 	if len(post.Categories) > 0 {
 		builder.WriteString("categories:\n")
 		for _, cat := range post.Categories {
 			builder.WriteString(fmt.Sprintf("  - %d\n", cat))
 		}
 	}
-	
+
 	if len(post.Tags) > 0 {
 		builder.WriteString("tags:\n")
 		for _, tag := range post.Tags {
 			builder.WriteString(fmt.Sprintf("  - %d\n", tag))
 		}
 	}
-	
+
 	builder.WriteString("---\n\n")
-	
+
 	// Title
 	builder.WriteString(fmt.Sprintf("# %s\n\n", post.Title.Rendered))
-	
+
 	// Excerpt if available
 	if post.Excerpt.Rendered != "" {
 		builder.WriteString("## Excerpt\n\n")
 		builder.WriteString(e.convertHTMLToMarkdown(post.Excerpt.Rendered))
 		builder.WriteString("\n\n")
 	}
-	
+
 	// Content
 	builder.WriteString("## Content\n\n")
 	builder.WriteString(e.convertHTMLToMarkdown(post.Content.Rendered))
-	
+
 	return builder.String()
 }
 
 // exportMetadata exports categories, tags, users, and media as JSON
 func (e *Exporter) exportMetadata(data *models.ExportData) error {
 	metadata := map[string]interface{}{
-		"categories": data.Categories,
-		"tags":       data.Tags,
-		"users":      data.Users,
-		"media":      data.Media,
-		"stats":      data.Stats,
+		"categories":  data.Categories,
+		"tags":        data.Tags,
+		"users":       data.Users,
+		"media":       data.Media,
+		"stats":       data.Stats,
 		"exported_at": time.Now(),
 	}
-	
+
 	jsonData, err := json.MarshalIndent(metadata, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
-	
+
 	filePath := filepath.Join(e.config.Output, "metadata.json")
 	return os.WriteFile(filePath, jsonData, 0644)
 }
@@ -490,7 +490,7 @@ func (e *Exporter) updateMediaPaths(data *models.ExportData) {
 	if !e.config.DownloadMedia {
 		return
 	}
-	
+
 	// Update posts
 	for i := range data.Posts {
 		data.Posts[i].Content.Rendered = e.downloader.UpdateMediaPaths(
@@ -498,7 +498,7 @@ func (e *Exporter) updateMediaPaths(data *models.ExportData) {
 		data.Posts[i].Excerpt.Rendered = e.downloader.UpdateMediaPaths(
 			data.Posts[i].Excerpt.Rendered, data.Media)
 	}
-	
+
 	// Update pages
 	for i := range data.Pages {
 		data.Pages[i].Content.Rendered = e.downloader.UpdateMediaPaths(
@@ -520,9 +520,9 @@ func (e *Exporter) escapeYAML(s string) string {
 func (e *Exporter) convertHTMLToMarkdown(html string) string {
 	// Basic HTML to Markdown conversion
 	// This is a simplified version - for production use, consider using a proper HTML to Markdown library
-	
+
 	md := html
-	
+
 	// Headers
 	md = strings.ReplaceAll(md, "<h1>", "# ")
 	md = strings.ReplaceAll(md, "</h1>", "\n\n")
@@ -536,7 +536,7 @@ func (e *Exporter) convertHTMLToMarkdown(html string) string {
 	md = strings.ReplaceAll(md, "</h5>", "\n\n")
 	md = strings.ReplaceAll(md, "<h6>", "###### ")
 	md = strings.ReplaceAll(md, "</h6>", "\n\n")
-	
+
 	// Bold and italic
 	md = strings.ReplaceAll(md, "<strong>", "**")
 	md = strings.ReplaceAll(md, "</strong>", "**")
@@ -546,16 +546,16 @@ func (e *Exporter) convertHTMLToMarkdown(html string) string {
 	md = strings.ReplaceAll(md, "</em>", "*")
 	md = strings.ReplaceAll(md, "<i>", "*")
 	md = strings.ReplaceAll(md, "</i>", "*")
-	
+
 	// Paragraphs
 	md = strings.ReplaceAll(md, "<p>", "")
 	md = strings.ReplaceAll(md, "</p>", "\n\n")
-	
+
 	// Line breaks
 	md = strings.ReplaceAll(md, "<br>", "\n")
 	md = strings.ReplaceAll(md, "<br/>", "\n")
 	md = strings.ReplaceAll(md, "<br />", "\n")
-	
+
 	// Lists
 	md = strings.ReplaceAll(md, "<ul>", "")
 	md = strings.ReplaceAll(md, "</ul>", "\n")
@@ -563,16 +563,16 @@ func (e *Exporter) convertHTMLToMarkdown(html string) string {
 	md = strings.ReplaceAll(md, "</ol>", "\n")
 	md = strings.ReplaceAll(md, "<li>", "- ")
 	md = strings.ReplaceAll(md, "</li>", "\n")
-	
+
 	// Code
 	md = strings.ReplaceAll(md, "<code>", "`")
 	md = strings.ReplaceAll(md, "</code>", "`")
 	md = strings.ReplaceAll(md, "<pre>", "```\n")
 	md = strings.ReplaceAll(md, "</pre>", "\n```")
-	
+
 	// Clean up extra whitespace
 	md = strings.ReplaceAll(md, "\n\n\n", "\n\n")
 	md = strings.TrimSpace(md)
-	
+
 	return md
 }
