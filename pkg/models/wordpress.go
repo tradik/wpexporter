@@ -90,7 +90,7 @@ type WordPressMedia struct {
 	CommentStatus   string                 `json:"comment_status"`
 	PingStatus      string                 `json:"ping_status"`
 	Template        string                 `json:"template"`
-	Meta            map[string]interface{} `json:"meta"`
+	Meta            interface{}            `json:"meta"`
 	Description     RenderedContent        `json:"description"`
 	Caption         RenderedContent        `json:"caption"`
 	AltText         string                 `json:"alt_text"`
@@ -155,22 +155,22 @@ type GUID struct {
 
 // MediaDetails represents WordPress media details
 type MediaDetails struct {
-	Width     int                    `json:"width,omitempty"`
-	Height    int                    `json:"height,omitempty"`
+	Width     interface{}            `json:"width,omitempty"`
+	Height    interface{}            `json:"height,omitempty"`
 	File      string                 `json:"file,omitempty"`
 	Sizes     map[string]MediaSize   `json:"sizes,omitempty"`
 	ImageMeta map[string]interface{} `json:"image_meta,omitempty"`
-	Length    int                    `json:"length,omitempty"`
-	Filesize  int                    `json:"filesize,omitempty"`
+	Length    interface{}            `json:"length,omitempty"`
+	Filesize  interface{}            `json:"filesize,omitempty"`
 }
 
 // MediaSize represents a WordPress media size
 type MediaSize struct {
-	File      string `json:"file"`
-	Width     int    `json:"width"`
-	Height    int    `json:"height"`
-	MimeType  string `json:"mime_type"`
-	SourceURL string `json:"source_url"`
+	File      string      `json:"file"`
+	Width     interface{} `json:"width"`
+	Height    interface{} `json:"height"`
+	MimeType  string      `json:"mime_type"`
+	SourceURL string      `json:"source_url"`
 }
 
 // Links represents WordPress API links
