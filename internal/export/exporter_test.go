@@ -4,13 +4,11 @@ import (
 	"testing"
 
 	"github.com/tradik/wpexporter/internal/config"
-	"github.com/tradik/wpexporter/internal/media"
 )
 
 func TestExtractCategoriesFromLink(t *testing.T) {
 	cfg := &config.Config{}
-	downloader := &media.Downloader{}
-	exporter := NewExporter(cfg, downloader)
+	exporter := NewExporter(cfg)
 
 	tests := []struct {
 		name     string
@@ -81,8 +79,7 @@ func TestExtractCategoriesFromLink(t *testing.T) {
 
 func TestIsNumeric(t *testing.T) {
 	cfg := &config.Config{}
-	downloader := &media.Downloader{}
-	exporter := NewExporter(cfg, downloader)
+	exporter := NewExporter(cfg)
 
 	tests := []struct {
 		input    string
