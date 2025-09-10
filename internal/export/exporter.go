@@ -376,8 +376,8 @@ func (e *Exporter) extractCategoriesFromLink(link string) string {
 			continue
 		}
 
-		// Skip common WordPress segments that aren't categories
-		if segment == "blog" || segment == "news" || segment == "posts" || segment == "archives" {
+		// Skip common WordPress segments that aren't categories (but keep 'news' as it's often a valid category)
+		if segment == "blog" || segment == "posts" || segment == "archives" {
 			continue
 		}
 
