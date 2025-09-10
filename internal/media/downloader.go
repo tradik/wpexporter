@@ -176,8 +176,11 @@ func (d *Downloader) downloadFile(url, filePath string) bool {
 		return false
 	}
 
+	// Clean and validate file path before creation to prevent directory traversal
+	cleanFilePath := filepath.Clean(filePath)
+
 	// Create file
-	file, err := os.Create(filePath)
+	file, err := os.Create(cleanFilePath)
 	if err != nil {
 		return false
 	}
