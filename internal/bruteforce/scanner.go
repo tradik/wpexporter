@@ -140,7 +140,9 @@ func (s *Scanner) scanPosts(existingIDs map[int]bool) []models.WordPressPost {
 						}
 					}
 				}
-				progress.Add(1)
+				if err := progress.Add(1); err != nil {
+					fmt.Printf("Progress update error: %v\n", err)
+				}
 
 				// Small delay to avoid overwhelming the server
 				time.Sleep(10 * time.Millisecond)
@@ -155,7 +157,9 @@ func (s *Scanner) scanPosts(existingIDs map[int]bool) []models.WordPressPost {
 	close(jobs)
 
 	wg.Wait()
-	progress.Finish()
+	if err := progress.Finish(); err != nil {
+		fmt.Printf("Progress finish error: %v\n", err)
+	}
 
 	return foundPosts
 }
@@ -202,7 +206,9 @@ func (s *Scanner) scanPages(existingIDs map[int]bool) []models.WordPressPost {
 						}
 					}
 				}
-				progress.Add(1)
+				if err := progress.Add(1); err != nil {
+					fmt.Printf("Progress update error: %v\n", err)
+				}
 
 				// Small delay to avoid overwhelming the server
 				time.Sleep(10 * time.Millisecond)
@@ -217,7 +223,9 @@ func (s *Scanner) scanPages(existingIDs map[int]bool) []models.WordPressPost {
 	close(jobs)
 
 	wg.Wait()
-	progress.Finish()
+	if err := progress.Finish(); err != nil {
+		fmt.Printf("Progress finish error: %v\n", err)
+	}
 
 	return foundPages
 }
@@ -264,7 +272,9 @@ func (s *Scanner) scanMedia(existingIDs map[int]bool) []models.WordPressMedia {
 						}
 					}
 				}
-				progress.Add(1)
+				if err := progress.Add(1); err != nil {
+					fmt.Printf("Progress update error: %v\n", err)
+				}
 
 				// Small delay to avoid overwhelming the server
 				time.Sleep(10 * time.Millisecond)
@@ -279,7 +289,9 @@ func (s *Scanner) scanMedia(existingIDs map[int]bool) []models.WordPressMedia {
 	close(jobs)
 
 	wg.Wait()
-	progress.Finish()
+	if err := progress.Finish(); err != nil {
+		fmt.Printf("Progress finish error: %v\n", err)
+	}
 
 	return foundMedia
 }
@@ -303,10 +315,14 @@ func (s *Scanner) ScanSpecificRange(contentType string, startID, endID int) (int
 			if err == nil && post != nil {
 				posts = append(posts, *post)
 			}
-			progress.Add(1)
+			if err := progress.Add(1); err != nil {
+				fmt.Printf("Progress update error: %v\n", err)
+			}
 			time.Sleep(10 * time.Millisecond)
 		}
-		progress.Finish()
+		if err := progress.Finish(); err != nil {
+			fmt.Printf("Progress finish error: %v\n", err)
+		}
 		return posts, nil
 
 	case "pages":
@@ -316,10 +332,14 @@ func (s *Scanner) ScanSpecificRange(contentType string, startID, endID int) (int
 			if err == nil && page != nil {
 				pages = append(pages, *page)
 			}
-			progress.Add(1)
+			if err := progress.Add(1); err != nil {
+				fmt.Printf("Progress update error: %v\n", err)
+			}
 			time.Sleep(10 * time.Millisecond)
 		}
-		progress.Finish()
+		if err := progress.Finish(); err != nil {
+			fmt.Printf("Progress finish error: %v\n", err)
+		}
 		return pages, nil
 
 	case "media":
@@ -329,10 +349,14 @@ func (s *Scanner) ScanSpecificRange(contentType string, startID, endID int) (int
 			if err == nil && mediaItem != nil {
 				media = append(media, *mediaItem)
 			}
-			progress.Add(1)
+			if err := progress.Add(1); err != nil {
+				fmt.Printf("Progress update error: %v\n", err)
+			}
 			time.Sleep(10 * time.Millisecond)
 		}
-		progress.Finish()
+		if err := progress.Finish(); err != nil {
+			fmt.Printf("Progress finish error: %v\n", err)
+		}
 		return media, nil
 
 	default:

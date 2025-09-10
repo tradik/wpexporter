@@ -56,8 +56,12 @@ func init() {
 	exportCmd.Flags().StringVarP(&format, "format", "f", "json", "export format (json|markdown)")
 
 	// Mark required flags
-	exportCmd.MarkFlagRequired("url")
-	exportCmd.MarkFlagRequired("username")
+	if err := exportCmd.MarkFlagRequired("url"); err != nil {
+		panic(fmt.Sprintf("Failed to mark url flag as required: %v", err))
+	}
+	if err := exportCmd.MarkFlagRequired("username"); err != nil {
+		panic(fmt.Sprintf("Failed to mark username flag as required: %v", err))
+	}
 
 	rootCmd.AddCommand(exportCmd)
 }

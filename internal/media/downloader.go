@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/schollz/progressbar/v3"
@@ -22,7 +21,6 @@ type Downloader struct {
 	httpClient *http.Client
 	mediaDir   string
 	progress   *progressbar.ProgressBar
-	mutex      sync.Mutex
 }
 
 // NewDownloader creates a new media downloader
@@ -83,10 +81,14 @@ func (d *Downloader) DownloadMedia(mediaItems []models.WordPressMedia) (int, err
 		if <-results {
 			downloaded++
 		}
-		d.progress.Add(1)
+		if err := d.progress.Add(1); err != nil {
+			return downloaded, err
+		}
 	}
 
-	d.progress.Finish()
+	if err := d.progress.Finish(); err != nil {
+		return downloaded, err
+	}
 	return downloaded, nil
 }
 

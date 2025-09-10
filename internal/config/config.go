@@ -58,17 +58,39 @@ func LoadConfig(configFile string) (*Config, error) {
 	viper.AutomaticEnv()
 
 	// Bind environment variables
-	viper.BindEnv("url", "WPEXPORT_URL")
-	viper.BindEnv("output", "WPEXPORT_OUTPUT")
-	viper.BindEnv("format", "WPEXPORT_FORMAT")
-	viper.BindEnv("brute_force", "WPEXPORT_BRUTE_FORCE")
-	viper.BindEnv("max_id", "WPEXPORT_MAX_ID")
-	viper.BindEnv("download_media", "WPEXPORT_DOWNLOAD_MEDIA")
-	viper.BindEnv("concurrent", "WPEXPORT_CONCURRENT")
-	viper.BindEnv("timeout", "WPEXPORT_TIMEOUT")
-	viper.BindEnv("retries", "WPEXPORT_RETRIES")
-	viper.BindEnv("user_agent", "WPEXPORT_USER_AGENT")
-	viper.BindEnv("verbose", "WPEXPORT_VERBOSE")
+	if err := viper.BindEnv("url", "WPEXPORT_URL"); err != nil {
+		return nil, fmt.Errorf("failed to bind url environment variable: %w", err)
+	}
+	if err := viper.BindEnv("output", "WPEXPORT_OUTPUT"); err != nil {
+		return nil, fmt.Errorf("failed to bind output environment variable: %w", err)
+	}
+	if err := viper.BindEnv("format", "WPEXPORT_FORMAT"); err != nil {
+		return nil, fmt.Errorf("failed to bind format environment variable: %w", err)
+	}
+	if err := viper.BindEnv("brute_force", "WPEXPORT_BRUTE_FORCE"); err != nil {
+		return nil, fmt.Errorf("failed to bind brute_force environment variable: %w", err)
+	}
+	if err := viper.BindEnv("max_id", "WPEXPORT_MAX_ID"); err != nil {
+		return nil, fmt.Errorf("failed to bind max_id environment variable: %w", err)
+	}
+	if err := viper.BindEnv("download_media", "WPEXPORT_DOWNLOAD_MEDIA"); err != nil {
+		return nil, fmt.Errorf("failed to bind download_media environment variable: %w", err)
+	}
+	if err := viper.BindEnv("concurrent", "WPEXPORT_CONCURRENT"); err != nil {
+		return nil, fmt.Errorf("failed to bind concurrent environment variable: %w", err)
+	}
+	if err := viper.BindEnv("timeout", "WPEXPORT_TIMEOUT"); err != nil {
+		return nil, fmt.Errorf("failed to bind timeout environment variable: %w", err)
+	}
+	if err := viper.BindEnv("retries", "WPEXPORT_RETRIES"); err != nil {
+		return nil, fmt.Errorf("failed to bind retries environment variable: %w", err)
+	}
+	if err := viper.BindEnv("user_agent", "WPEXPORT_USER_AGENT"); err != nil {
+		return nil, fmt.Errorf("failed to bind user_agent environment variable: %w", err)
+	}
+	if err := viper.BindEnv("verbose", "WPEXPORT_VERBOSE"); err != nil {
+		return nil, fmt.Errorf("failed to bind verbose environment variable: %w", err)
+	}
 
 	// Load config file if specified
 	if configFile != "" {
@@ -180,24 +202,24 @@ func sanitizeDomainName(domain string) string {
 	// Replace invalid characters with hyphens
 	invalid := []string{"/", "\\", ":", "*", "?", "\"", "<", ">", "|", " "}
 	sanitized := domain
-	
+
 	for _, char := range invalid {
 		sanitized = strings.ReplaceAll(sanitized, char, "-")
 	}
-	
+
 	// Remove multiple consecutive hyphens
 	for strings.Contains(sanitized, "--") {
 		sanitized = strings.ReplaceAll(sanitized, "--", "-")
 	}
-	
+
 	// Trim hyphens from start and end
 	sanitized = strings.Trim(sanitized, "-")
-	
+
 	// Ensure it's not empty
 	if sanitized == "" {
 		sanitized = "wordpress-site"
 	}
-	
+
 	return sanitized
 }
 

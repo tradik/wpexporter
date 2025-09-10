@@ -62,7 +62,9 @@ func init() {
 	exportCmd.Flags().IntVarP(&concurrent, "concurrent", "c", 5, "concurrent downloads")
 
 	// Mark required flags
-	exportCmd.MarkFlagRequired("url")
+	if err := exportCmd.MarkFlagRequired("url"); err != nil {
+		panic(fmt.Sprintf("Failed to mark url flag as required: %v", err))
+	}
 
 	rootCmd.AddCommand(exportCmd)
 }
