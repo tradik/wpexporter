@@ -41,8 +41,13 @@ func (d *Downloader) DownloadMedia(mediaItems []models.WordPressMedia) (int, err
 	}
 
 	// Ensure media directory exists
-	if err := os.MkdirAll(d.mediaDir, 0755); err != nil {
+	if err := os.MkdirAll(d.mediaDir, 0750); err != nil {
 		return 0, fmt.Errorf("failed to create media directory: %w", err)
+	}
+
+	// Validate media directory path
+	if !filepath.IsAbs(d.mediaDir) {
+		return 0, fmt.Errorf("media directory path must be absolute")
 	}
 
 	// Create progress bar
@@ -118,6 +123,11 @@ func (d *Downloader) downloadMediaItem(media models.WordPressMedia) bool {
 	// Generate filename
 	filename := d.generateFilename(media, parsedURL)
 	filePath := filepath.Join(d.mediaDir, filename)
+
+	// Validate file path
+	if !filepath.IsAbs(filePath) {
+		return false
+	}
 
 	// Check if file already exists
 	if _, err := os.Stat(filePath); err == nil {

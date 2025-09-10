@@ -78,7 +78,7 @@ func (e *Exporter) exportJSON(data *models.ExportData) error {
 	}
 
 	// Write JSON file
-	if err := os.WriteFile(outputPath, jsonData, 0644); err != nil {
+	if err := os.WriteFile(outputPath, jsonData, 0600); err != nil {
 		return fmt.Errorf("failed to write JSON file: %w", err)
 	}
 
@@ -91,7 +91,7 @@ func (e *Exporter) exportMarkdown(data *models.ExportData) error {
 	// Create base directory structure
 	pagesDir := filepath.Join(e.config.Output, "pages")
 
-	if err := os.MkdirAll(pagesDir, 0755); err != nil {
+	if err := os.MkdirAll(pagesDir, 0750); err != nil {
 		return fmt.Errorf("failed to create pages directory: %w", err)
 	}
 
@@ -145,7 +145,7 @@ func (e *Exporter) exportSiteInfo(site models.SiteInfo) error {
 	)
 
 	filePath := filepath.Join(e.config.Output, "README.md")
-	return os.WriteFile(filePath, []byte(content), 0644)
+	return os.WriteFile(filePath, []byte(content), 0600)
 }
 
 // exportPostsWithCategories exports posts organized by category folders
@@ -165,7 +165,7 @@ func (e *Exporter) exportPostsWithCategories(posts []models.WordPressPost, categ
 
 		// Create the full directory path
 		postDir := filepath.Join(e.config.Output, "posts", categoryPath)
-		if err := os.MkdirAll(postDir, 0755); err != nil {
+		if err := os.MkdirAll(postDir, 0750); err != nil {
 			return fmt.Errorf("failed to create category directory %s: %w", postDir, err)
 		}
 
@@ -174,7 +174,7 @@ func (e *Exporter) exportPostsWithCategories(posts []models.WordPressPost, categ
 		filePath := filepath.Join(postDir, filename)
 		content := e.generateMarkdownContent(post, contentType)
 
-		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(filePath, []byte(content), 0600); err != nil {
 			return fmt.Errorf("failed to write %s file %s: %w", contentType, filename, err)
 		}
 	}
@@ -190,7 +190,7 @@ func (e *Exporter) exportPostsMarkdown(posts []models.WordPressPost, dir, conten
 
 		content := e.generateMarkdownContent(post, contentType)
 
-		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(filePath, []byte(content), 0600); err != nil {
 			return fmt.Errorf("failed to write %s file %s: %w", contentType, filename, err)
 		}
 	}
@@ -482,7 +482,7 @@ func (e *Exporter) exportMetadata(data *models.ExportData) error {
 	}
 
 	filePath := filepath.Join(e.config.Output, "metadata.json")
-	return os.WriteFile(filePath, jsonData, 0644)
+	return os.WriteFile(filePath, jsonData, 0600)
 }
 
 // updateMediaPaths updates media URLs in all content
