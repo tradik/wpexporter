@@ -34,7 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - N/A
 
 ### Security
-- N/A
+- Fixed G301 security issues: Changed directory permissions from 0755 to 0750 for better security
+- Fixed G306 security issues: Changed file permissions from 0644 to 0600 for better security  
+- Fixed G304 security issue: Added comprehensive path validation to prevent directory traversal attacks
+- Added file path sanitization and validation in media downloader
+- Enhanced security by ensuring all file operations are contained within designated directories
 
 ## [0.1.0] - 2024-01-07
 

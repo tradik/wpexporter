@@ -151,11 +151,11 @@ func (c *Config) EnsureOutputDir() error {
 	if c.Format == "json" && filepath.Ext(c.Output) == ".json" {
 		// If output is a JSON file, ensure parent directory exists
 		dir := filepath.Dir(c.Output)
-		return os.MkdirAll(dir, 0755)
+		return os.MkdirAll(dir, 0750)
 	}
 
 	// Otherwise, ensure output directory exists
-	return os.MkdirAll(c.Output, 0755)
+	return os.MkdirAll(c.Output, 0750)
 }
 
 // GenerateDefaultOutput generates the default output path based on URL and current date

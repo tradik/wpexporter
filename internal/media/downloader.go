@@ -41,8 +41,13 @@ func (d *Downloader) DownloadMedia(mediaItems []models.WordPressMedia) (int, err
 	}
 
 	// Ensure media directory exists
-	if err := os.MkdirAll(d.mediaDir, 0755); err != nil {
+	if err := os.MkdirAll(d.mediaDir, 0750); err != nil {
 		return 0, fmt.Errorf("failed to create media directory: %w", err)
+	}
+
+	// Validate media directory path
+	if !filepath.IsAbs(d.mediaDir) {
+		return 0, fmt.Errorf("media directory path must be absolute")
 	}
 
 	// Create progress bar
@@ -119,6 +124,11 @@ func (d *Downloader) downloadMediaItem(media models.WordPressMedia) bool {
 	filename := d.generateFilename(media, parsedURL)
 	filePath := filepath.Join(d.mediaDir, filename)
 
+	// Validate file path
+	if !filepath.IsAbs(filePath) {
+		return false
+	}
+
 	// Check if file already exists
 	if _, err := os.Stat(filePath); err == nil {
 		return true // File already exists
@@ -140,6 +150,14 @@ func (d *Downloader) downloadMediaItem(media models.WordPressMedia) bool {
 
 // downloadFile downloads a file from URL to local path
 func (d *Downloader) downloadFile(url, filePath string) bool {
+	// Validate file path to prevent directory traversal
+	if err := d.validateFilePath(filePath); err != nil {
+		if d.config.Verbose {
+			fmt.Printf("Invalid file path %s: %v\n", filePath, err)
+		}
+		return false
+	}
+
 	// Create request
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -158,8 +176,11 @@ func (d *Downloader) downloadFile(url, filePath string) bool {
 		return false
 	}
 
+	// Clean and validate file path before creation to prevent directory traversal
+	cleanFilePath := filepath.Clean(filePath)
+
 	// Create file
-	file, err := os.Create(filePath)
+	file, err := os.Create(cleanFilePath)
 	if err != nil {
 		return false
 	}
@@ -168,6 +189,37 @@ func (d *Downloader) downloadFile(url, filePath string) bool {
 	// Copy data
 	_, err = io.Copy(file, resp.Body)
 	return err == nil
+}
+
+// validateFilePath validates that the file path is safe and within the media directory
+func (d *Downloader) validateFilePath(filePath string) error {
+	// Clean the path to resolve any .. or . components
+	cleanPath := filepath.Clean(filePath)
+
+	// Get absolute path
+	absPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path: %w", err)
+	}
+
+	// Get absolute media directory path
+	absMediaDir, err := filepath.Abs(d.mediaDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute media directory: %w", err)
+	}
+
+	// Check if the file path is within the media directory
+	relPath, err := filepath.Rel(absMediaDir, absPath)
+	if err != nil {
+		return fmt.Errorf("failed to get relative path: %w", err)
+	}
+
+	// Ensure the relative path doesn't start with .. (which would indicate it's outside the media dir)
+	if strings.HasPrefix(relPath, "..") || strings.HasPrefix(relPath, "/") {
+		return fmt.Errorf("file path is outside media directory")
+	}
+
+	return nil
 }
 
 // generateFilename generates a unique filename for a media item
