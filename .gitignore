@@ -51,3 +51,5 @@ temp/
 .windsurf/
 .windsurf/*
 
+.windsurf/rules/packages.md
+.windsurf/rules/*
