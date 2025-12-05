@@ -1,5 +1,8 @@
 # Multi-stage build for WordPress Export JSON
-FROM golang:1.25-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+
+ARG TARGETOS
+ARG TARGETARCH
 
 # Install git and ca-certificates
 RUN apk add --no-cache git ca-certificates tzdata
@@ -16,18 +19,16 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the applications
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o wpexportjson ./cmd/wpexportjson
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o wpxmlrpc ./cmd/wpxmlrpc
+# Build the applications for target platform
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-s -w" -o wpexportjson ./cmd/wpexportjson
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-s -w" -o wpxmlrpc ./cmd/wpxmlrpc
 
 # Final stage
-FROM alpine:latest
+FROM alpine:3.21
 
-# Install ca-certificates for HTTPS requests
-RUN apk --no-cache add ca-certificates
-
-# Create non-root user
-RUN addgroup -g 1001 -S wpexport && \
+# Install ca-certificates for HTTPS requests and create non-root user
+RUN apk add --no-cache --no-scripts ca-certificates && \
+    addgroup -g 1001 -S wpexport && \
     adduser -u 1001 -S wpexport -G wpexport
 
 # Set working directory

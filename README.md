@@ -1,7 +1,8 @@
 # WordPress Export JSON
 
-[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://golang.org/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![License](https://img.shields.io/badge/License-MIT%20%2F%20BSD--3--Clause-blue.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat&logo=docker)](https://github.com/tradik/wpexportjson/pkgs/container/wpexportjson)
 [![CI/CD](https://github.com/tradik/wpexportjson/actions/workflows/ci.yml/badge.svg)](https://github.com/tradik/wpexportjson/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/tradik/wpexportjson?include_prereleases)](https://github.com/tradik/wpexportjson/releases/latest)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tradik/wpexportjson)](https://goreportcard.com/report/github.com/tradik/wpexportjson)
@@ -158,7 +159,7 @@ wpexportjson export --config config.yaml
 
 ### Prerequisites
 
-- Go 1.24 or later
+- Go 1.25 or later
 - Make
 
 ### Setup
