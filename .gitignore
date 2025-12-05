@@ -48,3 +48,6 @@ config.json
 # Temporary files
 tmp/
 temp/
+.windsurf/
+.windsurf/*
+
