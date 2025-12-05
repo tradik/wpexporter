@@ -49,6 +49,23 @@ make build
 go install github.com/tradik/wpexportjson/cmd/wpexportjson@latest
 ```
 
+### Using Docker
+
+Docker images are available from GitHub Container Registry:
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/tradik/wpexportjson:latest
+
+# Run wpexportjson
+docker run --rm -v $(pwd)/export:/export ghcr.io/tradik/wpexportjson:latest \
+  wpexportjson export --url https://example.com --output /export
+
+# Run wpxmlrpc
+docker run --rm -v $(pwd)/export:/export ghcr.io/tradik/wpexportjson:latest \
+  wpxmlrpc export --url https://example.com --username admin --password mypassword --output /export
+```
+
 ## Quick Start
 
 ### REST API Export (wpexportjson)
