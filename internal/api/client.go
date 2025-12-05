@@ -21,10 +21,25 @@ type Client struct {
 
 // NewClient creates a new WordPress API client
 func NewClient(cfg *config.Config) (*Client, error) {
+	// Validate URL
+	if cfg.URL == "" {
+		return nil, fmt.Errorf("URL cannot be empty")
+	}
+
 	// Parse and validate URL
 	parsedURL, err := url.Parse(cfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	// Check for valid scheme
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return nil, fmt.Errorf("URL must have http or https scheme")
+	}
+
+	// Check for valid host
+	if parsedURL.Host == "" {
+		return nil, fmt.Errorf("URL must have a valid host")
 	}
 
 	// Construct base API URL

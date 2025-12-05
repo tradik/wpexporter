@@ -25,10 +25,25 @@ type Client struct {
 
 // NewClient creates a new WordPress XML-RPC client
 func NewClient(cfg *config.Config, username, password string) (*Client, error) {
+	// Validate URL
+	if cfg.URL == "" {
+		return nil, fmt.Errorf("URL cannot be empty")
+	}
+
 	// Parse and validate URL
 	parsedURL, err := url.Parse(cfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	// Check for valid scheme
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return nil, fmt.Errorf("URL must have http or https scheme")
+	}
+
+	// Check for valid host
+	if parsedURL.Host == "" {
+		return nil, fmt.Errorf("URL must have a valid host")
 	}
 
 	// Construct XML-RPC endpoint
@@ -140,7 +155,7 @@ func (c *Client) GetSiteInfo() (*models.SiteInfo, error) {
 
 // GetPosts retrieves all posts
 func (c *Client) GetPosts() ([]models.WordPressPost, error) {
-	var allPosts []models.WordPressPost
+	allPosts := make([]models.WordPressPost, 0)
 	offset := 0
 	limit := 100
 
@@ -185,7 +200,7 @@ func (c *Client) GetPosts() ([]models.WordPressPost, error) {
 
 // GetPages retrieves all pages
 func (c *Client) GetPages() ([]models.WordPressPost, error) {
-	var allPages []models.WordPressPost
+	allPages := make([]models.WordPressPost, 0)
 	offset := 0
 	limit := 100
 
@@ -230,7 +245,7 @@ func (c *Client) GetPages() ([]models.WordPressPost, error) {
 
 // GetMedia retrieves all media items
 func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
-	var allMedia []models.WordPressMedia
+	allMedia := make([]models.WordPressMedia, 0)
 	offset := 0
 	limit := 100
 
@@ -361,7 +376,9 @@ func (c *Client) makeRequest(req *XMLRPCRequest) (*XMLRPCResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer func() {
+		_ = httpResp.Body.Close()
+	}()
 
 	if httpResp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("HTTP request failed with status: %d", httpResp.StatusCode)
@@ -407,25 +424,25 @@ func (c *Client) parsePostsResponse(resp *XMLRPCResponse) []models.WordPressPost
 }
 
 func (c *Client) parseMediaResponse(resp *XMLRPCResponse) []models.WordPressMedia {
-	var media []models.WordPressMedia
+	media := make([]models.WordPressMedia, 0)
 	// Simplified implementation
 	return media
 }
 
 func (c *Client) parseCategoriesResponse(resp *XMLRPCResponse) []models.WordPressCategory {
-	var categories []models.WordPressCategory
+	categories := make([]models.WordPressCategory, 0)
 	// Simplified implementation
 	return categories
 }
 
 func (c *Client) parseTagsResponse(resp *XMLRPCResponse) []models.WordPressTag {
-	var tags []models.WordPressTag
+	tags := make([]models.WordPressTag, 0)
 	// Simplified implementation
 	return tags
 }
 
 func (c *Client) parseUsersResponse(resp *XMLRPCResponse) []models.WordPressUser {
-	var users []models.WordPressUser
+	users := make([]models.WordPressUser, 0)
 	// Simplified implementation
 	return users
 }

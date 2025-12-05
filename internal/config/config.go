@@ -212,7 +212,18 @@ func sanitizeDomainName(domain string) string {
 		sanitized = strings.ReplaceAll(sanitized, "--", "-")
 	}
 
-	// Trim hyphens from start and end
+	// Handle special case: remove hyphens before domain extension
+	if dotIndex := strings.LastIndex(sanitized, "."); dotIndex > 0 {
+		domain := sanitized[:dotIndex]
+		extension := sanitized[dotIndex:]
+		domain = strings.Trim(domain, "-")
+		sanitized = domain + extension
+	} else {
+		// Trim hyphens from start and end if no extension
+		sanitized = strings.Trim(sanitized, "-")
+	}
+
+	// Final trim to ensure no leading/trailing hyphens
 	sanitized = strings.Trim(sanitized, "-")
 
 	// Ensure it's not empty

@@ -170,7 +170,9 @@ func (d *Downloader) downloadFile(url, filePath string) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return false
@@ -184,7 +186,9 @@ func (d *Downloader) downloadFile(url, filePath string) bool {
 	if err != nil {
 		return false
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	// Copy data
 	_, err = io.Copy(file, resp.Body)
