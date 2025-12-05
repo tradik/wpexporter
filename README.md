@@ -2,10 +2,10 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT%20%2F%20BSD--3--Clause-blue.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat&logo=docker)](https://github.com/tradik/wpexporter/pkgs/container/wpexportjson)
+[![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat&logo=docker)](https://github.com/tradik/wpexporter/pkgs/container/wpexporter)
 [![CI/CD](https://github.com/tradik/wpexporter/actions/workflows/ci.yml/badge.svg)](https://github.com/tradik/wpexporter/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/tradik/wpexportjson?include_prereleases)](https://github.com/tradik/wpexporter/releases/latest)
-[![Go Report Card](https://goreportcard.com/badge/github.com/tradik/wpexportjson)](https://goreportcard.com/report/github.com/tradik/wpexportjson)
+[![Release](https://img.shields.io/github/v/release/tradik/wpexporter?include_prereleases)](https://github.com/tradik/wpexporter/releases/latest)
+[![Go Report Card](https://goreportcard.com/badge/github.com/tradik/wpexporter)](https://goreportcard.com/report/github.com/tradik/wpexporter)
 
 A comprehensive WordPress content export toolkit with two powerful applications:
 
@@ -16,7 +16,7 @@ Both tools export content to JSON or Markdown format with full media download su
 
 ## Features
 
-### wpexportjson (REST API Client)
+### wpexporter (REST API Client)
 - 🔍 **Complete Content Discovery**: Scans WordPress REST API for posts, pages, and media
 - 🚀 **Brute Force Mode**: Attempts to discover unlisted content by ID enumeration
 - 📁 **Multiple Export Formats**: JSON and Markdown output support
@@ -39,15 +39,15 @@ Both tools export content to JSON or Markdown format with full media download su
 ### From Source
 
 ```bash
-git clone https://github.com/tradik/wpexportjson.git
-cd wpexportjson
+git clone https://github.com/tradik/wpexporter.git
+cd wpexporter
 make build
 ```
 
 ### Using Go Install
 
 ```bash
-go install github.com/tradik/wpexporter/cmd/wpexportjson@latest
+go install github.com/tradik/wpexporter/cmd/wpexporter@latest
 ```
 
 ### Using Docker
@@ -56,20 +56,20 @@ Docker images are available from GitHub Container Registry:
 
 ```bash
 # Pull the latest image
-docker pull ghcr.io/tradik/wpexportjson:latest
+docker pull ghcr.io/tradik/wpexporter:latest
 
-# Run wpexportjson
-docker run --rm -v $(pwd)/export:/export ghcr.io/tradik/wpexportjson:latest \
+# Run wpexporter
+docker run --rm -v $(pwd)/export:/export ghcr.io/tradik/wpexporter:latest \
   wpexportjson export --url https://example.com --output /export
 
 # Run wpxmlrpc
-docker run --rm -v $(pwd)/export:/export ghcr.io/tradik/wpexportjson:latest \
+docker run --rm -v $(pwd)/export:/export ghcr.io/tradik/wpexporter:latest \
   wpxmlrpc export --url https://example.com --username admin --password mypassword --output /export
 ```
 
 ## Quick Start
 
-### REST API Export (wpexportjson)
+### REST API Export (wpexporter)
 ```bash
 # Export all content from a WordPress site
 wpexportjson export --url https://example.com --output ./export
@@ -166,8 +166,8 @@ wpexportjson export --config config.yaml
 
 ```bash
 # Clone the repository
-git clone https://github.com/tradik/wpexportjson.git
-cd wpexportjson
+git clone https://github.com/tradik/wpexporter.git
+cd wpexporter
 
 # Install dependencies
 make deps
