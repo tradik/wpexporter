@@ -2,9 +2,9 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT%20%2F%20BSD--3--Clause-blue.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat&logo=docker)](https://github.com/tradik/wpexportjson/pkgs/container/wpexportjson)
-[![CI/CD](https://github.com/tradik/wpexportjson/actions/workflows/ci.yml/badge.svg)](https://github.com/tradik/wpexportjson/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/tradik/wpexportjson?include_prereleases)](https://github.com/tradik/wpexportjson/releases/latest)
+[![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat&logo=docker)](https://github.com/tradik/wpexporter/pkgs/container/wpexportjson)
+[![CI/CD](https://github.com/tradik/wpexporter/actions/workflows/ci.yml/badge.svg)](https://github.com/tradik/wpexporter/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/tradik/wpexportjson?include_prereleases)](https://github.com/tradik/wpexporter/releases/latest)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tradik/wpexportjson)](https://goreportcard.com/report/github.com/tradik/wpexportjson)
 
 A comprehensive WordPress content export toolkit with two powerful applications:
@@ -47,7 +47,7 @@ make build
 ### Using Go Install
 
 ```bash
-go install github.com/tradik/wpexportjson/cmd/wpexportjson@latest
+go install github.com/tradik/wpexporter/cmd/wpexportjson@latest
 ```
 
 ### Using Docker
@@ -205,9 +205,9 @@ make format
 ## Project Structure
 
 ```
-wpexportjson/
+wpexporter/
 ├── cmd/
-│   └── wpexportjson/        # CLI application entry point
+│   └── wpexporter/        # CLI application entry point
 ├── internal/
 │   ├── api/                 # WordPress API client
 │   ├── export/              # Export functionality
