@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -355,7 +356,27 @@ func runExport(cmd *cobra.Command, args []string) error {
 
 // createZipArchive creates a ZIP archive of the specified directory
 func createZipArchive(sourceDir, targetZip string) error {
-	zipFile, err := os.Create(targetZip)
+	// Validate and clean paths to prevent directory traversal
+	cleanSourceDir := filepath.Clean(sourceDir)
+	cleanTargetZip := filepath.Clean(targetZip)
+
+	// Get absolute paths for validation
+	absSourceDir, err := filepath.Abs(cleanSourceDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute source path: %w", err)
+	}
+	absTargetZip, err := filepath.Abs(cleanTargetZip)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute target path: %w", err)
+	}
+
+	// Ensure target zip is not inside source directory
+	if strings.HasPrefix(absTargetZip, absSourceDir+string(filepath.Separator)) {
+		return fmt.Errorf("target zip cannot be inside source directory")
+	}
+
+	// #nosec G304 -- paths are validated and cleaned above
+	zipFile, err := os.Create(absTargetZip)
 	if err != nil {
 		return fmt.Errorf("failed to create zip file: %w", err)
 	}
@@ -369,13 +390,21 @@ func createZipArchive(sourceDir, targetZip string) error {
 	}()
 
 	// Walk through the source directory
-	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(absSourceDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
+		// Clean and validate path
+		cleanPath := filepath.Clean(path)
+
+		// Ensure path is within source directory (prevent directory traversal)
+		if !strings.HasPrefix(cleanPath, absSourceDir) {
+			return fmt.Errorf("path outside source directory: %s", path)
+		}
+
 		// Get relative path
-		relPath, err := filepath.Rel(sourceDir, path)
+		relPath, err := filepath.Rel(absSourceDir, cleanPath)
 		if err != nil {
 			return err
 		}
@@ -383,6 +412,11 @@ func createZipArchive(sourceDir, targetZip string) error {
 		// Skip the root directory itself
 		if relPath == "." {
 			return nil
+		}
+
+		// Validate relative path doesn't escape
+		if strings.HasPrefix(relPath, "..") {
+			return fmt.Errorf("invalid relative path: %s", relPath)
 		}
 
 		// Create zip header
@@ -413,7 +447,8 @@ func createZipArchive(sourceDir, targetZip string) error {
 		}
 
 		// Open and copy file contents
-		file, err := os.Open(path)
+		// #nosec G304 -- path is validated to be within source directory
+		file, err := os.Open(cleanPath)
 		if err != nil {
 			return err
 		}
