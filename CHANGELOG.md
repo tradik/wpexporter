@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `--zip` flag to create ZIP archive of export
 - `--no-files` flag to remove export files after creating ZIP (requires --zip)
+- Dual licensing under MIT and BSD 3-Clause (see LICENSE)
 
 ## [1.0.0] - 2025-12-05
 

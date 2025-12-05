@@ -246,7 +246,8 @@ graph TB
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is dual-licensed under the **MIT License** and **BSD 3-Clause License**.
+See the [LICENSE](LICENSE) file for full license texts and choose the one that best fits your use case.
 
 ## Changelog
 
