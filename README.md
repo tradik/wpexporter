@@ -2,8 +2,9 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/tradik/wpexportjson)
-[![Go Report Card](https://img.shields.io/badge/Go%20Report-A+-brightgreen.svg)](https://goreportcard.com/)
+[![CI/CD](https://github.com/tradik/wpexportjson/actions/workflows/ci.yml/badge.svg)](https://github.com/tradik/wpexportjson/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/tradik/wpexportjson?include_prereleases)](https://github.com/tradik/wpexportjson/releases/latest)
+[![Go Report Card](https://goreportcard.com/badge/github.com/tradik/wpexportjson)](https://goreportcard.com/report/github.com/tradik/wpexportjson)
 
 A comprehensive WordPress content export toolkit with two powerful applications:
 
@@ -60,6 +61,15 @@ wpexportjson export --url https://example.com --brute-force --output ./export
 
 # Export to specific format
 wpexportjson export --url https://example.com --format json --output ./export.json
+
+# Export and create ZIP archive
+wpexportjson export --url https://example.com --zip
+
+# Export to ZIP only (remove files after creating ZIP)
+wpexportjson export --url https://example.com --zip --no-files
+
+# Export to Markdown with ZIP archive
+wpexportjson export --url https://example.com -f markdown --zip
 ```
 
 ### XML-RPC Export (wpxmlrpc)
@@ -123,6 +133,8 @@ wpexportjson export --config config.yaml
 | `--max-id` | Maximum ID for brute force | `10000` |
 | `--download-media` | Download images and videos | `true` |
 | `--concurrent` | Concurrent downloads | `5` |
+| `--zip` | Create ZIP archive of export | `false` |
+| `--no-files` | Remove export files after creating ZIP (requires --zip) | `false` |
 | `--config` | Configuration file path | - |
 
 ## Development

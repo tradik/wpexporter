@@ -295,6 +295,12 @@ func TestEnsureOutputDir(t *testing.T) {
 }
 
 func TestGetMediaDir(t *testing.T) {
+	// Get current working directory for absolute path tests
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current working directory: %v", err)
+	}
+
 	tests := []struct {
 		name     string
 		cfg      *Config
@@ -306,10 +312,10 @@ func TestGetMediaDir(t *testing.T) {
 				Output: "export/data.json",
 				Format: "json",
 			},
-			expected: "export/data_media",
+			expected: filepath.Join(cwd, "export/data_media"),
 		},
 		{
-			name: "JSON file output with path",
+			name: "JSON file output with absolute path",
 			cfg: &Config{
 				Output: "/tmp/export/data.json",
 				Format: "json",
@@ -322,7 +328,7 @@ func TestGetMediaDir(t *testing.T) {
 				Output: "export/markdown",
 				Format: "markdown",
 			},
-			expected: "export/markdown/media",
+			expected: filepath.Join(cwd, "export/markdown/media"),
 		},
 		{
 			name: "JSON format but directory output",
@@ -330,13 +336,17 @@ func TestGetMediaDir(t *testing.T) {
 				Output: "export/directory",
 				Format: "json",
 			},
-			expected: "export/directory/media",
+			expected: filepath.Join(cwd, "export/directory/media"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.cfg.GetMediaDir()
+			// GetMediaDir now always returns absolute paths
+			if !filepath.IsAbs(result) {
+				t.Errorf("GetMediaDir() returned non-absolute path: %v", result)
+			}
 			if result != tt.expected {
 				t.Errorf("GetMediaDir() = %v, want %v", result, tt.expected)
 			}

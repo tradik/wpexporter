@@ -8,7 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial project setup with Go 1.24
+- `--zip` flag to create ZIP archive of export
+- `--no-files` flag to remove export files after creating ZIP (requires --zip)
+
+## [1.0.0] - 2025-12-05
+
+### Added
+- Initial stable release with Go 1.24
 - WordPress REST API client for content discovery
 - Brute force content ID enumeration
 - JSON and Markdown export formats
@@ -19,19 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Concurrent processing support
 - Comprehensive documentation and README
 - Makefile with development automation
-- Cross-platform build support
-
-### Changed
-- N/A
-
-### Deprecated
-- N/A
-
-### Removed
-- N/A
+- Cross-platform build support (Linux, macOS, Windows, FreeBSD)
+- GitHub Actions CI/CD pipeline with auto-versioning
+- Docker support with multi-arch builds
+- XML-RPC export tool (wpxmlrpc)
 
 ### Fixed
-- N/A
+- Fixed media directory path must be absolute error
 
 ### Security
 - Fixed G301 security issues: Changed directory permissions from 0755 to 0750 for better security

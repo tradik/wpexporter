@@ -2,165 +2,283 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
-  release:
-    types: [ published ]
+    branches: [main]
+
+permissions:
+  contents: write
+  packages: write
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: [1.24.x]
-    
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ matrix.go-version }}
-    
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
-    
-    - name: Set Go environment variables
-      run: |
-        go env -w GOPRIVATE=github.com/tradik/*
-        go env -w GONOSUMDB=github.com/tradik/*
-        go env -w GOPROXY=https://proxy.golang.org,direct
+      - uses: actions/checkout@v4
 
-    - name: Download dependencies
-      run: go mod download
-    
-    - name: Run tests
-      run: go test -v -race -coverprofile=coverage.out ./...
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.out
-        flags: unittests
-        name: codecov-umbrella
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Set Go environment variables
+        run: |
+          go env -w GOPRIVATE=github.com/tradik/*
+          go env -w GONOSUMDB=github.com/tradik/*
+          go env -w GOPROXY=https://proxy.golang.org,direct
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
 
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: 1.24.x
-    
-    - name: golangci-lint
-      uses: golangci/golangci-lint-action@v6
-      with:
-        version: latest
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: latest
 
   security:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: 1.24.x
-    
-    - name: Run Gosec Security Scanner
-      uses: securego/gosec@master
-      with:
-        args: './...'
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Run Gosec Security Scanner
+        uses: securego/gosec@master
+        with:
+          args: "./..."
 
   build:
     runs-on: ubuntu-latest
     needs: [test, lint, security]
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: 1.24.x
-    
-    - name: Build for multiple platforms
-      run: make release
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: binaries
-        path: dist/
-        retention-days: 30
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  docker:
-    runs-on: ubuntu-latest
-    needs: [test, lint, security]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-    
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: wpexportjson
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-    
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        platforms: linux/amd64,linux/arm64
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Build for multiple platforms
+        run: make release
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: dist/
+          retention-days: 30
 
   release:
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.event_name == 'release'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: 1.24.x
-    
-    - name: Create release packages
-      run: make package
-    
-    - name: Upload release assets
-      uses: softprops/action-gh-release@v2
-      with:
-        files: dist/packages/*
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          # Get the latest tag, default to v0.0.0 if none exists
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Latest tag: $LATEST_TAG"
+
+      - name: Calculate next version
+        id: next_version
+        run: |
+          LATEST_TAG="${{ steps.get_tag.outputs.latest_tag }}"
+          # Remove 'v' prefix if present
+          VERSION="${LATEST_TAG#v}"
+          
+          # Split version into parts
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          
+          # Default to 1.0.0 if no valid version found
+          if [ -z "$MAJOR" ] || [ -z "$MINOR" ] || [ -z "$PATCH" ]; then
+            MAJOR=1
+            MINOR=0
+            PATCH=0
+          else
+            # Increment patch version
+            PATCH=$((PATCH + 1))
+          fi
+          
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: dist/
+
+      - name: Create release packages
+        run: |
+          mkdir -p dist/packages
+          VERSION="${{ steps.next_version.outputs.new_version }}"
+          
+          # Create tar.gz packages for each platform
+          for os in linux freebsd darwin windows; do
+            for arch in amd64 arm64; do
+              ext=""
+              if [ "$os" = "windows" ]; then ext=".exe"; fi
+              
+              if [ -f "dist/wpexportjson-${os}-${arch}${ext}" ]; then
+                # Create package directory
+                PKG_DIR="dist/pkg-${os}-${arch}"
+                mkdir -p "$PKG_DIR"
+                
+                # Copy binaries
+                cp "dist/wpexportjson-${os}-${arch}${ext}" "$PKG_DIR/wpexportjson${ext}"
+                cp "dist/wpxmlrpc-${os}-${arch}${ext}" "$PKG_DIR/wpxmlrpc${ext}"
+                
+                # Copy docs
+                cp README.md "$PKG_DIR/" 2>/dev/null || true
+                cp CHANGELOG.md "$PKG_DIR/" 2>/dev/null || true
+                cp config.example.yaml "$PKG_DIR/" 2>/dev/null || true
+                
+                # Create archive
+                if [ "$os" = "windows" ]; then
+                  (cd "$PKG_DIR" && zip -r "../packages/wpexportjson-${VERSION}-${os}-${arch}.zip" .)
+                else
+                  tar -czf "dist/packages/wpexportjson-${VERSION}-${os}-${arch}.tar.gz" -C "$PKG_DIR" .
+                fi
+                
+                # Cleanup
+                rm -rf "$PKG_DIR"
+              fi
+            done
+          done
+          
+          # Create checksums
+          (cd dist/packages && sha256sum * > checksums.txt)
+          
+          echo "Created packages:"
+          ls -la dist/packages/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.next_version.outputs.new_version }}
+          name: Release ${{ steps.next_version.outputs.new_version }}
+          body: |
+            ## What's Changed
+            
+            Auto-generated release from commit ${{ github.sha }}
+            
+            ### Downloads
+            
+            | Platform | Architecture | Download |
+            |----------|--------------|----------|
+            | Linux | AMD64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-linux-amd64.tar.gz` |
+            | Linux | ARM64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-linux-arm64.tar.gz` |
+            | macOS | AMD64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-darwin-amd64.tar.gz` |
+            | macOS | ARM64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-darwin-arm64.tar.gz` |
+            | Windows | AMD64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-windows-amd64.zip` |
+            | Windows | ARM64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-windows-arm64.zip` |
+            | FreeBSD | AMD64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-freebsd-amd64.tar.gz` |
+            | FreeBSD | ARM64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-freebsd-arm64.tar.gz` |
+            
+            ### Installation
+            
+            ```bash
+            # Linux/macOS
+            tar -xzf wpexportjson-${{ steps.next_version.outputs.new_version }}-<os>-<arch>.tar.gz
+            chmod +x wpexportjson wpxmlrpc
+            sudo mv wpexportjson wpxmlrpc /usr/local/bin/
+            
+            # Windows
+            # Extract the zip and add to PATH
+            ```
+          files: dist/packages/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: [release]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+        continue-on-error: true
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"archive/zip"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -24,6 +26,8 @@ var (
 	downloadMedia bool
 	concurrent    int
 	verbose       bool
+	createZip     bool
+	noFiles       bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -32,7 +36,32 @@ var rootCmd = &cobra.Command{
 	Short: "WordPress content export tool",
 	Long: `A powerful WordPress content export tool that scans WordPress WP API 
 to download all content, images, and videos from a website. Features brute 
-force content discovery and exports to JSON or Markdown format.`,
+force content discovery and exports to JSON or Markdown format.
+
+Examples:
+  # Export to JSON (default)
+  wpexportjson export --url https://example.com
+
+  # Export to Markdown
+  wpexportjson export --url https://example.com -f markdown
+
+  # Export with custom output directory
+  wpexportjson export --url https://example.com -o ./my-export
+
+  # Export with brute force content discovery
+  wpexportjson export --url https://example.com --brute-force
+
+  # Export without downloading media
+  wpexportjson export --url https://example.com --download-media=false
+
+  # Export and create a ZIP archive
+  wpexportjson export --url https://example.com --zip
+
+  # Export to ZIP only (remove files after creating ZIP)
+  wpexportjson export --url https://example.com --zip --no-files
+
+  # Export to Markdown with ZIP archive
+  wpexportjson export --url https://example.com -f markdown --zip`,
 }
 
 // exportCmd represents the export command
@@ -60,6 +89,8 @@ func init() {
 	exportCmd.Flags().IntVar(&maxID, "max-id", 10000, "maximum ID for brute force")
 	exportCmd.Flags().BoolVar(&downloadMedia, "download-media", true, "download images and videos")
 	exportCmd.Flags().IntVarP(&concurrent, "concurrent", "c", 5, "concurrent downloads")
+	exportCmd.Flags().BoolVar(&createZip, "zip", false, "create ZIP archive of export")
+	exportCmd.Flags().BoolVar(&noFiles, "no-files", false, "remove export files after creating ZIP (requires --zip)")
 
 	// Mark required flags
 	if err := exportCmd.MarkFlagRequired("url"); err != nil {
@@ -129,6 +160,17 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 	if cmd.Flags().Changed("verbose") {
 		cfg.Verbose = verbose
+	}
+	if cmd.Flags().Changed("zip") {
+		cfg.CreateZip = createZip
+	}
+	if cmd.Flags().Changed("no-files") {
+		cfg.NoFiles = noFiles
+	}
+
+	// Validate --no-files requires --zip
+	if cfg.NoFiles && !cfg.CreateZip {
+		return fmt.Errorf("--no-files requires --zip flag")
 	}
 
 	// Generate default output path if not specified
@@ -258,6 +300,26 @@ func runExport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("export failed: %w", err)
 	}
 
+	// Create ZIP archive if requested
+	var zipPath string
+	if cfg.CreateZip {
+		fmt.Println("Creating ZIP archive...")
+		zipPath = cfg.Output + ".zip"
+		if err := createZipArchive(cfg.Output, zipPath); err != nil {
+			return fmt.Errorf("failed to create ZIP archive: %w", err)
+		}
+		fmt.Printf("ZIP archive created: %s\n", zipPath)
+
+		// Remove files if --no-files is set
+		if cfg.NoFiles {
+			fmt.Println("Removing export files...")
+			if err := os.RemoveAll(cfg.Output); err != nil {
+				return fmt.Errorf("failed to remove export files: %w", err)
+			}
+			fmt.Println("Export files removed")
+		}
+	}
+
 	// Print summary
 	duration := time.Since(startTime)
 	fmt.Printf("\n=== Export Summary ===\n")
@@ -278,9 +340,92 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Duration: %v\n", duration)
-	fmt.Printf("Output: %s\n", cfg.Output)
+
+	if cfg.CreateZip {
+		fmt.Printf("ZIP: %s\n", zipPath)
+		if !cfg.NoFiles {
+			fmt.Printf("Output: %s\n", cfg.Output)
+		}
+	} else {
+		fmt.Printf("Output: %s\n", cfg.Output)
+	}
 
 	return nil
+}
+
+// createZipArchive creates a ZIP archive of the specified directory
+func createZipArchive(sourceDir, targetZip string) error {
+	zipFile, err := os.Create(targetZip)
+	if err != nil {
+		return fmt.Errorf("failed to create zip file: %w", err)
+	}
+	defer func() {
+		_ = zipFile.Close()
+	}()
+
+	zipWriter := zip.NewWriter(zipFile)
+	defer func() {
+		_ = zipWriter.Close()
+	}()
+
+	// Walk through the source directory
+	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Get relative path
+		relPath, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
+
+		// Skip the root directory itself
+		if relPath == "." {
+			return nil
+		}
+
+		// Create zip header
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
+		}
+
+		// Use relative path in zip
+		header.Name = relPath
+
+		// Set compression method for files
+		if !info.IsDir() {
+			header.Method = zip.Deflate
+		} else {
+			header.Name += "/"
+		}
+
+		// Create writer for this file
+		writer, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+
+		// If it's a directory, we're done
+		if info.IsDir() {
+			return nil
+		}
+
+		// Open and copy file contents
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			_ = file.Close()
+		}()
+
+		_, err = io.Copy(writer, file)
+		return err
+	})
+
+	return err
 }
 
 func main() {

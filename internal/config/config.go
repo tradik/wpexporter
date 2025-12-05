@@ -24,6 +24,8 @@ type Config struct {
 	Retries       int    `mapstructure:"retries" json:"retries"`
 	UserAgent     string `mapstructure:"user_agent" json:"user_agent"`
 	Verbose       bool   `mapstructure:"verbose" json:"verbose"`
+	CreateZip     bool   `mapstructure:"create_zip" json:"create_zip"`
+	NoFiles       bool   `mapstructure:"no_files" json:"no_files"`
 }
 
 // DefaultConfig returns a configuration with default values
@@ -39,6 +41,8 @@ func DefaultConfig() *Config {
 		Retries:       3,
 		UserAgent:     "WordPress-Export-JSON/1.0",
 		Verbose:       false,
+		CreateZip:     false,
+		NoFiles:       false,
 	}
 }
 
@@ -234,16 +238,28 @@ func sanitizeDomainName(domain string) string {
 	return sanitized
 }
 
-// GetMediaDir returns the media download directory
+// GetMediaDir returns the media download directory (always absolute path)
 func (c *Config) GetMediaDir() string {
+	var mediaDir string
+
 	if c.Format == "json" && filepath.Ext(c.Output) == ".json" {
 		// If output is a JSON file, create media directory next to it
 		dir := filepath.Dir(c.Output)
 		base := filepath.Base(c.Output)
 		name := base[:len(base)-len(filepath.Ext(base))]
-		return filepath.Join(dir, name+"_media")
+		mediaDir = filepath.Join(dir, name+"_media")
+	} else {
+		// Otherwise, create media directory inside output directory
+		mediaDir = filepath.Join(c.Output, "media")
 	}
 
-	// Otherwise, create media directory inside output directory
-	return filepath.Join(c.Output, "media")
+	// Ensure the path is absolute
+	if !filepath.IsAbs(mediaDir) {
+		absPath, err := filepath.Abs(mediaDir)
+		if err == nil {
+			return absPath
+		}
+	}
+
+	return mediaDir
 }
