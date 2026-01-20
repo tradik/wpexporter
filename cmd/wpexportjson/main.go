@@ -29,6 +29,9 @@ var (
 	verbose       bool
 	createZip     bool
 	noFiles       bool
+	noPosts       bool
+	noPages       bool
+	noProducts    bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -98,6 +101,9 @@ func init() {
 	exportCmd.Flags().IntVarP(&concurrent, "concurrent", "c", 5, "concurrent downloads")
 	exportCmd.Flags().BoolVar(&createZip, "zip", false, "create ZIP archive of export")
 	exportCmd.Flags().BoolVar(&noFiles, "no-files", false, "remove export files after creating ZIP (requires --zip)")
+	exportCmd.Flags().BoolVar(&noPosts, "no-posts", false, "skip exporting blog posts")
+	exportCmd.Flags().BoolVar(&noPages, "no-pages", false, "skip exporting pages")
+	exportCmd.Flags().BoolVar(&noProducts, "no-products", false, "skip exporting WooCommerce products")
 
 	// Mark required flags
 	if err := exportCmd.MarkFlagRequired("url"); err != nil {
@@ -174,6 +180,15 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if cmd.Flags().Changed("no-files") {
 		cfg.NoFiles = noFiles
 	}
+	if cmd.Flags().Changed("no-posts") {
+		cfg.NoPosts = noPosts
+	}
+	if cmd.Flags().Changed("no-pages") {
+		cfg.NoPages = noPages
+	}
+	if cmd.Flags().Changed("no-products") {
+		cfg.NoProducts = noProducts
+	}
 
 	// Validate --no-files requires --zip
 	if cfg.NoFiles && !cfg.CreateZip {
@@ -222,20 +237,46 @@ func runExport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get site info: %w", err)
 	}
 
-	// Get all content via API
-	fmt.Println("Fetching posts...")
-	posts, err := apiClient.GetPosts()
-	if err != nil {
-		return fmt.Errorf("failed to get posts: %w", err)
+	// Get content via API (respecting filter flags)
+	var posts []models.WordPressPost
+	if !cfg.NoPosts {
+		fmt.Println("Fetching posts...")
+		posts, err = apiClient.GetPosts()
+		if err != nil {
+			return fmt.Errorf("failed to get posts: %w", err)
+		}
+		fmt.Printf("Found %d posts\n", len(posts))
+	} else {
+		fmt.Println("Skipping posts (--no-posts)")
 	}
-	fmt.Printf("Found %d posts\n", len(posts))
 
-	fmt.Println("Fetching pages...")
-	pages, err := apiClient.GetPages()
-	if err != nil {
-		return fmt.Errorf("failed to get pages: %w", err)
+	var pages []models.WordPressPost
+	if !cfg.NoPages {
+		fmt.Println("Fetching pages...")
+		pages, err = apiClient.GetPages()
+		if err != nil {
+			return fmt.Errorf("failed to get pages: %w", err)
+		}
+		fmt.Printf("Found %d pages\n", len(pages))
+	} else {
+		fmt.Println("Skipping pages (--no-pages)")
 	}
-	fmt.Printf("Found %d pages\n", len(pages))
+
+	var products []models.WooCommerceProduct
+	if !cfg.NoProducts {
+		fmt.Println("Fetching WooCommerce products...")
+		products, err = apiClient.GetProducts()
+		if err != nil {
+			return fmt.Errorf("failed to get products: %w", err)
+		}
+		if len(products) > 0 {
+			fmt.Printf("Found %d WooCommerce products\n", len(products))
+		} else {
+			fmt.Println("No WooCommerce products found (WooCommerce may not be installed)")
+		}
+	} else {
+		fmt.Println("Skipping products (--no-products)")
+	}
 
 	fmt.Println("Fetching media...")
 	media, err := apiClient.GetMedia()
@@ -286,6 +327,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		Site:       *siteInfo,
 		Posts:      posts,
 		Pages:      pages,
+		Products:   products,
 		Media:      media,
 		Categories: categories,
 		Tags:       tags,
@@ -293,6 +335,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		Stats: models.ExportStats{
 			TotalPosts:      len(posts),
 			TotalPages:      len(pages),
+			TotalProducts:   len(products),
 			TotalMedia:      len(media),
 			TotalCategories: len(categories),
 			TotalTags:       len(tags),
@@ -333,6 +376,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Site: %s\n", siteInfo.Name)
 	fmt.Printf("Posts: %d\n", len(posts))
 	fmt.Printf("Pages: %d\n", len(pages))
+	fmt.Printf("Products: %d\n", len(products))
 	fmt.Printf("Media: %d\n", len(media))
 	fmt.Printf("Categories: %d\n", len(categories))
 	fmt.Printf("Tags: %d\n", len(tags))

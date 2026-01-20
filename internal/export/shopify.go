@@ -16,11 +16,11 @@ import (
 
 // ShopifyExporter handles export to Shopify-compatible CSV format.
 type ShopifyExporter struct {
-	config       *config.Config
-	categoryMap  map[int]models.WordPressCategory
-	tagMap       map[int]models.WordPressTag
-	userMap      map[int]models.WordPressUser
-	mediaMap     map[int]models.WordPressMedia
+	config      *config.Config
+	categoryMap map[int]models.WordPressCategory
+	tagMap      map[int]models.WordPressTag
+	userMap     map[int]models.WordPressUser
+	mediaMap    map[int]models.WordPressMedia
 }
 
 // ShopifyProduct represents a single Shopify product row.
@@ -93,14 +93,25 @@ func (s *ShopifyExporter) Export(data *models.ExportData) error {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	// Export posts as products
-	if err := s.exportPostsToShopify(data.Posts, "posts"); err != nil {
-		return fmt.Errorf("failed to export posts: %w", err)
+	// Export posts as products (content/blog posts)
+	if len(data.Posts) > 0 {
+		if err := s.exportPostsToShopify(data.Posts, "posts"); err != nil {
+			return fmt.Errorf("failed to export posts: %w", err)
+		}
 	}
 
 	// Export pages as products (optional, separate file)
-	if err := s.exportPostsToShopify(data.Pages, "pages"); err != nil {
-		return fmt.Errorf("failed to export pages: %w", err)
+	if len(data.Pages) > 0 {
+		if err := s.exportPostsToShopify(data.Pages, "pages"); err != nil {
+			return fmt.Errorf("failed to export pages: %w", err)
+		}
+	}
+
+	// Export WooCommerce products if available
+	if len(data.Products) > 0 {
+		if err := s.exportWooProductsToShopify(data.Products, "woo_products"); err != nil {
+			return fmt.Errorf("failed to export WooCommerce products: %w", err)
+		}
 	}
 
 	// Export all content combined into a single products CSV
@@ -111,6 +122,156 @@ func (s *ShopifyExporter) Export(data *models.ExportData) error {
 
 	fmt.Printf("Shopify export completed: %s\n", s.config.Output)
 	return nil
+}
+
+// exportWooProductsToShopify exports WooCommerce products to a Shopify CSV file.
+func (s *ShopifyExporter) exportWooProductsToShopify(products []models.WooCommerceProduct, filename string) error {
+	outputPath := filepath.Join(s.config.Output, fmt.Sprintf("shopify_%s.csv", filename))
+
+	file, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create CSV file: %w", err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	if err := writer.Write(s.getCSVHeaders()); err != nil {
+		return fmt.Errorf("failed to write CSV header: %w", err)
+	}
+
+	for _, product := range products {
+		shopifyProduct := s.convertWooProductToShopifyProduct(product)
+		if err := writer.Write(s.productToCSVRow(shopifyProduct)); err != nil {
+			return fmt.Errorf("failed to write product row: %w", err)
+		}
+
+		// Write additional image rows
+		for i, img := range product.Images {
+			if i == 0 {
+				continue // Skip first image as it's already the main image
+			}
+			imageRow := s.createImageRow(shopifyProduct.Handle, img.Src, i+1)
+			if err := writer.Write(imageRow); err != nil {
+				return fmt.Errorf("failed to write image row: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// convertWooProductToShopifyProduct converts a WooCommerce product to a Shopify product.
+func (s *ShopifyExporter) convertWooProductToShopifyProduct(product models.WooCommerceProduct) ShopifyProduct {
+	handle := s.generateHandle(product.Slug, product.ID)
+
+	// Get tags from WooCommerce product tags
+	var tagNames []string
+	for _, tag := range product.Tags {
+		tagNames = append(tagNames, tag.Name)
+	}
+	tags := strings.Join(tagNames, ", ")
+
+	// Get product type from first category
+	productType := "Product"
+	if len(product.Categories) > 0 {
+		productType = product.Categories[0].Name
+	}
+
+	// Get first image
+	var imageURL, imageAlt string
+	if len(product.Images) > 0 {
+		imageURL = product.Images[0].Src
+		imageAlt = product.Images[0].Alt
+		if imageAlt == "" {
+			imageAlt = product.Images[0].Name
+		}
+	}
+
+	// Determine publish status
+	published := "FALSE"
+	status := "draft"
+	if product.Status == "publish" {
+		published = "TRUE"
+		status = "active"
+	}
+
+	// Get inventory quantity
+	inventoryQty := "0"
+	if product.StockQuantity != nil {
+		switch v := product.StockQuantity.(type) {
+		case float64:
+			inventoryQty = fmt.Sprintf("%.0f", v)
+		case int:
+			inventoryQty = fmt.Sprintf("%d", v)
+		}
+	}
+
+	// Calculate weight in grams
+	weightGrams := "0"
+	if product.Weight != "" {
+		// Assuming weight is in kg, convert to grams
+		weightGrams = product.Weight + "000"
+	}
+
+	return ShopifyProduct{
+		Handle:                     handle,
+		Title:                      product.Name,
+		BodyHTML:                   s.cleanHTMLForShopify(product.Description),
+		Vendor:                     "WordPress",
+		Type:                       productType,
+		Tags:                       tags,
+		Published:                  published,
+		Option1Name:                "Title",
+		Option1Value:               "Default Title",
+		Option2Name:                "",
+		Option2Value:               "",
+		Option3Name:                "",
+		Option3Value:               "",
+		VariantSKU:                 product.SKU,
+		VariantGrams:               weightGrams,
+		VariantInventoryTracker:    "shopify",
+		VariantInventoryQty:        inventoryQty,
+		VariantInventoryPolicy:     "deny",
+		VariantFulfillmentService:  "manual",
+		VariantPrice:               product.Price,
+		VariantCompareAtPrice:      product.RegularPrice,
+		VariantRequiresShipping:    boolToShopify(product.ShippingRequired),
+		VariantTaxable:             boolToShopify(product.TaxStatus == "taxable"),
+		VariantBarcode:             "",
+		ImageSrc:                   imageURL,
+		ImagePosition:              "1",
+		ImageAltText:               imageAlt,
+		GiftCard:                   "FALSE",
+		SEOTitle:                   s.truncateString(product.Name, 70),
+		SEODescription:             s.truncateString(product.ShortDescription, 320),
+		GoogleShoppingCategory:     "",
+		GoogleShoppingGender:       "",
+		GoogleShoppingAgeGroup:     "",
+		GoogleShoppingMPN:          "",
+		GoogleShoppingCondition:    "new",
+		GoogleShoppingCustomLabel0: "",
+		GoogleShoppingCustomLabel1: "",
+		GoogleShoppingCustomLabel2: "",
+		GoogleShoppingCustomLabel3: "",
+		GoogleShoppingCustomLabel4: "",
+		VariantImage:               "",
+		VariantWeightUnit:          "g",
+		VariantTaxCode:             "",
+		CostPerItem:                "",
+		Status:                     status,
+	}
+}
+
+// boolToShopify converts a boolean to Shopify "TRUE"/"FALSE" string.
+func boolToShopify(b bool) string {
+	if b {
+		return "TRUE"
+	}
+	return "FALSE"
 }
 
 // buildLookupMaps creates lookup maps for efficient access to metadata.
@@ -265,51 +426,51 @@ func (s *ShopifyExporter) convertPostToShopifyProduct(post models.WordPressPost)
 	status := s.getStatus(post.Status)
 
 	return ShopifyProduct{
-		Handle:                    handle,
-		Title:                     post.Title.Rendered,
-		BodyHTML:                  bodyHTML,
-		Vendor:                    vendor,
-		Type:                      productType,
-		Tags:                      tags,
-		Published:                 published,
-		Option1Name:               "Title",
-		Option1Value:              "Default Title",
-		Option2Name:               "",
-		Option2Value:              "",
-		Option3Name:               "",
-		Option3Value:              "",
-		VariantSKU:                fmt.Sprintf("WP-%d", post.ID),
-		VariantGrams:              "0",
-		VariantInventoryTracker:   "",
-		VariantInventoryQty:       "0",
-		VariantInventoryPolicy:    "deny",
-		VariantFulfillmentService: "manual",
-		VariantPrice:              "0.00",
-		VariantCompareAtPrice:     "",
-		VariantRequiresShipping:   "FALSE",
-		VariantTaxable:            "FALSE",
-		VariantBarcode:            "",
-		ImageSrc:                  imageURL,
-		ImagePosition:             "1",
-		ImageAltText:              imageAlt,
-		GiftCard:                  "FALSE",
-		SEOTitle:                  seoTitle,
-		SEODescription:            seoDescription,
-		GoogleShoppingCategory:    "",
-		GoogleShoppingGender:      "",
-		GoogleShoppingAgeGroup:    "",
-		GoogleShoppingMPN:         "",
-		GoogleShoppingCondition:   "new",
+		Handle:                     handle,
+		Title:                      post.Title.Rendered,
+		BodyHTML:                   bodyHTML,
+		Vendor:                     vendor,
+		Type:                       productType,
+		Tags:                       tags,
+		Published:                  published,
+		Option1Name:                "Title",
+		Option1Value:               "Default Title",
+		Option2Name:                "",
+		Option2Value:               "",
+		Option3Name:                "",
+		Option3Value:               "",
+		VariantSKU:                 fmt.Sprintf("WP-%d", post.ID),
+		VariantGrams:               "0",
+		VariantInventoryTracker:    "",
+		VariantInventoryQty:        "0",
+		VariantInventoryPolicy:     "deny",
+		VariantFulfillmentService:  "manual",
+		VariantPrice:               "0.00",
+		VariantCompareAtPrice:      "",
+		VariantRequiresShipping:    "FALSE",
+		VariantTaxable:             "FALSE",
+		VariantBarcode:             "",
+		ImageSrc:                   imageURL,
+		ImagePosition:              "1",
+		ImageAltText:               imageAlt,
+		GiftCard:                   "FALSE",
+		SEOTitle:                   seoTitle,
+		SEODescription:             seoDescription,
+		GoogleShoppingCategory:     "",
+		GoogleShoppingGender:       "",
+		GoogleShoppingAgeGroup:     "",
+		GoogleShoppingMPN:          "",
+		GoogleShoppingCondition:    "new",
 		GoogleShoppingCustomLabel0: "",
 		GoogleShoppingCustomLabel1: "",
 		GoogleShoppingCustomLabel2: "",
 		GoogleShoppingCustomLabel3: "",
 		GoogleShoppingCustomLabel4: "",
-		VariantImage:              "",
-		VariantWeightUnit:         "kg",
-		VariantTaxCode:            "",
-		CostPerItem:               "",
-		Status:                    status,
+		VariantImage:               "",
+		VariantWeightUnit:          "kg",
+		VariantTaxCode:             "",
+		CostPerItem:                "",
+		Status:                     status,
 	}
 }
 
@@ -368,9 +529,9 @@ func (s *ShopifyExporter) productToCSVRow(p ShopifyProduct) []string {
 // createImageRow creates a CSV row for an additional product image.
 func (s *ShopifyExporter) createImageRow(handle, imageURL string, position int) []string {
 	row := make([]string, len(s.getCSVHeaders()))
-	row[0] = handle                          // Handle
-	row[24] = imageURL                       // Image Src
-	row[25] = fmt.Sprintf("%d", position)    // Image Position
+	row[0] = handle                       // Handle
+	row[24] = imageURL                    // Image Src
+	row[25] = fmt.Sprintf("%d", position) // Image Position
 	return row
 }
 

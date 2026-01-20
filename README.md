@@ -22,7 +22,9 @@ Both tools export content to JSON, Markdown, **Shopify-compatible CSV**, or **Ma
 - 📁 **Multiple Export Formats**: JSON, Markdown, Shopify CSV, and Magento CSV output support
 - 🛒 **Shopify Integration**: Export directly to Shopify-compatible product CSV format
 - 🏪 **Magento Integration**: Export directly to Magento 2-compatible product CSV format
-- 🖼️ **Media Download**: Downloads images and videos with content
+- � **WooCommerce Support**: Detects and exports WooCommerce products automatically
+- 🧹 **Content Filtering**: Control what to export with `--no-posts`, `--no-pages`, and `--no-products` flags
+- �🖼️ **Media Download**: Downloads images and videos with content
 - ⚡ **Concurrent Processing**: Fast parallel downloads and processing
 - 📊 **Progress Tracking**: Real-time progress bars and status updates
 - 🛠️ **Configurable**: Flexible configuration options via CLI or config file
@@ -167,6 +169,9 @@ wpexportjson export --config config.yaml
 | `--concurrent` | Concurrent downloads | `5` |
 | `--zip` | Create ZIP archive of export | `false` |
 | `--no-files` | Remove export files after creating ZIP (requires --zip) | `false` |
+| `--no-posts` | Skip exporting blog posts | `false` |
+| `--no-pages` | Skip exporting pages | `false` |
+| `--no-products` | Skip exporting WooCommerce products | `false` |
 | `--config` | Configuration file path | - |
 
 ## Development

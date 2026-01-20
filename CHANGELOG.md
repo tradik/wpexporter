@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Includes URL key generation for SEO-friendly URLs
   - Creates separate CSV files for posts, pages, and combined products
   - Exports site metadata for reference
+- **WooCommerce Support**: Automatically detects and exports WooCommerce products (requires wc/v3 API) and maps them to Shopify/Magento product fields including price, stock, and variations
+- **Content Filtering**: New flags to control export scope:
+  - `--no-posts`: Skip blog posts
+  - `--no-pages`: Skip pages
+  - `--no-products`: Skip WooCommerce products
+  - Creates separate CSV files for posts, pages, and combined products
+  - Exports site metadata for reference
 - `--zip` flag to create ZIP archive of export
 - `--no-files` flag to remove export files after creating ZIP (requires --zip)
 - Dual licensing under MIT and BSD 3-Clause (see LICENSE)

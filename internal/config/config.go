@@ -26,6 +26,9 @@ type Config struct {
 	Verbose       bool   `mapstructure:"verbose" json:"verbose"`
 	CreateZip     bool   `mapstructure:"create_zip" json:"create_zip"`
 	NoFiles       bool   `mapstructure:"no_files" json:"no_files"`
+	NoPosts       bool   `mapstructure:"no_posts" json:"no_posts"`
+	NoPages       bool   `mapstructure:"no_pages" json:"no_pages"`
+	NoProducts    bool   `mapstructure:"no_products" json:"no_products"`
 }
 
 // DefaultConfig returns a configuration with default values
@@ -43,6 +46,9 @@ func DefaultConfig() *Config {
 		Verbose:       false,
 		CreateZip:     false,
 		NoFiles:       false,
+		NoPosts:       false,
+		NoPages:       false,
+		NoProducts:    false,
 	}
 }
 

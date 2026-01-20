@@ -102,6 +102,65 @@ func (c *Client) GetPages() ([]models.WordPressPost, error) {
 	})
 }
 
+// GetProducts retrieves all WooCommerce products with pagination
+func (c *Client) GetProducts() ([]models.WooCommerceProduct, error) {
+	var allProducts []models.WooCommerceProduct
+	page := 1
+	perPage := 100
+
+	// WooCommerce uses a different API base
+	wooBaseURL := strings.Replace(c.baseURL, "/wp/v2", "/wc/v3", 1)
+
+	for {
+		url := fmt.Sprintf("%s/products?page=%d&per_page=%d", wooBaseURL, page, perPage)
+
+		resp, err := c.httpClient.R().Get(url)
+		if err != nil {
+			// WooCommerce might not be installed, return empty list
+			if c.config.Verbose {
+				fmt.Printf("Note: Could not fetch WooCommerce products: %v\n", err)
+			}
+			return allProducts, nil
+		}
+
+		if resp.StatusCode() == 404 || resp.StatusCode() == 401 {
+			// WooCommerce not installed or no access
+			return allProducts, nil
+		}
+
+		if resp.StatusCode() == 400 {
+			// No more pages
+			break
+		}
+
+		if resp.StatusCode() != 200 {
+			// WooCommerce might require authentication
+			if c.config.Verbose {
+				fmt.Printf("Note: WooCommerce API returned status %d (may require authentication)\n", resp.StatusCode())
+			}
+			return allProducts, nil
+		}
+
+		var products []models.WooCommerceProduct
+		if err := json.Unmarshal(resp.Body(), &products); err != nil {
+			// Parsing error, WooCommerce might not be the expected version
+			if c.config.Verbose {
+				fmt.Printf("Note: Could not parse WooCommerce products: %v\n", err)
+			}
+			return allProducts, nil
+		}
+
+		if len(products) == 0 {
+			break
+		}
+
+		allProducts = append(allProducts, products...)
+		page++
+	}
+
+	return allProducts, nil
+}
+
 // GetMedia retrieves all media items with pagination
 func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
 	var allMedia []models.WordPressMedia

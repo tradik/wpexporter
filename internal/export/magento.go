@@ -105,14 +105,25 @@ func (m *MagentoExporter) Export(data *models.ExportData) error {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	// Export posts as products
-	if err := m.exportPostsToMagento(data.Posts, "posts"); err != nil {
-		return fmt.Errorf("failed to export posts: %w", err)
+	// Export posts as products (content/blog posts)
+	if len(data.Posts) > 0 {
+		if err := m.exportPostsToMagento(data.Posts, "posts"); err != nil {
+			return fmt.Errorf("failed to export posts: %w", err)
+		}
 	}
 
 	// Export pages as products (optional, separate file)
-	if err := m.exportPostsToMagento(data.Pages, "pages"); err != nil {
-		return fmt.Errorf("failed to export pages: %w", err)
+	if len(data.Pages) > 0 {
+		if err := m.exportPostsToMagento(data.Pages, "pages"); err != nil {
+			return fmt.Errorf("failed to export pages: %w", err)
+		}
+	}
+
+	// Export WooCommerce products if available
+	if len(data.Products) > 0 {
+		if err := m.exportWooProductsToMagento(data.Products, "woo_products"); err != nil {
+			return fmt.Errorf("failed to export WooCommerce products: %w", err)
+		}
 	}
 
 	// Export all content combined into a single products CSV
@@ -123,6 +134,199 @@ func (m *MagentoExporter) Export(data *models.ExportData) error {
 
 	fmt.Printf("Magento export completed: %s\n", m.config.Output)
 	return nil
+}
+
+// exportWooProductsToMagento exports WooCommerce products to a Magento CSV file.
+func (m *MagentoExporter) exportWooProductsToMagento(products []models.WooCommerceProduct, filename string) error {
+	outputPath := filepath.Join(m.config.Output, fmt.Sprintf("magento_%s.csv", filename))
+
+	file, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create CSV file: %w", err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	if err := writer.Write(m.getCSVHeaders()); err != nil {
+		return fmt.Errorf("failed to write CSV header: %w", err)
+	}
+
+	for _, product := range products {
+		magentoProduct := m.convertWooProductToMagentoProduct(product)
+		if err := writer.Write(m.productToCSVRow(magentoProduct)); err != nil {
+			return fmt.Errorf("failed to write product row: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// convertWooProductToMagentoProduct converts a WooCommerce product to a Magento product.
+func (m *MagentoExporter) convertWooProductToMagentoProduct(product models.WooCommerceProduct) MagentoProduct {
+	// Use the WooCommerce SKU or generate one
+	sku := product.SKU
+	if sku == "" {
+		sku = m.generateSKU(product.Slug, product.ID)
+	}
+
+	// Get categories from WooCommerce product categories
+	var categoryPaths []string
+	for _, cat := range product.Categories {
+		categoryPaths = append(categoryPaths, fmt.Sprintf("Default Category/%s", cat.Name))
+	}
+	categories := strings.Join(categoryPaths, ",")
+	if categories == "" {
+		categories = "Default Category"
+	}
+
+	// Get keywords from WooCommerce product tags
+	var keywords []string
+	for _, tag := range product.Tags {
+		keywords = append(keywords, tag.Name)
+	}
+	metaKeywords := strings.Join(keywords, ",")
+
+	// Get first image
+	var baseImage, imageLabel string
+	var additionalImages []string
+	for i, img := range product.Images {
+		filename := m.extractFilename(img.Src)
+		if i == 0 {
+			baseImage = filename
+			imageLabel = img.Alt
+			if imageLabel == "" {
+				imageLabel = img.Name
+			}
+		} else {
+			additionalImages = append(additionalImages, filename)
+		}
+	}
+
+	// Determine product status
+	productOnline := "0"
+	if product.Status == "publish" {
+		productOnline = "1"
+	}
+
+	// Get inventory quantity
+	qty := "0"
+	if product.StockQuantity != nil {
+		switch v := product.StockQuantity.(type) {
+		case float64:
+			qty = fmt.Sprintf("%.0f", v)
+		case int:
+			qty = fmt.Sprintf("%d", v)
+		}
+	}
+
+	// Determine if in stock
+	isInStock := "1"
+	if product.StockStatus == "outofstock" {
+		isInStock = "0"
+	}
+
+	// Map product type
+	productType := "simple"
+	if product.Type == "variable" {
+		productType = "configurable"
+	} else if product.Type == "grouped" {
+		productType = "grouped"
+	} else if product.Type == "external" {
+		productType = "simple"
+	} else if product.Virtual {
+		productType = "virtual"
+	} else if product.Downloadable {
+		productType = "downloadable"
+	}
+
+	// Determine visibility
+	visibility := "Catalog, Search"
+	switch product.CatalogVisibility {
+	case "hidden":
+		visibility = "Not Visible Individually"
+	case "catalog":
+		visibility = "Catalog"
+	case "search":
+		visibility = "Search"
+	}
+
+	// Manage stock setting
+	manageStock := "0"
+	if product.ManageStock {
+		manageStock = "1"
+	}
+
+	return MagentoProduct{
+		SKU:                    sku,
+		StoreViewCode:          "",
+		AttributeSetCode:       "Default",
+		ProductType:            productType,
+		Categories:             categories,
+		ProductWebsites:        "base",
+		Name:                   product.Name,
+		Description:            m.cleanHTMLForMagento(product.Description),
+		ShortDescription:       m.cleanHTMLForMagento(product.ShortDescription),
+		Weight:                 product.Weight,
+		ProductOnline:          productOnline,
+		TaxClassName:           "Taxable Goods",
+		Visibility:             visibility,
+		Price:                  product.RegularPrice,
+		SpecialPrice:           product.SalePrice,
+		SpecialPriceFromDate:   "",
+		SpecialPriceToDate:     "",
+		URLKey:                 m.generateURLKey(product.Slug, product.ID),
+		MetaTitle:              m.truncateString(product.Name, 70),
+		MetaKeywords:           metaKeywords,
+		MetaDescription:        m.truncateString(product.ShortDescription, 160),
+		BaseImage:              baseImage,
+		BaseImageLabel:         imageLabel,
+		SmallImage:             baseImage,
+		SmallImageLabel:        imageLabel,
+		ThumbnailImage:         baseImage,
+		ThumbnailImageLabel:    imageLabel,
+		AdditionalImages:       strings.Join(additionalImages, ","),
+		AdditionalImageLabels:  "",
+		Qty:                    qty,
+		OutOfStockQty:          "0",
+		UseConfigMinQty:        "1",
+		IsQtyDecimal:           "0",
+		AllowBackorders:        boolToMagento(product.BackordersAllowed),
+		UseConfigBackorders:    "0",
+		MinCartQty:             "1",
+		UseConfigMinSaleQty:    "1",
+		MaxCartQty:             "0",
+		UseConfigMaxSaleQty:    "1",
+		IsInStock:              isInStock,
+		NotifyOnStockBelow:     "1",
+		UseConfigNotifyStock:   "1",
+		ManageStock:            manageStock,
+		UseConfigManageStock:   "0",
+		UseConfigQtyIncrements: "1",
+		QtyIncrements:          "1",
+		UseConfigEnableIncr:    "1",
+		EnableQtyIncrements:    "0",
+		IsDecimalDivided:       "0",
+		WebsiteID:              "1",
+		RelatedSKUs:            "",
+		RelatedPosition:        "",
+		CrosssellSKUs:          "",
+		CrosssellPosition:      "",
+		UpsellSKUs:             "",
+		UpsellPosition:         "",
+		AdditionalAttributes:   "",
+	}
+}
+
+// boolToMagento converts a boolean to Magento "1"/"0" string.
+func boolToMagento(b bool) string {
+	if b {
+		return "1"
+	}
+	return "0"
 }
 
 // buildLookupMaps creates lookup maps for efficient access to metadata.
