@@ -127,8 +127,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("URL is required")
 	}
 
-	if c.Format != "json" && c.Format != "markdown" {
-		return fmt.Errorf("format must be 'json' or 'markdown'")
+	if c.Format != "json" && c.Format != "markdown" && c.Format != "shopify" && c.Format != "magento" {
+		return fmt.Errorf("format must be 'json', 'markdown', 'shopify', or 'magento'")
 	}
 
 	if c.MaxID <= 0 {

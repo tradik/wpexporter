@@ -12,14 +12,16 @@ A comprehensive WordPress content export toolkit with two powerful applications:
 - **wpexportjson** - REST API based exporter with brute force content discovery
 - **wpxmlrpc** - XML-RPC based exporter for authenticated access
 
-Both tools export content to JSON or Markdown format with full media download support.
+Both tools export content to JSON, Markdown, **Shopify-compatible CSV**, or **Magento-compatible CSV** format with full media download support.
 
 ## Features
 
 ### wpexporter (REST API Client)
 - 🔍 **Complete Content Discovery**: Scans WordPress REST API for posts, pages, and media
 - 🚀 **Brute Force Mode**: Attempts to discover unlisted content by ID enumeration
-- 📁 **Multiple Export Formats**: JSON and Markdown output support
+- 📁 **Multiple Export Formats**: JSON, Markdown, Shopify CSV, and Magento CSV output support
+- 🛒 **Shopify Integration**: Export directly to Shopify-compatible product CSV format
+- 🏪 **Magento Integration**: Export directly to Magento 2-compatible product CSV format
 - 🖼️ **Media Download**: Downloads images and videos with content
 - ⚡ **Concurrent Processing**: Fast parallel downloads and processing
 - 📊 **Progress Tracking**: Real-time progress bars and status updates
@@ -88,6 +90,18 @@ wpexportjson export --url https://example.com --zip --no-files
 
 # Export to Markdown with ZIP archive
 wpexportjson export --url https://example.com -f markdown --zip
+
+# Export to Shopify-compatible CSV format
+wpexportjson export --url https://example.com -f shopify
+
+# Export to Shopify CSV with ZIP archive
+wpexportjson export --url https://example.com -f shopify --zip
+
+# Export to Magento-compatible CSV format
+wpexportjson export --url https://example.com -f magento
+
+# Export to Magento CSV with ZIP archive
+wpexportjson export --url https://example.com -f magento --zip
 ```
 
 ### XML-RPC Export (wpxmlrpc)
@@ -146,7 +160,7 @@ wpexportjson export --config config.yaml
 |--------|-------------|---------|
 | `--url` | WordPress site URL | Required |
 | `--output` | Output directory or file | `./export` |
-| `--format` | Export format (json/markdown) | `json` |
+| `--format` | Export format (json/markdown/shopify/magento) | `json` |
 | `--brute-force` | Enable brute force ID discovery | `false` |
 | `--max-id` | Maximum ID for brute force | `10000` |
 | `--download-media` | Download images and videos | `true` |
@@ -233,9 +247,120 @@ graph TB
     F --> G
     G --> H[JSON Exporter]
     G --> I[Markdown Exporter]
+    G --> K[Shopify Exporter]
+    G --> L[Magento Exporter]
     H --> J[Output Files]
     I --> J
+    K --> J
+    L --> J
 ```
+
+## Shopify Export Format
+
+The Shopify export format generates CSV files compatible with Shopify's product import system. This allows you to migrate WordPress content (posts, pages) to Shopify as products.
+
+### Output Files
+
+When exporting to Shopify format, the following files are generated:
+
+| File | Description |
+|------|-------------|
+| `shopify_posts.csv` | WordPress posts exported as Shopify products |
+| `shopify_pages.csv` | WordPress pages exported as Shopify products |
+| `shopify_products.csv` | Combined posts and pages as products |
+| `shopify_metadata.csv` | Site metadata and export statistics |
+
+### CSV Column Mapping
+
+WordPress content is mapped to Shopify product fields as follows:
+
+| WordPress Field | Shopify Field |
+|-----------------|---------------|
+| Post Slug | Handle |
+| Post Title | Title |
+| Post Content (HTML) | Body (HTML) |
+| Author Name | Vendor |
+| First Category | Type |
+| Tags | Tags (comma-separated) |
+| Post Status | Published (TRUE/FALSE) |
+| Featured Image | Image Src |
+| Post Excerpt | SEO Description |
+| Post ID | Variant SKU (format: WP-{id}) |
+
+### Usage Example
+
+```bash
+# Export WordPress content to Shopify format
+wpexportjson export --url https://your-wordpress-site.com -f shopify
+
+# Export to Shopify and create ZIP for easy upload
+wpexportjson export --url https://your-wordpress-site.com -f shopify --zip
+```
+
+### Importing to Shopify
+
+1. Log in to your Shopify Admin
+2. Go to **Products** > **Import**
+3. Click **Add file** and select `shopify_products.csv`
+4. Review the import preview
+5. Click **Import products**
+
+> **Note**: The exported CSV follows Shopify's official product CSV format. For best results, review the [Shopify CSV import documentation](https://help.shopify.com/en/manual/products/import-export/using-csv).
+
+## Magento Export Format
+
+The Magento export format generates CSV files compatible with Magento 2's product import system. This allows you to migrate WordPress content (posts, pages) to Magento as simple products.
+
+### Output Files
+
+When exporting to Magento format, the following files are generated:
+
+| File | Description |
+|------|-------------|
+| `magento_posts.csv` | WordPress posts exported as Magento products |
+| `magento_pages.csv` | WordPress pages exported as Magento products |
+| `magento_products.csv` | Combined posts and pages as products |
+| `magento_metadata.csv` | Site metadata and export statistics |
+
+### CSV Column Mapping
+
+WordPress content is mapped to Magento product fields as follows:
+
+| WordPress Field | Magento Field |
+|-----------------|---------------|
+| Post Slug (uppercase) | sku |
+| Post Title | name |
+| Post Content (HTML) | description |
+| Post Excerpt | short_description |
+| Categories | categories (Default Category/Name format) |
+| Tags | meta_keywords |
+| Post Slug | url_key |
+| Post Title | meta_title |
+| Post Excerpt | meta_description |
+| Featured Image | base_image, small_image, thumbnail_image |
+| Post Status | product_online (1=enabled, 0=disabled) |
+
+### Usage Example
+
+```bash
+# Export WordPress content to Magento format
+wpexportjson export --url https://your-wordpress-site.com -f magento
+
+# Export to Magento and create ZIP for easy upload
+wpexportjson export --url https://your-wordpress-site.com -f magento --zip
+```
+
+### Importing to Magento 2
+
+1. Log in to your Magento 2 Admin Panel
+2. Go to **System** > **Data Transfer** > **Import**
+3. Select **Products** as Entity Type
+4. Choose **Add/Update** as Import Behavior
+5. Upload `magento_products.csv`
+6. Click **Check Data** to validate
+7. Click **Import** to complete
+
+> **Note**: Before importing, ensure image files are uploaded to `/pub/media/import/` on your Magento server. For best results, review the [Magento 2 CSV import documentation](https://experienceleague.adobe.com/docs/commerce-admin/systems/data-transfer/import/data-import.html).
 
 ## Contributing
 

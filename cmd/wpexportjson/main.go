@@ -37,7 +37,7 @@ var rootCmd = &cobra.Command{
 	Short: "WordPress content export tool",
 	Long: `A powerful WordPress content export tool that scans WordPress WP API 
 to download all content, images, and videos from a website. Features brute 
-force content discovery and exports to JSON or Markdown format.
+force content discovery and exports to JSON, Markdown, Shopify CSV, or Magento CSV format.
 
 Examples:
   # Export to JSON (default)
@@ -45,6 +45,12 @@ Examples:
 
   # Export to Markdown
   wpexportjson export --url https://example.com -f markdown
+
+  # Export to Shopify-compatible CSV
+  wpexportjson export --url https://example.com -f shopify
+
+  # Export to Magento-compatible CSV
+  wpexportjson export --url https://example.com -f magento
 
   # Export with custom output directory
   wpexportjson export --url https://example.com -o ./my-export
@@ -61,8 +67,8 @@ Examples:
   # Export to ZIP only (remove files after creating ZIP)
   wpexportjson export --url https://example.com --zip --no-files
 
-  # Export to Markdown with ZIP archive
-  wpexportjson export --url https://example.com -f markdown --zip`,
+  # Export to Magento with ZIP archive
+  wpexportjson export --url https://example.com -f magento --zip`,
 }
 
 // exportCmd represents the export command
@@ -85,7 +91,7 @@ func init() {
 	// Export command flags
 	exportCmd.Flags().StringVarP(&url, "url", "u", "", "WordPress site URL (required)")
 	exportCmd.Flags().StringVarP(&output, "output", "o", "", "output directory or file (default: export/{domain-name}.{date}{time})")
-	exportCmd.Flags().StringVarP(&format, "format", "f", "json", "export format (json|markdown)")
+	exportCmd.Flags().StringVarP(&format, "format", "f", "json", "export format (json|markdown|shopify|magento)")
 	exportCmd.Flags().BoolVar(&bruteForce, "brute-force", false, "enable brute force ID discovery")
 	exportCmd.Flags().IntVar(&maxID, "max-id", 10000, "maximum ID for brute force")
 	exportCmd.Flags().BoolVar(&downloadMedia, "download-media", true, "download images and videos")

@@ -53,6 +53,10 @@ func (e *Exporter) Export(data *models.ExportData) error {
 		return e.exportJSON(data)
 	case "markdown":
 		return e.exportMarkdown(data)
+	case "shopify":
+		return e.exportShopify(data)
+	case "magento":
+		return e.exportMagento(data)
 	default:
 		return fmt.Errorf("unsupported export format: %s", e.config.Format)
 	}
@@ -575,4 +579,38 @@ func (e *Exporter) convertHTMLToMarkdown(html string) string {
 	md = strings.TrimSpace(md)
 
 	return md
+}
+
+// exportShopify exports data as Shopify-compatible CSV
+func (e *Exporter) exportShopify(data *models.ExportData) error {
+	shopifyExporter := NewShopifyExporter(e.config)
+
+	// Export products to CSV
+	if err := shopifyExporter.Export(data); err != nil {
+		return fmt.Errorf("failed to export Shopify products: %w", err)
+	}
+
+	// Export metadata
+	if err := shopifyExporter.ExportMetadata(data); err != nil {
+		return fmt.Errorf("failed to export Shopify metadata: %w", err)
+	}
+
+	return nil
+}
+
+// exportMagento exports data as Magento-compatible CSV
+func (e *Exporter) exportMagento(data *models.ExportData) error {
+	magentoExporter := NewMagentoExporter(e.config)
+
+	// Export products to CSV
+	if err := magentoExporter.Export(data); err != nil {
+		return fmt.Errorf("failed to export Magento products: %w", err)
+	}
+
+	// Export metadata
+	if err := magentoExporter.ExportMetadata(data); err != nil {
+		return fmt.Errorf("failed to export Magento metadata: %w", err)
+	}
+
+	return nil
 }

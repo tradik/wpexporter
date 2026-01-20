@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Shopify CSV Export Format**: New `shopify` export format for migrating WordPress content to Shopify
+  - Generates Shopify-compatible product CSV files
+  - Converts WordPress posts/pages to Shopify products
+  - Maps categories to product types, tags to Shopify tags
+  - Includes SEO fields (title, description)
+  - Supports featured images and additional content images
+  - Creates separate CSV files for posts, pages, and combined products
+  - Exports site metadata for reference
+- **Magento 2 CSV Export Format**: New `magento` export format for migrating WordPress content to Magento
+  - Generates Magento 2-compatible product CSV files (57 columns)
+  - Converts WordPress posts/pages to simple products
+  - Maps categories to Magento category paths (Default Category/Name)
+  - Uses tags as meta keywords for SEO
+  - Supports featured images and additional content images
+  - Includes URL key generation for SEO-friendly URLs
+  - Creates separate CSV files for posts, pages, and combined products
+  - Exports site metadata for reference
 - `--zip` flag to create ZIP archive of export
 - `--no-files` flag to remove export files after creating ZIP (requires --zip)
 - Dual licensing under MIT and BSD 3-Clause (see LICENSE)

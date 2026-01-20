@@ -9,7 +9,11 @@ url: "https://example.com"
 # For Markdown format: specify a directory
 # output: "./export"
 
-# Export format: json or markdown
+# Export format: json, markdown, shopify, or magento
+# - json: Exports all content as a single JSON file
+# - markdown: Exports posts/pages as individual markdown files
+# - shopify: Exports to Shopify-compatible CSV format for product import
+# - magento: Exports to Magento 2-compatible CSV format for product import
 format: "json"
 
 # Enable brute force ID discovery to find unlisted content
