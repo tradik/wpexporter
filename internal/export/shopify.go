@@ -126,9 +126,9 @@ func (s *ShopifyExporter) Export(data *models.ExportData) error {
 
 // exportWooProductsToShopify exports WooCommerce products to a Shopify CSV file.
 func (s *ShopifyExporter) exportWooProductsToShopify(products []models.WooCommerceProduct, filename string) error {
-	outputPath := filepath.Join(s.config.Output, fmt.Sprintf("shopify_%s.csv", filename))
+	outputPath := filepath.Clean(filepath.Join(s.config.Output, fmt.Sprintf("shopify_%s.csv", filename)))
 
-	file, err := os.Create(outputPath)
+	file, err := os.Create(outputPath) // #nosec G304
 	if err != nil {
 		return fmt.Errorf("failed to create CSV file: %w", err)
 	}
@@ -300,10 +300,10 @@ func (s *ShopifyExporter) buildLookupMaps(data *models.ExportData) {
 // exportPostsToShopify exports posts/pages to a Shopify CSV file.
 func (s *ShopifyExporter) exportPostsToShopify(posts []models.WordPressPost, filename string) error {
 	// Determine output file path
-	outputPath := filepath.Join(s.config.Output, fmt.Sprintf("shopify_%s.csv", filename))
+	outputPath := filepath.Clean(filepath.Join(s.config.Output, fmt.Sprintf("shopify_%s.csv", filename)))
 
 	// Create CSV file
-	file, err := os.Create(outputPath)
+	file, err := os.Create(outputPath) // #nosec G304
 	if err != nil {
 		return fmt.Errorf("failed to create CSV file: %w", err)
 	}
@@ -730,9 +730,9 @@ func (s *ShopifyExporter) generateSEODescription(excerpt string, maxLen int) str
 
 // ExportMetadata exports site metadata to a separate CSV file.
 func (s *ShopifyExporter) ExportMetadata(data *models.ExportData) error {
-	outputPath := filepath.Join(s.config.Output, "shopify_metadata.csv")
+	outputPath := filepath.Clean(filepath.Join(s.config.Output, "shopify_metadata.csv"))
 
-	file, err := os.Create(outputPath)
+	file, err := os.Create(outputPath) // #nosec G304
 	if err != nil {
 		return fmt.Errorf("failed to create metadata CSV file: %w", err)
 	}

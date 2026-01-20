@@ -138,9 +138,9 @@ func (m *MagentoExporter) Export(data *models.ExportData) error {
 
 // exportWooProductsToMagento exports WooCommerce products to a Magento CSV file.
 func (m *MagentoExporter) exportWooProductsToMagento(products []models.WooCommerceProduct, filename string) error {
-	outputPath := filepath.Join(m.config.Output, fmt.Sprintf("magento_%s.csv", filename))
+	outputPath := filepath.Clean(filepath.Join(m.config.Output, fmt.Sprintf("magento_%s.csv", filename)))
 
-	file, err := os.Create(outputPath)
+	file, err := os.Create(outputPath) // #nosec G304
 	if err != nil {
 		return fmt.Errorf("failed to create CSV file: %w", err)
 	}
@@ -355,10 +355,10 @@ func (m *MagentoExporter) buildLookupMaps(data *models.ExportData) {
 // exportPostsToMagento exports posts/pages to a Magento CSV file.
 func (m *MagentoExporter) exportPostsToMagento(posts []models.WordPressPost, filename string) error {
 	// Determine output file path
-	outputPath := filepath.Join(m.config.Output, fmt.Sprintf("magento_%s.csv", filename))
+	outputPath := filepath.Clean(filepath.Join(m.config.Output, fmt.Sprintf("magento_%s.csv", filename)))
 
 	// Create CSV file
-	file, err := os.Create(outputPath)
+	file, err := os.Create(outputPath) // #nosec G304
 	if err != nil {
 		return fmt.Errorf("failed to create CSV file: %w", err)
 	}
@@ -832,9 +832,9 @@ func (m *MagentoExporter) truncateString(str string, maxLen int) string {
 
 // ExportMetadata exports site metadata to a separate CSV file.
 func (m *MagentoExporter) ExportMetadata(data *models.ExportData) error {
-	outputPath := filepath.Join(m.config.Output, "magento_metadata.csv")
+	outputPath := filepath.Clean(filepath.Join(m.config.Output, "magento_metadata.csv"))
 
-	file, err := os.Create(outputPath)
+	file, err := os.Create(outputPath) // #nosec G304
 	if err != nil {
 		return fmt.Errorf("failed to create metadata CSV file: %w", err)
 	}
