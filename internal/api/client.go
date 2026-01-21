@@ -52,6 +52,13 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	httpClient.SetHeader("User-Agent", cfg.UserAgent)
 	httpClient.SetHeader("Accept", "application/json")
 
+	// Set authentication if configured
+	if cfg.AuthToken != "" {
+		httpClient.SetAuthToken(cfg.AuthToken)
+	} else if cfg.AuthUser != "" && cfg.AuthPass != "" {
+		httpClient.SetBasicAuth(cfg.AuthUser, cfg.AuthPass)
+	}
+
 	return &Client{
 		config:     cfg,
 		httpClient: httpClient,

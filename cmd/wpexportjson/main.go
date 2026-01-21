@@ -32,6 +32,9 @@ var (
 	noPosts       bool
 	noPages       bool
 	noProducts    bool
+	authUser      string
+	authPass      string
+	authToken     string
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -45,6 +48,12 @@ force content discovery and exports to JSON, Markdown, Shopify CSV, or Magento C
 Examples:
   # Export to JSON (default)
   wpexportjson export --url https://example.com
+
+  # Export with Basic Auth
+  wpexportjson export --url https://example.com --auth-user user --auth-pass password
+
+  # Export with Bearer Token
+  wpexportjson export --url https://example.com --auth-token "your-token"
 
   # Export to Markdown
   wpexportjson export --url https://example.com -f markdown
@@ -104,6 +113,9 @@ func init() {
 	exportCmd.Flags().BoolVar(&noPosts, "no-posts", false, "skip exporting blog posts")
 	exportCmd.Flags().BoolVar(&noPages, "no-pages", false, "skip exporting pages")
 	exportCmd.Flags().BoolVar(&noProducts, "no-products", false, "skip exporting WooCommerce products")
+	exportCmd.Flags().StringVar(&authUser, "auth-user", "", "username for Basic Auth")
+	exportCmd.Flags().StringVar(&authPass, "auth-pass", "", "password for Basic Auth")
+	exportCmd.Flags().StringVar(&authToken, "auth-token", "", "Bearer token for authentication")
 
 	// Mark required flags
 	if err := exportCmd.MarkFlagRequired("url"); err != nil {
@@ -188,6 +200,15 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 	if cmd.Flags().Changed("no-products") {
 		cfg.NoProducts = noProducts
+	}
+	if cmd.Flags().Changed("auth-user") {
+		cfg.AuthUser = authUser
+	}
+	if cmd.Flags().Changed("auth-pass") {
+		cfg.AuthPass = authPass
+	}
+	if cmd.Flags().Changed("auth-token") {
+		cfg.AuthToken = authToken
 	}
 
 	// Validate --no-files requires --zip

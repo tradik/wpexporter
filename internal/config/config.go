@@ -29,6 +29,9 @@ type Config struct {
 	NoPosts       bool   `mapstructure:"no_posts" json:"no_posts"`
 	NoPages       bool   `mapstructure:"no_pages" json:"no_pages"`
 	NoProducts    bool   `mapstructure:"no_products" json:"no_products"`
+	AuthUser      string `mapstructure:"auth_user" json:"auth_user"`
+	AuthPass      string `mapstructure:"auth_pass" json:"auth_pass"`
+	AuthToken     string `mapstructure:"auth_token" json:"auth_token"`
 }
 
 // DefaultConfig returns a configuration with default values

@@ -172,6 +172,9 @@ wpexportjson export --config config.yaml
 | `--no-posts` | Skip exporting blog posts | `false` |
 | `--no-pages` | Skip exporting pages | `false` |
 | `--no-products` | Skip exporting WooCommerce products | `false` |
+| `--auth-user` | Username for Basic Auth | - |
+| `--auth-pass` | Password for Basic Auth | - |
+| `--auth-token` | Bearer token for authentication | - |
 | `--config` | Configuration file path | - |
 
 ## Development
