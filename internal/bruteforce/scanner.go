@@ -59,14 +59,17 @@ func (s *Scanner) ScanForContent(existingPosts, existingPages []models.WordPress
 
 	result := &ScanResult{}
 	var wg sync.WaitGroup
+	var resultMutex sync.Mutex
 
 	// Scan for posts
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		posts := s.scanPosts(existingPostIDs)
+		resultMutex.Lock()
 		result.Posts = posts
 		result.Found += len(posts)
+		resultMutex.Unlock()
 	}()
 
 	// Scan for pages
@@ -74,8 +77,10 @@ func (s *Scanner) ScanForContent(existingPosts, existingPages []models.WordPress
 	go func() {
 		defer wg.Done()
 		pages := s.scanPages(existingPageIDs)
+		resultMutex.Lock()
 		result.Pages = pages
 		result.Found += len(pages)
+		resultMutex.Unlock()
 	}()
 
 	// Scan for media
@@ -83,8 +88,10 @@ func (s *Scanner) ScanForContent(existingPosts, existingPages []models.WordPress
 	go func() {
 		defer wg.Done()
 		media := s.scanMedia(existingMediaIDs)
+		resultMutex.Lock()
 		result.Media = media
 		result.Found += len(media)
+		resultMutex.Unlock()
 	}()
 
 	wg.Wait()
