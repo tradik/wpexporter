@@ -251,6 +251,10 @@ func runExport(cmd *cobra.Command, args []string) error {
 		cfg.AuthPass = password
 	}
 	if cmd.Flags().Changed("path-filter") {
+		// Validate path filter doesn't look like a flag (common user error)
+		if strings.HasPrefix(pathFilter, "-") {
+			return fmt.Errorf("invalid --path-filter value '%s': looks like a flag. Use --path-filter=/path/ or omit if not filtering", pathFilter)
+		}
 		cfg.PathFilter = pathFilter
 	}
 	if cmd.Flags().Changed("assisted-crawl") {
