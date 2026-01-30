@@ -146,8 +146,8 @@ func initConfig() {
 // promptPassword prompts the user to enter a password securely (hidden input)
 func promptPassword(prompt string) (string, error) {
 	fmt.Print(prompt)
-	password, err := term.ReadPassword(syscall.Stdin)
-	fmt.Println() // Print newline after password input
+	password, err := term.ReadPassword(int(syscall.Stdin)) //nolint:unconvert // Required for Windows compatibility (syscall.Stdin is uintptr on Windows)
+	fmt.Println()                                          // Print newline after password input
 	if err != nil {
 		return "", fmt.Errorf("failed to read password: %w", err)
 	}
