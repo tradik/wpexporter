@@ -649,19 +649,19 @@ func TestSanitizeDomainName_NoExtension(t *testing.T) {
 func TestLoadConfigWithAllEnvVars(t *testing.T) {
 	// Set all available environment variables
 	envVars := map[string]string{
-		"WPEXPORT_URL":                "https://full-test.example.com",
-		"WPEXPORT_FORMAT":             "json",
-		"WPEXPORT_BRUTE_FORCE":        "true",
-		"WPEXPORT_MAX_ID":             "9999",
-		"WPEXPORT_DOWNLOAD_MEDIA":     "false",
+		"WPEXPORT_URL":                 "https://full-test.example.com",
+		"WPEXPORT_FORMAT":              "json",
+		"WPEXPORT_BRUTE_FORCE":         "true",
+		"WPEXPORT_MAX_ID":              "9999",
+		"WPEXPORT_DOWNLOAD_MEDIA":      "false",
 		"WPEXPORT_RELEVANT_MEDIA_ONLY": "true",
-		"WPEXPORT_PATH_FILTER":        "/en/blog/",
-		"WPEXPORT_ASSISTED_CRAWL":     "true",
-		"WPEXPORT_CONCURRENT":         "20",
-		"WPEXPORT_TIMEOUT":            "120",
-		"WPEXPORT_RETRIES":            "10",
-		"WPEXPORT_USER_AGENT":         "TestAgent/2.0",
-		"WPEXPORT_VERBOSE":            "true",
+		"WPEXPORT_PATH_FILTER":         "/en/blog/",
+		"WPEXPORT_ASSISTED_CRAWL":      "true",
+		"WPEXPORT_CONCURRENT":          "20",
+		"WPEXPORT_TIMEOUT":             "120",
+		"WPEXPORT_RETRIES":             "10",
+		"WPEXPORT_USER_AGENT":          "TestAgent/2.0",
+		"WPEXPORT_VERBOSE":             "true",
 	}
 
 	for k, v := range envVars {

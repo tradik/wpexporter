@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/schollz/progressbar/v3"
+
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/pkg/models"
 )

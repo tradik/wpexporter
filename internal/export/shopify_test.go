@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/pkg/models"
 )

@@ -1958,4 +1958,3 @@ func TestGetUsers400Pagination(t *testing.T) {
 		t.Errorf("GetUsers() returned %d items, want 1", len(result))
 	}
 }
-

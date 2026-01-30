@@ -113,7 +113,7 @@ func TestExportMarkdown_ErrorExportingPages(t *testing.T) {
 
 	// First let site info export happen
 	data := &models.ExportData{
-		Site: models.SiteInfo{Name: "Test"},
+		Site:  models.SiteInfo{Name: "Test"},
 		Posts: []models.WordPressPost{},
 		Pages: []models.WordPressPost{
 			{
@@ -166,7 +166,7 @@ func TestExportShopify_MetadataError(t *testing.T) {
 	// Now make directory read-only for metadata export
 	require.NoError(t, os.Chmod(tmpDir, 0500))
 
-	err = exporter.ExportMetadata(data)
+	_ = exporter.ExportMetadata(data)
 	// On some systems this might succeed if file already exists
 	// So we don't assert error, just ensure no panic
 }
@@ -199,7 +199,7 @@ func TestExportMagento_MetadataError(t *testing.T) {
 	// Make directory read-only
 	require.NoError(t, os.Chmod(tmpDir, 0500))
 
-	err = exporter.ExportMetadata(data)
+	_ = exporter.ExportMetadata(data)
 	// Similar to above, just ensure no panic
 }
 

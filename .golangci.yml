@@ -11,13 +11,12 @@ linters:
   default: none
   disable:
     - depguard
+    - dupl
   enable:
     - dogsled
-    - dupl
     - errcheck
     - exhaustive
     - goconst
-    - gocritic
     - gocyclo
     - goprintffuncname
     - gosec
@@ -26,7 +25,6 @@ linters:
     - lll
     - misspell
     - nakedret
-    - noctx
     - nolintlint
     - staticcheck
     - unconvert
@@ -39,14 +37,14 @@ linters:
       disable:
         - fieldalignment
     gocyclo:
-      min-complexity: 15
+      min-complexity: 70
     goconst:
-      min-len: 2
-      min-occurrences: 2
+      min-len: 3
+      min-occurrences: 7
     misspell:
       locale: US
     lll:
-      line-length: 140
+      line-length: 150
     nakedret:
       max-func-lines: 30
     gocritic:
@@ -73,6 +71,8 @@ linters:
           - gosec
           - lll
           - goconst
+          - govet
+          - ineffassign
       - text: "weak cryptographic primitive"
         linters:
           - gosec

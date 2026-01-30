@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
+
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/pkg/models"
 )

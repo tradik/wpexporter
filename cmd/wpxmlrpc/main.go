@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
+
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/internal/export"
 	"github.com/tradik/wpexporter/internal/xmlrpc"
@@ -75,7 +76,7 @@ func initConfig() {
 // promptPassword prompts the user to enter a password securely (hidden input)
 func promptPassword(prompt string) (string, error) {
 	fmt.Print(prompt)
-	pwd, err := term.ReadPassword(int(syscall.Stdin))
+	pwd, err := term.ReadPassword(syscall.Stdin)
 	fmt.Println() // Print newline after password input
 	if err != nil {
 		return "", fmt.Errorf("failed to read password: %w", err)

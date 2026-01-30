@@ -1019,7 +1019,7 @@ func TestMakeRequestInvalidXMLResponse(t *testing.T) {
 func TestMakeRequestNetworkError(t *testing.T) {
 	cfg := &config.Config{
 		URL:     "http://192.0.2.1", // Non-routable IP
-		Timeout: 1,                   // Very short timeout
+		Timeout: 1,                  // Very short timeout
 	}
 
 	client, err := NewClient(cfg, "testuser", "testpass")
