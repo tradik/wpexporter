@@ -1,292 +1,71 @@
 package bruteforce
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
-	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/tradik/wpexporter/internal/api"
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
-// APIClientInterface defines the interface for API client operations
-type APIClientInterface interface {
-	GetPostByID(id int) (*models.WordPressPost, error)
-	GetPageByID(id int) (*models.WordPressPost, error)
-	GetMediaByID(id int) (*models.WordPressMedia, error)
-	GetSiteInfo() (*models.SiteInfo, error)
-	GetPosts() ([]models.WordPressPost, error)
-	GetPages() ([]models.WordPressPost, error)
-	GetMedia() ([]models.WordPressMedia, error)
-	GetCategories() ([]models.WordPressCategory, error)
-	GetTags() ([]models.WordPressTag, error)
-	GetUsers() ([]models.WordPressUser, error)
-	BruteForceContent(contentType string, maxID int, found chan<- interface{}, progress chan<- int)
-}
+// createTestServer creates a mock WordPress API server
+func createTestServer(posts map[int]models.WordPressPost, pages map[int]models.WordPressPost, media map[int]models.WordPressMedia) *httptest.Server {
+	mux := http.NewServeMux()
 
-// MockAPIClient is a mock implementation of the API client for testing
-type MockAPIClient struct {
-	posts map[int]*models.WordPressPost
-	pages map[int]*models.WordPressPost
-	media map[int]*models.WordPressMedia
-}
+	// Handle site info
+	mux.HandleFunc("/wp-json/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"name":        "Test Site",
+			"description": "Test Description",
+			"url":         "http://test.local",
+		})
+	})
 
-func NewMockAPIClient() *MockAPIClient {
-	return &MockAPIClient{
-		posts: make(map[int]*models.WordPressPost),
-		pages: make(map[int]*models.WordPressPost),
-		media: make(map[int]*models.WordPressMedia),
-	}
-}
-
-func (m *MockAPIClient) AddPost(id int, post *models.WordPressPost) {
-	m.posts[id] = post
-}
-
-func (m *MockAPIClient) AddPage(id int, page *models.WordPressPost) {
-	m.pages[id] = page
-}
-
-func (m *MockAPIClient) AddMedia(id int, media *models.WordPressMedia) {
-	m.media[id] = media
-}
-
-func (m *MockAPIClient) GetPostByID(id int) (*models.WordPressPost, error) {
-	if post, exists := m.posts[id]; exists {
-		return post, nil
-	}
-	return nil, nil
-}
-
-func (m *MockAPIClient) GetPageByID(id int) (*models.WordPressPost, error) {
-	if page, exists := m.pages[id]; exists {
-		return page, nil
-	}
-	return nil, nil
-}
-
-func (m *MockAPIClient) GetMediaByID(id int) (*models.WordPressMedia, error) {
-	if media, exists := m.media[id]; exists {
-		return media, nil
-	}
-	return nil, nil
-}
-
-// Implement other required methods with empty implementations
-func (m *MockAPIClient) GetSiteInfo() (*models.SiteInfo, error) {
-	return &models.SiteInfo{Name: "Test Site"}, nil
-}
-
-func (m *MockAPIClient) GetPosts() ([]models.WordPressPost, error) {
-	var posts []models.WordPressPost
-	for _, post := range m.posts {
-		posts = append(posts, *post)
-	}
-	return posts, nil
-}
-
-func (m *MockAPIClient) GetPages() ([]models.WordPressPost, error) {
-	var pages []models.WordPressPost
-	for _, page := range m.pages {
-		pages = append(pages, *page)
-	}
-	return pages, nil
-}
-
-func (m *MockAPIClient) GetMedia() ([]models.WordPressMedia, error) {
-	var media []models.WordPressMedia
-	for _, item := range m.media {
-		media = append(media, *item)
-	}
-	return media, nil
-}
-
-func (m *MockAPIClient) GetCategories() ([]models.WordPressCategory, error) {
-	return []models.WordPressCategory{}, nil
-}
-
-func (m *MockAPIClient) GetTags() ([]models.WordPressTag, error) {
-	return []models.WordPressTag{}, nil
-}
-
-func (m *MockAPIClient) GetUsers() ([]models.WordPressUser, error) {
-	return []models.WordPressUser{}, nil
-}
-
-func (m *MockAPIClient) BruteForceContent(contentType string, maxID int, found chan<- interface{}, progress chan<- int) {
-	// Not used in these tests
-}
-
-// TestScanner is a test version of Scanner that uses the interface
-type TestScanner struct {
-	config    *config.Config
-	apiClient APIClientInterface
-}
-
-// NewTestScanner creates a new test scanner with interface
-func NewTestScanner(cfg *config.Config, client APIClientInterface) *TestScanner {
-	return &TestScanner{
-		config:    cfg,
-		apiClient: client,
-	}
-}
-
-// Copy the scanner methods but adapted for the interface
-func (s *TestScanner) scanPosts(existingIDs map[int]bool) []models.WordPressPost {
-	fmt.Println("Scanning for missing posts...")
-
-	var foundPosts []models.WordPressPost
-
-	for id := 1; id <= s.config.MaxID; id++ {
-		if !existingIDs[id] {
-			post, err := s.apiClient.GetPostByID(id)
-			if err == nil && post != nil {
-				foundPosts = append(foundPosts, *post)
-
-				if s.config.Verbose {
-					fmt.Printf("Found post: ID %d - %s\n", post.ID, post.Title.Rendered)
-				}
-			}
+	// Handle individual post by ID
+	mux.HandleFunc("/wp-json/wp/v2/posts/", func(w http.ResponseWriter, r *http.Request) {
+		var id int
+		fmt.Sscanf(r.URL.Path, "/wp-json/wp/v2/posts/%d", &id)
+		if post, ok := posts[id]; ok {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(post)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
 		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	})
 
-	return foundPosts
-}
-
-func (s *TestScanner) scanPages(existingIDs map[int]bool) []models.WordPressPost {
-	fmt.Println("Scanning for missing pages...")
-
-	var foundPages []models.WordPressPost
-
-	for id := 1; id <= s.config.MaxID; id++ {
-		if !existingIDs[id] {
-			page, err := s.apiClient.GetPageByID(id)
-			if err == nil && page != nil {
-				foundPages = append(foundPages, *page)
-
-				if s.config.Verbose {
-					fmt.Printf("Found page: ID %d - %s\n", page.ID, page.Title.Rendered)
-				}
-			}
+	// Handle individual page by ID
+	mux.HandleFunc("/wp-json/wp/v2/pages/", func(w http.ResponseWriter, r *http.Request) {
+		var id int
+		fmt.Sscanf(r.URL.Path, "/wp-json/wp/v2/pages/%d", &id)
+		if page, ok := pages[id]; ok {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(page)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
 		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	})
 
-	return foundPages
-}
-
-func (s *TestScanner) scanMedia(existingIDs map[int]bool) []models.WordPressMedia {
-	fmt.Println("Scanning for missing media...")
-
-	var foundMedia []models.WordPressMedia
-
-	for id := 1; id <= s.config.MaxID; id++ {
-		if !existingIDs[id] {
-			media, err := s.apiClient.GetMediaByID(id)
-			if err == nil && media != nil {
-				foundMedia = append(foundMedia, *media)
-
-				if s.config.Verbose {
-					fmt.Printf("Found media: ID %d - %s\n", media.ID, media.Title.Rendered)
-				}
-			}
+	// Handle individual media by ID
+	mux.HandleFunc("/wp-json/wp/v2/media/", func(w http.ResponseWriter, r *http.Request) {
+		var id int
+		fmt.Sscanf(r.URL.Path, "/wp-json/wp/v2/media/%d", &id)
+		if m, ok := media[id]; ok {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(m)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
 		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	})
 
-	return foundMedia
-}
-
-func (s *TestScanner) ScanForContent(existingPosts, existingPages []models.WordPressPost, existingMedia []models.WordPressMedia) (*ScanResult, error) {
-	if !s.config.BruteForce {
-		return &ScanResult{}, nil
-	}
-
-	fmt.Println("Starting brute force content discovery...")
-
-	// Create maps of existing IDs for quick lookup
-	existingPostIDs := make(map[int]bool)
-	for _, post := range existingPosts {
-		existingPostIDs[post.ID] = true
-	}
-
-	existingPageIDs := make(map[int]bool)
-	for _, page := range existingPages {
-		existingPageIDs[page.ID] = true
-	}
-
-	existingMediaIDs := make(map[int]bool)
-	for _, media := range existingMedia {
-		existingMediaIDs[media.ID] = true
-	}
-
-	result := &ScanResult{}
-
-	// Scan for posts
-	posts := s.scanPosts(existingPostIDs)
-	result.Posts = posts
-	result.Found += len(posts)
-
-	// Scan for pages
-	pages := s.scanPages(existingPageIDs)
-	result.Pages = pages
-	result.Found += len(pages)
-
-	// Scan for media
-	media := s.scanMedia(existingMediaIDs)
-	result.Media = media
-	result.Found += len(media)
-
-	if result.Found > 0 {
-		fmt.Printf("Brute force scan found %d additional items\n", result.Found)
-	} else {
-		fmt.Println("Brute force scan completed - no additional content found")
-	}
-
-	return result, nil
-}
-
-func (s *TestScanner) ScanSpecificRange(contentType string, startID, endID int) (interface{}, error) {
-	fmt.Printf("Scanning %s IDs from %d to %d...\n", contentType, startID, endID)
-
-	switch contentType {
-	case "posts":
-		var posts []models.WordPressPost
-		for id := startID; id <= endID; id++ {
-			post, err := s.apiClient.GetPostByID(id)
-			if err == nil && post != nil {
-				posts = append(posts, *post)
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-		return posts, nil
-
-	case "pages":
-		var pages []models.WordPressPost
-		for id := startID; id <= endID; id++ {
-			page, err := s.apiClient.GetPageByID(id)
-			if err == nil && page != nil {
-				pages = append(pages, *page)
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-		return pages, nil
-
-	case "media":
-		var media []models.WordPressMedia
-		for id := startID; id <= endID; id++ {
-			mediaItem, err := s.apiClient.GetMediaByID(id)
-			if err == nil && mediaItem != nil {
-				media = append(media, *mediaItem)
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-		return media, nil
-
-	default:
-		return nil, fmt.Errorf("unsupported content type: %s", contentType)
-	}
+	return httptest.NewServer(mux)
 }
 
 func TestNewScanner(t *testing.T) {
@@ -299,44 +78,64 @@ func TestNewScanner(t *testing.T) {
 		Retries:    3,
 	}
 
-	mockClient := NewMockAPIClient()
-	scanner := NewTestScanner(cfg, mockClient)
+	server := createTestServer(nil, nil, nil)
+	defer server.Close()
 
-	// NewTestScanner should never return nil when there's no error
-	if scanner.config != cfg {
-		t.Error("NewTestScanner() should store config reference")
-	}
+	cfg.URL = server.URL
+	client, err := api.NewClient(cfg)
+	require.NoError(t, err)
 
-	if scanner.apiClient != mockClient {
-		t.Error("NewTestScanner() should store API client reference")
-	}
+	scanner := NewScanner(cfg, client)
+
+	assert.NotNil(t, scanner)
+	assert.Equal(t, cfg, scanner.config)
+	assert.Equal(t, client, scanner.apiClient)
 }
 
-func TestScanForContentDisabled(t *testing.T) {
+func TestScanForContent_Disabled(t *testing.T) {
 	cfg := &config.Config{
+		URL:        "https://example.com",
 		BruteForce: false, // Disabled
+		MaxID:      10,
+		Concurrent: 2,
+		Timeout:    30,
+		Retries:    1,
 	}
 
-	mockClient := NewMockAPIClient()
-	scanner := NewTestScanner(cfg, mockClient)
+	server := createTestServer(nil, nil, nil)
+	defer server.Close()
 
-	result, err := scanner.ScanForContent([]models.WordPressPost{}, []models.WordPressPost{}, []models.WordPressMedia{})
+	cfg.URL = server.URL
+	client, err := api.NewClient(cfg)
+	require.NoError(t, err)
 
-	if err != nil {
-		t.Errorf("ScanForContent() error = %v, want nil", err)
-	}
+	scanner := NewScanner(cfg, client)
+	result, err := scanner.ScanForContent(nil, nil, nil)
 
-	if result.Found != 0 {
-		t.Errorf("ScanForContent() Found = %d, want 0", result.Found)
-	}
-
-	if len(result.Posts) != 0 {
-		t.Errorf("ScanForContent() Posts length = %d, want 0", len(result.Posts))
-	}
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 0, result.Found)
+	assert.Empty(t, result.Posts)
+	assert.Empty(t, result.Pages)
+	assert.Empty(t, result.Media)
 }
 
-func TestScanForContentEnabled(t *testing.T) {
+func TestScanForContent_FindsNewContent(t *testing.T) {
+	posts := map[int]models.WordPressPost{
+		5: {ID: 5, Title: models.RenderedContent{Rendered: "New Post 5"}, Slug: "new-post-5"},
+	}
+	pages := map[int]models.WordPressPost{
+		7: {ID: 7, Title: models.RenderedContent{Rendered: "New Page 7"}, Slug: "new-page-7"},
+	}
+	media := map[int]models.WordPressMedia{
+		9: {ID: 9, Title: models.RenderedContent{Rendered: "New Media 9"}, Slug: "new-media-9"},
+	}
+
+	server := createTestServer(posts, pages, media)
+	defer server.Close()
+
 	cfg := &config.Config{
+		URL:        server.URL,
 		BruteForce: true,
 		MaxID:      10,
 		Concurrent: 2,
@@ -344,79 +143,40 @@ func TestScanForContentEnabled(t *testing.T) {
 		Retries:    1,
 	}
 
-	mockClient := NewMockAPIClient()
-	scanner := NewTestScanner(cfg, mockClient)
+	client, err := api.NewClient(cfg)
+	require.NoError(t, err)
 
-	// Add some existing content
-	existingPosts := []models.WordPressPost{
-		{ID: 1, Title: models.RenderedContent{Rendered: "Existing Post"}},
-	}
+	scanner := NewScanner(cfg, client)
 
-	existingPages := []models.WordPressPost{
-		{ID: 2, Title: models.RenderedContent{Rendered: "Existing Page"}},
-	}
-
-	existingMedia := []models.WordPressMedia{
-		{ID: 3, Title: models.RenderedContent{Rendered: "Existing Media"}},
-	}
-
-	// Add some new content to mock client
-	mockClient.AddPost(5, &models.WordPressPost{
-		ID:    5,
-		Title: models.RenderedContent{Rendered: "New Post"},
-		Slug:  "new-post",
-	})
-
-	mockClient.AddPage(7, &models.WordPressPost{
-		ID:    7,
-		Title: models.RenderedContent{Rendered: "New Page"},
-		Slug:  "new-page",
-	})
-
-	mockClient.AddMedia(9, &models.WordPressMedia{
-		ID:    9,
-		Title: models.RenderedContent{Rendered: "New Media"},
-		Slug:  "new-media",
-	})
+	// Existing content (should be skipped)
+	existingPosts := []models.WordPressPost{{ID: 1}}
+	existingPages := []models.WordPressPost{{ID: 2}}
+	existingMedia := []models.WordPressMedia{{ID: 3}}
 
 	result, err := scanner.ScanForContent(existingPosts, existingPages, existingMedia)
 
-	if err != nil {
-		t.Errorf("ScanForContent() error = %v, want nil", err)
-	}
-
-	if result.Found != 3 {
-		t.Errorf("ScanForContent() Found = %d, want 3", result.Found)
-	}
-
-	if len(result.Posts) != 1 {
-		t.Errorf("ScanForContent() Posts length = %d, want 1", len(result.Posts))
-	}
-
-	if len(result.Pages) != 1 {
-		t.Errorf("ScanForContent() Pages length = %d, want 1", len(result.Pages))
-	}
-
-	if len(result.Media) != 1 {
-		t.Errorf("ScanForContent() Media length = %d, want 1", len(result.Media))
-	}
-
-	// Verify the found content
-	if result.Posts[0].ID != 5 {
-		t.Errorf("ScanForContent() first post ID = %d, want 5", result.Posts[0].ID)
-	}
-
-	if result.Pages[0].ID != 7 {
-		t.Errorf("ScanForContent() first page ID = %d, want 7", result.Pages[0].ID)
-	}
-
-	if result.Media[0].ID != 9 {
-		t.Errorf("ScanForContent() first media ID = %d, want 9", result.Media[0].ID)
-	}
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 3, result.Found)
+	assert.Len(t, result.Posts, 1)
+	assert.Len(t, result.Pages, 1)
+	assert.Len(t, result.Media, 1)
+	assert.Equal(t, 5, result.Posts[0].ID)
+	assert.Equal(t, 7, result.Pages[0].ID)
+	assert.Equal(t, 9, result.Media[0].ID)
 }
 
-func TestScanForContentWithDuplicates(t *testing.T) {
+func TestScanForContent_SkipsDuplicates(t *testing.T) {
+	posts := map[int]models.WordPressPost{
+		1: {ID: 1, Title: models.RenderedContent{Rendered: "Existing Post"}},
+		3: {ID: 3, Title: models.RenderedContent{Rendered: "New Post"}},
+	}
+
+	server := createTestServer(posts, nil, nil)
+	defer server.Close()
+
 	cfg := &config.Config{
+		URL:        server.URL,
 		BruteForce: true,
 		MaxID:      5,
 		Concurrent: 2,
@@ -424,184 +184,216 @@ func TestScanForContentWithDuplicates(t *testing.T) {
 		Retries:    1,
 	}
 
-	mockClient := NewMockAPIClient()
-	scanner := NewTestScanner(cfg, mockClient)
+	client, err := api.NewClient(cfg)
+	require.NoError(t, err)
 
-	// Add existing content
-	existingPosts := []models.WordPressPost{
-		{ID: 1, Title: models.RenderedContent{Rendered: "Existing Post"}},
-		{ID: 2, Title: models.RenderedContent{Rendered: "Another Existing Post"}},
-	}
+	scanner := NewScanner(cfg, client)
 
-	// Add the same content to mock client (should be skipped)
-	mockClient.AddPost(1, &models.WordPressPost{
-		ID:    1,
-		Title: models.RenderedContent{Rendered: "Existing Post"},
-	})
+	// Post 1 already exists
+	existingPosts := []models.WordPressPost{{ID: 1}}
 
-	mockClient.AddPost(3, &models.WordPressPost{
-		ID:    3,
-		Title: models.RenderedContent{Rendered: "New Post"},
-	})
+	result, err := scanner.ScanForContent(existingPosts, nil, nil)
 
-	result, err := scanner.ScanForContent(existingPosts, []models.WordPressPost{}, []models.WordPressMedia{})
-
-	if err != nil {
-		t.Errorf("ScanForContent() error = %v, want nil", err)
-	}
-
-	// Should only find the new post, not duplicates
-	if result.Found != 1 {
-		t.Errorf("ScanForContent() Found = %d, want 1", result.Found)
-	}
-
-	if len(result.Posts) != 1 {
-		t.Errorf("ScanForContent() Posts length = %d, want 1", len(result.Posts))
-	}
-
-	if result.Posts[0].ID != 3 {
-		t.Errorf("ScanForContent() post ID = %d, want 3", result.Posts[0].ID)
-	}
+	assert.NoError(t, err)
+	// Should only find post 3, not post 1 (duplicate)
+	assert.Equal(t, 1, result.Found)
+	assert.Len(t, result.Posts, 1)
+	assert.Equal(t, 3, result.Posts[0].ID)
 }
 
-func TestScanSpecificRange(t *testing.T) {
+func TestScanForContent_EmptyResults(t *testing.T) {
+	// No content on server
+	server := createTestServer(nil, nil, nil)
+	defer server.Close()
+
 	cfg := &config.Config{
+		URL:        server.URL,
+		BruteForce: true,
+		MaxID:      5,
+		Concurrent: 2,
+		Timeout:    30,
+		Retries:    1,
+	}
+
+	client, err := api.NewClient(cfg)
+	require.NoError(t, err)
+
+	scanner := NewScanner(cfg, client)
+	result, err := scanner.ScanForContent(nil, nil, nil)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 0, result.Found)
+	assert.Empty(t, result.Posts)
+	assert.Empty(t, result.Pages)
+	assert.Empty(t, result.Media)
+}
+
+func TestScanForContent_VerboseMode(t *testing.T) {
+	posts := map[int]models.WordPressPost{
+		1: {ID: 1, Title: models.RenderedContent{Rendered: "Test Post"}},
+	}
+
+	server := createTestServer(posts, nil, nil)
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:        server.URL,
+		BruteForce: true,
+		MaxID:      3,
+		Concurrent: 1,
+		Timeout:    30,
+		Retries:    1,
+		Verbose:    true,
+	}
+
+	client, err := api.NewClient(cfg)
+	require.NoError(t, err)
+
+	scanner := NewScanner(cfg, client)
+	result, err := scanner.ScanForContent(nil, nil, nil)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 1, result.Found)
+}
+
+func TestScanSpecificRange_Posts(t *testing.T) {
+	posts := map[int]models.WordPressPost{
+		10: {ID: 10, Title: models.RenderedContent{Rendered: "Post 10"}},
+		15: {ID: 15, Title: models.RenderedContent{Rendered: "Post 15"}},
+		20: {ID: 20, Title: models.RenderedContent{Rendered: "Post 20"}},
+	}
+
+	server := createTestServer(posts, nil, nil)
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:        server.URL,
 		MaxID:      100,
 		Concurrent: 2,
 		Timeout:    30,
 		Retries:    1,
 	}
 
-	mockClient := NewMockAPIClient()
-	scanner := NewTestScanner(cfg, mockClient)
+	client, err := api.NewClient(cfg)
+	require.NoError(t, err)
 
-	// Add some posts in the range
-	mockClient.AddPost(10, &models.WordPressPost{
-		ID:    10,
-		Title: models.RenderedContent{Rendered: "Post 10"},
-	})
-
-	mockClient.AddPost(15, &models.WordPressPost{
-		ID:    15,
-		Title: models.RenderedContent{Rendered: "Post 15"},
-	})
-
-	mockClient.AddPost(20, &models.WordPressPost{
-		ID:    20,
-		Title: models.RenderedContent{Rendered: "Post 20"},
-	})
-
-	// Test scanning posts
+	scanner := NewScanner(cfg, client)
 	result, err := scanner.ScanSpecificRange("posts", 10, 20)
 
-	if err != nil {
-		t.Errorf("ScanSpecificRange() error = %v, want nil", err)
-	}
-
-	posts, ok := result.([]models.WordPressPost)
-	if !ok {
-		t.Fatal("ScanSpecificRange() should return []models.WordPressPost for posts")
-	}
-
-	if len(posts) != 3 {
-		t.Errorf("ScanSpecificRange() posts length = %d, want 3", len(posts))
-	}
-
-	// Test scanning pages
-	mockClient.AddPage(12, &models.WordPressPost{
-		ID:    12,
-		Title: models.RenderedContent{Rendered: "Page 12"},
-	})
-
-	result, err = scanner.ScanSpecificRange("pages", 10, 20)
-
-	if err != nil {
-		t.Errorf("ScanSpecificRange() error = %v, want nil", err)
-	}
-
-	pages, ok := result.([]models.WordPressPost)
-	if !ok {
-		t.Fatal("ScanSpecificRange() should return []models.WordPressPost for pages")
-	}
-
-	if len(pages) != 1 {
-		t.Errorf("ScanSpecificRange() pages length = %d, want 1", len(pages))
-	}
-
-	// Test scanning media
-	mockClient.AddMedia(18, &models.WordPressMedia{
-		ID:    18,
-		Title: models.RenderedContent{Rendered: "Media 18"},
-	})
-
-	result, err = scanner.ScanSpecificRange("media", 10, 20)
-
-	if err != nil {
-		t.Errorf("ScanSpecificRange() error = %v, want nil", err)
-	}
-
-	media, ok := result.([]models.WordPressMedia)
-	if !ok {
-		t.Fatal("ScanSpecificRange() should return []models.WordPressMedia for media")
-	}
-
-	if len(media) != 1 {
-		t.Errorf("ScanSpecificRange() media length = %d, want 1", len(media))
-	}
+	assert.NoError(t, err)
+	foundPosts, ok := result.([]models.WordPressPost)
+	assert.True(t, ok)
+	assert.Len(t, foundPosts, 3)
 }
 
-func TestScanSpecificRangeInvalidContentType(t *testing.T) {
+func TestScanSpecificRange_Pages(t *testing.T) {
+	pages := map[int]models.WordPressPost{
+		12: {ID: 12, Title: models.RenderedContent{Rendered: "Page 12"}},
+	}
+
+	server := createTestServer(nil, pages, nil)
+	defer server.Close()
+
 	cfg := &config.Config{
+		URL:        server.URL,
 		MaxID:      100,
 		Concurrent: 2,
 		Timeout:    30,
 		Retries:    1,
 	}
 
-	mockClient := NewMockAPIClient()
-	scanner := NewTestScanner(cfg, mockClient)
+	client, err := api.NewClient(cfg)
+	require.NoError(t, err)
 
+	scanner := NewScanner(cfg, client)
+	result, err := scanner.ScanSpecificRange("pages", 10, 20)
+
+	assert.NoError(t, err)
+	foundPages, ok := result.([]models.WordPressPost)
+	assert.True(t, ok)
+	assert.Len(t, foundPages, 1)
+	assert.Equal(t, 12, foundPages[0].ID)
+}
+
+func TestScanSpecificRange_Media(t *testing.T) {
+	media := map[int]models.WordPressMedia{
+		18: {ID: 18, Title: models.RenderedContent{Rendered: "Media 18"}},
+	}
+
+	server := createTestServer(nil, nil, media)
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:        server.URL,
+		MaxID:      100,
+		Concurrent: 2,
+		Timeout:    30,
+		Retries:    1,
+	}
+
+	client, err := api.NewClient(cfg)
+	require.NoError(t, err)
+
+	scanner := NewScanner(cfg, client)
+	result, err := scanner.ScanSpecificRange("media", 10, 20)
+
+	assert.NoError(t, err)
+	foundMedia, ok := result.([]models.WordPressMedia)
+	assert.True(t, ok)
+	assert.Len(t, foundMedia, 1)
+	assert.Equal(t, 18, foundMedia[0].ID)
+}
+
+func TestScanSpecificRange_InvalidContentType(t *testing.T) {
+	server := createTestServer(nil, nil, nil)
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:        server.URL,
+		MaxID:      100,
+		Concurrent: 2,
+		Timeout:    30,
+		Retries:    1,
+	}
+
+	client, err := api.NewClient(cfg)
+	require.NoError(t, err)
+
+	scanner := NewScanner(cfg, client)
 	result, err := scanner.ScanSpecificRange("invalid", 1, 10)
 
-	if err == nil {
-		t.Error("ScanSpecificRange() should return error for invalid content type")
-	}
-
-	if result != nil {
-		t.Error("ScanSpecificRange() should return nil result for invalid content type")
-	}
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "unsupported content type")
 }
 
-func TestScanSpecificRangeInvalidRange(t *testing.T) {
+func TestScanSpecificRange_EmptyRange(t *testing.T) {
+	server := createTestServer(nil, nil, nil)
+	defer server.Close()
+
 	cfg := &config.Config{
+		URL:        server.URL,
 		MaxID:      100,
 		Concurrent: 2,
 		Timeout:    30,
 		Retries:    1,
 	}
 
-	mockClient := NewMockAPIClient()
-	scanner := NewTestScanner(cfg, mockClient)
+	client, err := api.NewClient(cfg)
+	require.NoError(t, err)
 
-	// Test with start > end
+	scanner := NewScanner(cfg, client)
+
+	// Start > End should return empty
 	result, err := scanner.ScanSpecificRange("posts", 20, 10)
 
-	if err != nil {
-		t.Errorf("ScanSpecificRange() error = %v, want nil", err)
-	}
-
+	assert.NoError(t, err)
 	posts, ok := result.([]models.WordPressPost)
-	if !ok {
-		t.Fatal("ScanSpecificRange() should return []models.WordPressPost for posts")
-	}
-
-	// Should return empty result for invalid range
-	if len(posts) != 0 {
-		t.Errorf("ScanSpecificRange() posts length = %d, want 0", len(posts))
-	}
+	assert.True(t, ok)
+	assert.Empty(t, posts)
 }
 
-func TestScanResultStructure(t *testing.T) {
+func TestScanResult_Structure(t *testing.T) {
 	result := &ScanResult{
 		Posts: []models.WordPressPost{
 			{ID: 1, Title: models.RenderedContent{Rendered: "Post 1"}},
@@ -615,100 +407,116 @@ func TestScanResultStructure(t *testing.T) {
 		Found: 3,
 	}
 
-	if len(result.Posts) != 1 {
-		t.Errorf("ScanResult Posts length = %d, want 1", len(result.Posts))
-	}
+	assert.Len(t, result.Posts, 1)
+	assert.Len(t, result.Pages, 1)
+	assert.Len(t, result.Media, 1)
+	assert.Equal(t, 3, result.Found)
 
-	if len(result.Pages) != 1 {
-		t.Errorf("ScanResult Pages length = %d, want 1", len(result.Pages))
-	}
-
-	if len(result.Media) != 1 {
-		t.Errorf("ScanResult Media length = %d, want 1", len(result.Media))
-	}
-
-	if result.Found != 3 {
-		t.Errorf("ScanResult Found = %d, want 3", result.Found)
-	}
-
-	// Test that Found matches total items
+	// Verify Found matches total items
 	expectedFound := len(result.Posts) + len(result.Pages) + len(result.Media)
-	if result.Found != expectedFound {
-		t.Errorf("ScanResult Found = %d, expected %d based on items", result.Found, expectedFound)
-	}
+	assert.Equal(t, expectedFound, result.Found)
 }
 
-func TestConcurrentScanning(t *testing.T) {
+func TestScanSpecificRange_InvalidType(t *testing.T) {
+	server := createTestServer(nil, nil, nil)
+	defer server.Close()
+
 	cfg := &config.Config{
-		BruteForce: true,
-		MaxID:      50,
-		Concurrent: 5, // High concurrency
-		Timeout:    30,
-		Retries:    1,
-	}
-
-	mockClient := NewMockAPIClient()
-	scanner := NewTestScanner(cfg, mockClient)
-
-	// Add many posts to test concurrent processing
-	for i := 1; i <= 20; i++ {
-		mockClient.AddPost(i, &models.WordPressPost{
-			ID:    i,
-			Title: models.RenderedContent{Rendered: fmt.Sprintf("Post %d", i)},
-		})
-	}
-
-	start := time.Now()
-	result, err := scanner.ScanForContent([]models.WordPressPost{}, []models.WordPressPost{}, []models.WordPressMedia{})
-	duration := time.Since(start)
-
-	if err != nil {
-		t.Errorf("ScanForContent() error = %v, want nil", err)
-	}
-
-	if result.Found != 20 {
-		t.Errorf("ScanForContent() Found = %d, want 20", result.Found)
-	}
-
-	// Concurrent scanning should be reasonably fast
-	// This is a rough check - adjust threshold if needed
-	if duration > 10*time.Second {
-		t.Errorf("ScanForContent() took too long: %v", duration)
-	}
-}
-
-func TestScanWithEmptyResults(t *testing.T) {
-	cfg := &config.Config{
-		BruteForce: true,
+		URL:        server.URL,
 		MaxID:      10,
 		Concurrent: 2,
 		Timeout:    30,
 		Retries:    1,
 	}
 
-	mockClient := NewMockAPIClient()
-	scanner := NewTestScanner(cfg, mockClient)
+	client, err := api.NewClient(cfg)
+	require.NoError(t, err)
 
-	// Don't add any content to mock client
-	result, err := scanner.ScanForContent([]models.WordPressPost{}, []models.WordPressPost{}, []models.WordPressMedia{})
+	scanner := NewScanner(cfg, client)
 
-	if err != nil {
-		t.Errorf("ScanForContent() error = %v, want nil", err)
+	result, err := scanner.ScanSpecificRange("invalid", 1, 5)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestScanForContent_AllTypesWithMixedExisting(t *testing.T) {
+	// Server has IDs 1-5 for posts, pages, and media
+	posts := map[int]models.WordPressPost{
+		1: {ID: 1, Title: models.RenderedContent{Rendered: "Post 1"}},
+		2: {ID: 2, Title: models.RenderedContent{Rendered: "Post 2"}},
+		3: {ID: 3, Title: models.RenderedContent{Rendered: "Post 3"}},
+	}
+	pages := map[int]models.WordPressPost{
+		1: {ID: 1, Title: models.RenderedContent{Rendered: "Page 1"}},
+		2: {ID: 2, Title: models.RenderedContent{Rendered: "Page 2"}},
+	}
+	media := map[int]models.WordPressMedia{
+		1: {ID: 1, Title: models.RenderedContent{Rendered: "Media 1"}},
+		2: {ID: 2, Title: models.RenderedContent{Rendered: "Media 2"}},
 	}
 
-	if result.Found != 0 {
-		t.Errorf("ScanForContent() Found = %d, want 0", result.Found)
+	server := createTestServer(posts, pages, media)
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:        server.URL,
+		BruteForce: true,
+		MaxID:      5,
+		Concurrent: 2,
+		Timeout:    30,
+		Retries:    1,
 	}
 
-	if len(result.Posts) != 0 {
-		t.Errorf("ScanForContent() Posts length = %d, want 0", len(result.Posts))
+	client, err := api.NewClient(cfg)
+	require.NoError(t, err)
+
+	scanner := NewScanner(cfg, client)
+
+	// All IDs 1-2 already exist, only ID 3 is new
+	existingPosts := []models.WordPressPost{{ID: 1}, {ID: 2}}
+	existingPages := []models.WordPressPost{{ID: 1}}
+	existingMedia := []models.WordPressMedia{{ID: 1}}
+
+	result, err := scanner.ScanForContent(existingPosts, existingPages, existingMedia)
+
+	assert.NoError(t, err)
+	// Should find new posts (3), pages (2), media (2)
+	assert.Equal(t, 1, len(result.Posts))
+	assert.Equal(t, 1, len(result.Pages))
+	assert.Equal(t, 1, len(result.Media))
+}
+
+func TestScanForContent_NoNewContentFound(t *testing.T) {
+	// Server has only IDs 1-2
+	posts := map[int]models.WordPressPost{
+		1: {ID: 1, Title: models.RenderedContent{Rendered: "Post 1"}},
+		2: {ID: 2, Title: models.RenderedContent{Rendered: "Post 2"}},
 	}
 
-	if len(result.Pages) != 0 {
-		t.Errorf("ScanForContent() Pages length = %d, want 0", len(result.Pages))
+	server := createTestServer(posts, nil, nil)
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:        server.URL,
+		BruteForce: true,
+		MaxID:      3,
+		Concurrent: 2,
+		Timeout:    30,
+		Retries:    1,
 	}
 
-	if len(result.Media) != 0 {
-		t.Errorf("ScanForContent() Media length = %d, want 0", len(result.Media))
-	}
+	client, err := api.NewClient(cfg)
+	require.NoError(t, err)
+
+	scanner := NewScanner(cfg, client)
+
+	// All posts already known
+	existingPosts := []models.WordPressPost{{ID: 1}, {ID: 2}}
+
+	result, err := scanner.ScanForContent(existingPosts, nil, nil)
+
+	assert.NoError(t, err)
+	// Should find nothing new
+	assert.Empty(t, result.Posts)
 }

@@ -496,3 +496,277 @@ func TestGenerateDefaultOutputDateFormat(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadConfigWithInvalidConfigFile(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Test with invalid YAML file
+	invalidConfigFile := filepath.Join(tempDir, "invalid.yaml")
+	err := os.WriteFile(invalidConfigFile, []byte("invalid: yaml: content: [broken"), 0644)
+	require.NoError(t, err)
+
+	_, err = LoadConfig(invalidConfigFile)
+	if err == nil {
+		t.Error("LoadConfig() should return error for invalid YAML")
+	}
+}
+
+func TestLoadConfigWithValidationError(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create config with invalid values
+	configFile := filepath.Join(tempDir, "config.yaml")
+	configContent := `
+url: "https://example.com"
+format: "invalid_format"
+max_id: 1000
+concurrent: 5
+timeout: 30
+retries: 3
+`
+	err := os.WriteFile(configFile, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	_, err = LoadConfig(configFile)
+	if err == nil {
+		t.Error("LoadConfig() should return error for invalid format")
+	}
+}
+
+func TestValidate_ShopifyFormat(t *testing.T) {
+	cfg := &Config{
+		URL:        "https://example.com",
+		Format:     "shopify",
+		MaxID:      100,
+		Concurrent: 5,
+		Timeout:    30,
+		Retries:    0,
+	}
+
+	err := cfg.Validate()
+	if err != nil {
+		t.Errorf("Validate() should accept shopify format: %v", err)
+	}
+}
+
+func TestValidate_MagentoFormat(t *testing.T) {
+	cfg := &Config{
+		URL:        "https://example.com",
+		Format:     "magento",
+		MaxID:      100,
+		Concurrent: 5,
+		Timeout:    30,
+		Retries:    0,
+	}
+
+	err := cfg.Validate()
+	if err != nil {
+		t.Errorf("Validate() should accept magento format: %v", err)
+	}
+}
+
+func TestGenerateDefaultOutput_EmptyHostname(t *testing.T) {
+	// URL without hostname should use default
+	cfg := &Config{
+		URL: "file:///path/to/file",
+	}
+
+	err := cfg.GenerateDefaultOutput()
+	if err != nil {
+		t.Fatalf("GenerateDefaultOutput() error = %v", err)
+	}
+
+	// Should use default "wordpress-site" for empty hostname
+	if !strings.Contains(cfg.Output, "wordpress-site") {
+		t.Errorf("GenerateDefaultOutput() should use default hostname, got: %s", cfg.Output)
+	}
+}
+
+func TestGetMediaDir_RelativeJSONPath(t *testing.T) {
+	cfg := &Config{
+		Output: "relative/path/data.json",
+		Format: "json",
+	}
+
+	result := cfg.GetMediaDir()
+
+	// Should return absolute path
+	if !filepath.IsAbs(result) {
+		t.Errorf("GetMediaDir() should return absolute path for relative input, got: %s", result)
+	}
+
+	// Should end with data_media
+	if !strings.HasSuffix(result, "data_media") {
+		t.Errorf("GetMediaDir() should end with data_media, got: %s", result)
+	}
+}
+
+func TestEnsureOutputDir_NonJSONFormat(t *testing.T) {
+	tempDir := t.TempDir()
+
+	cfg := &Config{
+		Output: filepath.Join(tempDir, "shopify_output"),
+		Format: "shopify",
+	}
+
+	err := cfg.EnsureOutputDir()
+	if err != nil {
+		t.Errorf("EnsureOutputDir() error = %v", err)
+	}
+
+	// Verify directory was created
+	info, err := os.Stat(cfg.Output)
+	if err != nil {
+		t.Errorf("EnsureOutputDir() should create directory: %v", err)
+	}
+
+	if !info.IsDir() {
+		t.Error("EnsureOutputDir() should create a directory")
+	}
+}
+
+func TestSanitizeDomainName_NoExtension(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"localhost", "localhost"},
+		{"---localhost---", "localhost"},
+		{"my site", "my-site"},
+		{"192.168.1.1", "192.168.1.1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := sanitizeDomainName(tt.input)
+			if result != tt.expected {
+				t.Errorf("sanitizeDomainName(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestLoadConfigWithAllEnvVars(t *testing.T) {
+	// Set all available environment variables
+	envVars := map[string]string{
+		"WPEXPORT_URL":                "https://full-test.example.com",
+		"WPEXPORT_FORMAT":             "json",
+		"WPEXPORT_BRUTE_FORCE":        "true",
+		"WPEXPORT_MAX_ID":             "9999",
+		"WPEXPORT_DOWNLOAD_MEDIA":     "false",
+		"WPEXPORT_RELEVANT_MEDIA_ONLY": "true",
+		"WPEXPORT_PATH_FILTER":        "/en/blog/",
+		"WPEXPORT_ASSISTED_CRAWL":     "true",
+		"WPEXPORT_CONCURRENT":         "20",
+		"WPEXPORT_TIMEOUT":            "120",
+		"WPEXPORT_RETRIES":            "10",
+		"WPEXPORT_USER_AGENT":         "TestAgent/2.0",
+		"WPEXPORT_VERBOSE":            "true",
+	}
+
+	for k, v := range envVars {
+		err := os.Setenv(k, v)
+		require.NoError(t, err)
+	}
+	defer func() {
+		for k := range envVars {
+			os.Unsetenv(k)
+		}
+	}()
+
+	cfg, err := LoadConfig("")
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+
+	if cfg.URL != "https://full-test.example.com" {
+		t.Errorf("URL = %v, want %v", cfg.URL, "https://full-test.example.com")
+	}
+	if cfg.BruteForce != true {
+		t.Errorf("BruteForce = %v, want true", cfg.BruteForce)
+	}
+	if cfg.MaxID != 9999 {
+		t.Errorf("MaxID = %v, want 9999", cfg.MaxID)
+	}
+	if cfg.DownloadMedia != false {
+		t.Errorf("DownloadMedia = %v, want false", cfg.DownloadMedia)
+	}
+	if cfg.RelevantMediaOnly != true {
+		t.Errorf("RelevantMediaOnly = %v, want true", cfg.RelevantMediaOnly)
+	}
+	if cfg.PathFilter != "/en/blog/" {
+		t.Errorf("PathFilter = %v, want /en/blog/", cfg.PathFilter)
+	}
+	if cfg.AssistedCrawl != true {
+		t.Errorf("AssistedCrawl = %v, want true", cfg.AssistedCrawl)
+	}
+	if cfg.Concurrent != 20 {
+		t.Errorf("Concurrent = %v, want 20", cfg.Concurrent)
+	}
+	if cfg.Timeout != 120 {
+		t.Errorf("Timeout = %v, want 120", cfg.Timeout)
+	}
+	if cfg.Retries != 10 {
+		t.Errorf("Retries = %v, want 10", cfg.Retries)
+	}
+	if cfg.UserAgent != "TestAgent/2.0" {
+		t.Errorf("UserAgent = %v, want TestAgent/2.0", cfg.UserAgent)
+	}
+	if cfg.Verbose != true {
+		t.Errorf("Verbose = %v, want true", cfg.Verbose)
+	}
+}
+
+func TestConfigFields(t *testing.T) {
+	// Test that all config fields can be set
+	cfg := &Config{
+		URL:               "https://example.com",
+		Output:            "/tmp/output",
+		Format:            "json",
+		BruteForce:        true,
+		MaxID:             5000,
+		DownloadMedia:     false,
+		RelevantMediaOnly: true,
+		Concurrent:        10,
+		Timeout:           60,
+		Retries:           5,
+		UserAgent:         "Test/1.0",
+		Verbose:           true,
+		CreateZip:         true,
+		NoFiles:           true,
+		NoPosts:           true,
+		NoPages:           true,
+		NoProducts:        true,
+		PathFilter:        "/blog/",
+		AssistedCrawl:     true,
+		AuthUser:          "user",
+		AuthPass:          "pass",
+		AuthToken:         "token123",
+	}
+
+	// Verify all fields are set correctly
+	if cfg.CreateZip != true {
+		t.Error("CreateZip should be true")
+	}
+	if cfg.NoFiles != true {
+		t.Error("NoFiles should be true")
+	}
+	if cfg.NoPosts != true {
+		t.Error("NoPosts should be true")
+	}
+	if cfg.NoPages != true {
+		t.Error("NoPages should be true")
+	}
+	if cfg.NoProducts != true {
+		t.Error("NoProducts should be true")
+	}
+	if cfg.AuthUser != "user" {
+		t.Errorf("AuthUser = %v, want user", cfg.AuthUser)
+	}
+	if cfg.AuthPass != "pass" {
+		t.Errorf("AuthPass = %v, want pass", cfg.AuthPass)
+	}
+	if cfg.AuthToken != "token123" {
+		t.Errorf("AuthToken = %v, want token123", cfg.AuthToken)
+	}
+}

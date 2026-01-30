@@ -605,3 +605,692 @@ func TestMediaSizeStructure(t *testing.T) {
 		t.Errorf("MediaSize.MimeType = %s, want %s", mediaSize.MimeType, "image/jpeg")
 	}
 }
+
+// TestWordPressTimeUnmarshalJSON_DirectCall tests the UnmarshalJSON method directly
+// to cover error paths that can't be reached via json.Unmarshal wrapper
+func TestWordPressTimeUnmarshalJSON_DirectCall(t *testing.T) {
+	// Test with non-string JSON (number) - should return error
+	var wt WordPressTime
+	err := wt.UnmarshalJSON([]byte("123"))
+	if err == nil {
+		t.Error("UnmarshalJSON should return error for non-string JSON")
+	}
+
+	// Test with JSON array - should return error
+	err = wt.UnmarshalJSON([]byte("[1,2,3]"))
+	if err == nil {
+		t.Error("UnmarshalJSON should return error for JSON array")
+	}
+
+	// Test with JSON object - should return error
+	err = wt.UnmarshalJSON([]byte(`{"key": "value"}`))
+	if err == nil {
+		t.Error("UnmarshalJSON should return error for JSON object")
+	}
+
+	// Test with JSON boolean - should return error
+	err = wt.UnmarshalJSON([]byte("true"))
+	if err == nil {
+		t.Error("UnmarshalJSON should return error for JSON boolean")
+	}
+
+	// Test with null JSON - should NOT error (Go unmarshals null to empty string)
+	// The function should handle this gracefully and set time to Now()
+	err = wt.UnmarshalJSON([]byte("null"))
+	if err != nil {
+		t.Errorf("UnmarshalJSON should not error for null JSON: %v", err)
+	}
+	// Time should be set to approximately now (within last second)
+	if wt.IsZero() {
+		t.Error("UnmarshalJSON should set non-zero time for null JSON")
+	}
+
+	// Test with invalid JSON syntax
+	err = wt.UnmarshalJSON([]byte("{invalid"))
+	if err == nil {
+		t.Error("UnmarshalJSON should return error for invalid JSON syntax")
+	}
+}
+
+func TestWooCommerceProductFields(t *testing.T) {
+	productJSON := `{
+		"id": 100,
+		"name": "Test Product",
+		"slug": "test-product",
+		"permalink": "https://example.com/product/test-product",
+		"date_created": "2024-01-15T10:30:00",
+		"date_modified": "2024-01-15T12:00:00",
+		"type": "simple",
+		"status": "publish",
+		"featured": true,
+		"catalog_visibility": "visible",
+		"description": "<p>Product description</p>",
+		"short_description": "<p>Short desc</p>",
+		"sku": "TEST-001",
+		"price": "29.99",
+		"regular_price": "39.99",
+		"sale_price": "29.99",
+		"on_sale": true,
+		"purchasable": true,
+		"total_sales": 150,
+		"virtual": false,
+		"downloadable": false,
+		"tax_status": "taxable",
+		"tax_class": "",
+		"manage_stock": true,
+		"stock_quantity": 50,
+		"stock_status": "instock",
+		"backorders": "no",
+		"backorders_allowed": false,
+		"backordered": false,
+		"sold_individually": false,
+		"weight": "1.5",
+		"dimensions": {
+			"length": "10",
+			"width": "5",
+			"height": "2"
+		},
+		"shipping_required": true,
+		"shipping_taxable": true,
+		"shipping_class": "",
+		"shipping_class_id": 0,
+		"reviews_allowed": true,
+		"average_rating": "4.5",
+		"rating_count": 25,
+		"parent_id": 0,
+		"purchase_note": "Thank you for your purchase",
+		"categories": [
+			{"id": 1, "name": "Electronics", "slug": "electronics"}
+		],
+		"tags": [
+			{"id": 10, "name": "Sale", "slug": "sale"}
+		],
+		"images": [
+			{
+				"id": 50,
+				"src": "https://example.com/img1.jpg",
+				"name": "Product Image",
+				"alt": "Product Alt Text",
+				"date_created": "2024-01-15T10:30:00",
+				"date_modified": "2024-01-15T10:30:00"
+			}
+		],
+		"attributes": [
+			{
+				"id": 1,
+				"name": "Color",
+				"position": 0,
+				"visible": true,
+				"variation": true,
+				"options": ["Red", "Blue", "Green"]
+			}
+		],
+		"default_attributes": [],
+		"variations": [101, 102],
+		"meta_data": [
+			{"id": 1, "key": "_custom_field", "value": "custom_value"}
+		]
+	}`
+
+	var product WooCommerceProduct
+	err := json.Unmarshal([]byte(productJSON), &product)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal WooCommerceProduct: %v", err)
+	}
+
+	if product.ID != 100 {
+		t.Errorf("WooCommerceProduct ID = %d, want %d", product.ID, 100)
+	}
+
+	if product.Name != "Test Product" {
+		t.Errorf("WooCommerceProduct Name = %s, want %s", product.Name, "Test Product")
+	}
+
+	if product.SKU != "TEST-001" {
+		t.Errorf("WooCommerceProduct SKU = %s, want %s", product.SKU, "TEST-001")
+	}
+
+	if product.Price != "29.99" {
+		t.Errorf("WooCommerceProduct Price = %s, want %s", product.Price, "29.99")
+	}
+
+	if !product.OnSale {
+		t.Error("WooCommerceProduct OnSale should be true")
+	}
+
+	if !product.Featured {
+		t.Error("WooCommerceProduct Featured should be true")
+	}
+
+	if product.TotalSales != 150 {
+		t.Errorf("WooCommerceProduct TotalSales = %d, want %d", product.TotalSales, 150)
+	}
+
+	if len(product.Categories) != 1 || product.Categories[0].Name != "Electronics" {
+		t.Errorf("WooCommerceProduct Categories = %v, want [Electronics]", product.Categories)
+	}
+
+	if len(product.Images) != 1 || product.Images[0].Src != "https://example.com/img1.jpg" {
+		t.Errorf("WooCommerceProduct Images = %v", product.Images)
+	}
+
+	if len(product.Attributes) != 1 || product.Attributes[0].Name != "Color" {
+		t.Errorf("WooCommerceProduct Attributes = %v", product.Attributes)
+	}
+
+	if len(product.Variations) != 2 {
+		t.Errorf("WooCommerceProduct Variations = %v, want [101, 102]", product.Variations)
+	}
+
+	// Test dimensions
+	if product.Dimensions.Length != "10" {
+		t.Errorf("WooCommerceProduct Dimensions.Length = %s, want %s", product.Dimensions.Length, "10")
+	}
+}
+
+func TestProductDimensionsFields(t *testing.T) {
+	dimensionsJSON := `{
+		"length": "25.5",
+		"width": "15.0",
+		"height": "10.0"
+	}`
+
+	var dimensions ProductDimensions
+	err := json.Unmarshal([]byte(dimensionsJSON), &dimensions)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal ProductDimensions: %v", err)
+	}
+
+	if dimensions.Length != "25.5" {
+		t.Errorf("ProductDimensions Length = %s, want %s", dimensions.Length, "25.5")
+	}
+
+	if dimensions.Width != "15.0" {
+		t.Errorf("ProductDimensions Width = %s, want %s", dimensions.Width, "15.0")
+	}
+
+	if dimensions.Height != "10.0" {
+		t.Errorf("ProductDimensions Height = %s, want %s", dimensions.Height, "10.0")
+	}
+}
+
+func TestProductCategoryFields(t *testing.T) {
+	categoryJSON := `{
+		"id": 5,
+		"name": "Clothing",
+		"slug": "clothing"
+	}`
+
+	var category ProductCategory
+	err := json.Unmarshal([]byte(categoryJSON), &category)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal ProductCategory: %v", err)
+	}
+
+	if category.ID != 5 {
+		t.Errorf("ProductCategory ID = %d, want %d", category.ID, 5)
+	}
+
+	if category.Name != "Clothing" {
+		t.Errorf("ProductCategory Name = %s, want %s", category.Name, "Clothing")
+	}
+
+	if category.Slug != "clothing" {
+		t.Errorf("ProductCategory Slug = %s, want %s", category.Slug, "clothing")
+	}
+}
+
+func TestProductTagFields(t *testing.T) {
+	tagJSON := `{
+		"id": 15,
+		"name": "New Arrival",
+		"slug": "new-arrival"
+	}`
+
+	var tag ProductTag
+	err := json.Unmarshal([]byte(tagJSON), &tag)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal ProductTag: %v", err)
+	}
+
+	if tag.ID != 15 {
+		t.Errorf("ProductTag ID = %d, want %d", tag.ID, 15)
+	}
+
+	if tag.Name != "New Arrival" {
+		t.Errorf("ProductTag Name = %s, want %s", tag.Name, "New Arrival")
+	}
+
+	if tag.Slug != "new-arrival" {
+		t.Errorf("ProductTag Slug = %s, want %s", tag.Slug, "new-arrival")
+	}
+}
+
+func TestProductImageFields(t *testing.T) {
+	imageJSON := `{
+		"id": 200,
+		"src": "https://example.com/wp-content/uploads/product.jpg",
+		"name": "product.jpg",
+		"alt": "Product main image",
+		"date_created": "2024-01-15T10:30:00",
+		"date_modified": "2024-01-15T12:00:00"
+	}`
+
+	var image ProductImage
+	err := json.Unmarshal([]byte(imageJSON), &image)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal ProductImage: %v", err)
+	}
+
+	if image.ID != 200 {
+		t.Errorf("ProductImage ID = %d, want %d", image.ID, 200)
+	}
+
+	if image.Src != "https://example.com/wp-content/uploads/product.jpg" {
+		t.Errorf("ProductImage Src = %s, want %s", image.Src, "https://example.com/wp-content/uploads/product.jpg")
+	}
+
+	if image.Name != "product.jpg" {
+		t.Errorf("ProductImage Name = %s, want %s", image.Name, "product.jpg")
+	}
+
+	if image.Alt != "Product main image" {
+		t.Errorf("ProductImage Alt = %s, want %s", image.Alt, "Product main image")
+	}
+}
+
+func TestProductAttributeFields(t *testing.T) {
+	attributeJSON := `{
+		"id": 3,
+		"name": "Size",
+		"position": 1,
+		"visible": true,
+		"variation": true,
+		"options": ["Small", "Medium", "Large", "XL"]
+	}`
+
+	var attribute ProductAttribute
+	err := json.Unmarshal([]byte(attributeJSON), &attribute)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal ProductAttribute: %v", err)
+	}
+
+	if attribute.ID != 3 {
+		t.Errorf("ProductAttribute ID = %d, want %d", attribute.ID, 3)
+	}
+
+	if attribute.Name != "Size" {
+		t.Errorf("ProductAttribute Name = %s, want %s", attribute.Name, "Size")
+	}
+
+	if attribute.Position != 1 {
+		t.Errorf("ProductAttribute Position = %d, want %d", attribute.Position, 1)
+	}
+
+	if !attribute.Visible {
+		t.Error("ProductAttribute Visible should be true")
+	}
+
+	if !attribute.Variation {
+		t.Error("ProductAttribute Variation should be true")
+	}
+
+	if len(attribute.Options) != 4 {
+		t.Errorf("ProductAttribute Options length = %d, want %d", len(attribute.Options), 4)
+	}
+}
+
+func TestProductMetaFields(t *testing.T) {
+	metaJSON := `{
+		"id": 50,
+		"key": "_product_custom_field",
+		"value": "custom value"
+	}`
+
+	var meta ProductMeta
+	err := json.Unmarshal([]byte(metaJSON), &meta)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal ProductMeta: %v", err)
+	}
+
+	if meta.ID != 50 {
+		t.Errorf("ProductMeta ID = %d, want %d", meta.ID, 50)
+	}
+
+	if meta.Key != "_product_custom_field" {
+		t.Errorf("ProductMeta Key = %s, want %s", meta.Key, "_product_custom_field")
+	}
+
+	if meta.Value != "custom value" {
+		t.Errorf("ProductMeta Value = %v, want %s", meta.Value, "custom value")
+	}
+}
+
+func TestSEODataFields(t *testing.T) {
+	seoJSON := `{
+		"seo_title": "Test SEO Title | Site Name",
+		"meta_description": "This is the meta description for SEO",
+		"meta_keywords": "test, keywords, seo",
+		"og_title": "Open Graph Title",
+		"og_description": "Open Graph Description",
+		"og_image": "https://example.com/og-image.jpg",
+		"canonical_url": "https://example.com/canonical-page"
+	}`
+
+	var seo SEOData
+	err := json.Unmarshal([]byte(seoJSON), &seo)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal SEOData: %v", err)
+	}
+
+	if seo.Title != "Test SEO Title | Site Name" {
+		t.Errorf("SEOData Title = %s, want %s", seo.Title, "Test SEO Title | Site Name")
+	}
+
+	if seo.MetaDescription != "This is the meta description for SEO" {
+		t.Errorf("SEOData MetaDescription = %s", seo.MetaDescription)
+	}
+
+	if seo.MetaKeywords != "test, keywords, seo" {
+		t.Errorf("SEOData MetaKeywords = %s", seo.MetaKeywords)
+	}
+
+	if seo.OGTitle != "Open Graph Title" {
+		t.Errorf("SEOData OGTitle = %s", seo.OGTitle)
+	}
+
+	if seo.OGDescription != "Open Graph Description" {
+		t.Errorf("SEOData OGDescription = %s", seo.OGDescription)
+	}
+
+	if seo.OGImage != "https://example.com/og-image.jpg" {
+		t.Errorf("SEOData OGImage = %s", seo.OGImage)
+	}
+
+	if seo.CanonicalURL != "https://example.com/canonical-page" {
+		t.Errorf("SEOData CanonicalURL = %s", seo.CanonicalURL)
+	}
+}
+
+func TestExportStatsFields(t *testing.T) {
+	statsJSON := `{
+		"total_posts": 100,
+		"total_pages": 25,
+		"total_products": 50,
+		"total_media": 200,
+		"total_categories": 10,
+		"total_tags": 30,
+		"total_users": 5,
+		"media_downloaded": 180,
+		"brute_force_found": 15
+	}`
+
+	var stats ExportStats
+	err := json.Unmarshal([]byte(statsJSON), &stats)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal ExportStats: %v", err)
+	}
+
+	if stats.TotalPosts != 100 {
+		t.Errorf("ExportStats TotalPosts = %d, want %d", stats.TotalPosts, 100)
+	}
+
+	if stats.TotalPages != 25 {
+		t.Errorf("ExportStats TotalPages = %d, want %d", stats.TotalPages, 25)
+	}
+
+	if stats.TotalProducts != 50 {
+		t.Errorf("ExportStats TotalProducts = %d, want %d", stats.TotalProducts, 50)
+	}
+
+	if stats.TotalMedia != 200 {
+		t.Errorf("ExportStats TotalMedia = %d, want %d", stats.TotalMedia, 200)
+	}
+
+	if stats.TotalCategories != 10 {
+		t.Errorf("ExportStats TotalCategories = %d, want %d", stats.TotalCategories, 10)
+	}
+
+	if stats.TotalTags != 30 {
+		t.Errorf("ExportStats TotalTags = %d, want %d", stats.TotalTags, 30)
+	}
+
+	if stats.TotalUsers != 5 {
+		t.Errorf("ExportStats TotalUsers = %d, want %d", stats.TotalUsers, 5)
+	}
+
+	if stats.MediaDownloaded != 180 {
+		t.Errorf("ExportStats MediaDownloaded = %d, want %d", stats.MediaDownloaded, 180)
+	}
+
+	if stats.BruteForceFound != 15 {
+		t.Errorf("ExportStats BruteForceFound = %d, want %d", stats.BruteForceFound, 15)
+	}
+}
+
+func TestSiteInfoFields(t *testing.T) {
+	siteJSON := `{
+		"name": "My WordPress Site",
+		"description": "A great site description",
+		"url": "https://example.com",
+		"home_url": "https://example.com",
+		"admin_email": "admin@example.com",
+		"timezone": "Europe/London",
+		"date_format": "F j, Y",
+		"time_format": "g:i a",
+		"start_of_week": 0,
+		"language": "en_GB"
+	}`
+
+	var site SiteInfo
+	err := json.Unmarshal([]byte(siteJSON), &site)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal SiteInfo: %v", err)
+	}
+
+	if site.Name != "My WordPress Site" {
+		t.Errorf("SiteInfo Name = %s, want %s", site.Name, "My WordPress Site")
+	}
+
+	if site.Description != "A great site description" {
+		t.Errorf("SiteInfo Description = %s", site.Description)
+	}
+
+	if site.URL != "https://example.com" {
+		t.Errorf("SiteInfo URL = %s", site.URL)
+	}
+
+	if site.AdminEmail != "admin@example.com" {
+		t.Errorf("SiteInfo AdminEmail = %s", site.AdminEmail)
+	}
+
+	if site.Timezone != "Europe/London" {
+		t.Errorf("SiteInfo Timezone = %s", site.Timezone)
+	}
+
+	if site.Language != "en_GB" {
+		t.Errorf("SiteInfo Language = %s", site.Language)
+	}
+
+	if site.StartOfWeek != 0 {
+		t.Errorf("SiteInfo StartOfWeek = %d, want %d", site.StartOfWeek, 0)
+	}
+}
+
+func TestMediaDetailsFields(t *testing.T) {
+	detailsJSON := `{
+		"width": 1920,
+		"height": 1080,
+		"file": "2024/01/image.jpg",
+		"sizes": {
+			"thumbnail": {
+				"file": "image-150x150.jpg",
+				"width": 150,
+				"height": 150,
+				"mime_type": "image/jpeg",
+				"source_url": "https://example.com/wp-content/uploads/2024/01/image-150x150.jpg"
+			},
+			"medium": {
+				"file": "image-300x200.jpg",
+				"width": 300,
+				"height": 200,
+				"mime_type": "image/jpeg",
+				"source_url": "https://example.com/wp-content/uploads/2024/01/image-300x200.jpg"
+			}
+		},
+		"image_meta": {
+			"aperture": "2.8",
+			"camera": "Canon EOS",
+			"created_timestamp": "1705311000"
+		},
+		"length": 0,
+		"filesize": 256000
+	}`
+
+	var details MediaDetails
+	err := json.Unmarshal([]byte(detailsJSON), &details)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal MediaDetails: %v", err)
+	}
+
+	if details.File != "2024/01/image.jpg" {
+		t.Errorf("MediaDetails File = %s, want %s", details.File, "2024/01/image.jpg")
+	}
+
+	if len(details.Sizes) != 2 {
+		t.Errorf("MediaDetails Sizes length = %d, want %d", len(details.Sizes), 2)
+	}
+
+	thumbnail, ok := details.Sizes["thumbnail"]
+	if !ok {
+		t.Fatal("MediaDetails Sizes should contain thumbnail")
+	}
+
+	if thumbnail.File != "image-150x150.jpg" {
+		t.Errorf("MediaDetails thumbnail File = %s", thumbnail.File)
+	}
+
+	if details.ImageMeta == nil {
+		t.Error("MediaDetails ImageMeta should not be nil")
+	}
+}
+
+func TestLinkFields(t *testing.T) {
+	linkJSON := `{
+		"href": "https://example.com/wp-json/wp/v2/posts/1"
+	}`
+
+	var link Link
+	err := json.Unmarshal([]byte(linkJSON), &link)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal Link: %v", err)
+	}
+
+	if link.Href != "https://example.com/wp-json/wp/v2/posts/1" {
+		t.Errorf("Link Href = %s", link.Href)
+	}
+}
+
+func TestExportDataWithProducts(t *testing.T) {
+	exportJSON := `{
+		"site": {"name": "Test Shop"},
+		"posts": [],
+		"pages": [],
+		"products": [
+			{
+				"id": 1,
+				"name": "Test Product",
+				"slug": "test-product",
+				"type": "simple",
+				"status": "publish",
+				"price": "19.99",
+				"date_created": "2024-01-15T10:30:00",
+				"date_modified": "2024-01-15T10:30:00"
+			}
+		],
+		"media": [],
+		"categories": [],
+		"tags": [],
+		"users": [],
+		"exported_at": "2024-01-15T10:30:00Z",
+		"stats": {
+			"total_posts": 0,
+			"total_pages": 0,
+			"total_products": 1,
+			"total_media": 0,
+			"total_categories": 0,
+			"total_tags": 0,
+			"total_users": 0,
+			"media_downloaded": 0,
+			"brute_force_found": 0
+		}
+	}`
+
+	var exportData ExportData
+	err := json.Unmarshal([]byte(exportJSON), &exportData)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal ExportData with products: %v", err)
+	}
+
+	if len(exportData.Products) != 1 {
+		t.Errorf("ExportData Products length = %d, want %d", len(exportData.Products), 1)
+	}
+
+	if exportData.Products[0].Name != "Test Product" {
+		t.Errorf("ExportData Products[0].Name = %s, want %s", exportData.Products[0].Name, "Test Product")
+	}
+
+	if exportData.Stats.TotalProducts != 1 {
+		t.Errorf("ExportData Stats.TotalProducts = %d, want %d", exportData.Stats.TotalProducts, 1)
+	}
+}
+
+func TestWordPressPostWithSEO(t *testing.T) {
+	postJSON := `{
+		"id": 1,
+		"slug": "test-post",
+		"title": {"rendered": "Test Post"},
+		"content": {"rendered": "Test content"},
+		"status": "publish",
+		"type": "post",
+		"date": "2024-01-15T10:30:00Z",
+		"date_gmt": "2024-01-15T10:30:00Z",
+		"modified": "2024-01-15T10:30:00Z",
+		"modified_gmt": "2024-01-15T10:30:00Z",
+		"link": "https://example.com/test-post",
+		"author": 1,
+		"featured_media": 0,
+		"comment_status": "open",
+		"ping_status": "open",
+		"sticky": false,
+		"template": "",
+		"format": "standard",
+		"meta": {},
+		"categories": [],
+		"tags": [],
+		"_links": {},
+		"seo": {
+			"seo_title": "Custom SEO Title",
+			"meta_description": "Custom meta description",
+			"og_image": "https://example.com/og.jpg"
+		}
+	}`
+
+	var post WordPressPost
+	err := json.Unmarshal([]byte(postJSON), &post)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal WordPressPost with SEO: %v", err)
+	}
+
+	if post.SEO.Title != "Custom SEO Title" {
+		t.Errorf("WordPressPost SEO.Title = %s, want %s", post.SEO.Title, "Custom SEO Title")
+	}
+
+	if post.SEO.MetaDescription != "Custom meta description" {
+		t.Errorf("WordPressPost SEO.MetaDescription = %s", post.SEO.MetaDescription)
+	}
+
+	if post.SEO.OGImage != "https://example.com/og.jpg" {
+		t.Errorf("WordPressPost SEO.OGImage = %s", post.SEO.OGImage)
+	}
+}

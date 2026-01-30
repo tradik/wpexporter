@@ -6,6 +6,11 @@
 [![CI/CD](https://github.com/tradik/wpexporter/actions/workflows/ci.yml/badge.svg)](https://github.com/tradik/wpexporter/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/tradik/wpexporter?include_prereleases)](https://github.com/tradik/wpexporter/releases/latest)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tradik/wpexporter)](https://goreportcard.com/report/github.com/tradik/wpexporter)
+[![GitHub Stars](https://img.shields.io/github/stars/tradik/wpexporter?style=social)](https://github.com/tradik/wpexporter/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/tradik/wpexporter?style=social)](https://github.com/tradik/wpexporter/network/members)
+[![GitHub Issues](https://img.shields.io/github/issues/tradik/wpexporter)](https://github.com/tradik/wpexporter/issues)
+
+> **Repository:** [github.com/tradik/wpexporter](https://github.com/tradik/wpexporter)
 
 A comprehensive WordPress content export toolkit with two powerful applications:
 
@@ -166,16 +171,69 @@ wpexportjson export --config config.yaml
 | `--brute-force` | Enable brute force ID discovery | `false` |
 | `--max-id` | Maximum ID for brute force | `10000` |
 | `--download-media` | Download images and videos | `true` |
+| `--no-media` | Disable media downloads (alias for --download-media=false) | `false` |
+| `--relevant-media-only` | Download only featured images and content images | `false` |
 | `--concurrent` | Concurrent downloads | `5` |
 | `--zip` | Create ZIP archive of export | `false` |
 | `--no-files` | Remove export files after creating ZIP (requires --zip) | `false` |
 | `--no-posts` | Skip exporting blog posts | `false` |
 | `--no-pages` | Skip exporting pages | `false` |
 | `--no-products` | Skip exporting WooCommerce products | `false` |
-| `--auth-user` | Username for Basic Auth | - |
+| `--path-filter` | Filter posts/pages by URL path pattern (e.g., /fr/arts/) | - |
+| `--assisted-crawl` | Crawl URLs to extract SEO metadata (title, description, og tags) | `false` |
+| `--auth-user` | Username for Basic Auth (prompts for password if `--auth-pass` not provided) | - |
 | `--auth-pass` | Password for Basic Auth | - |
 | `--auth-token` | Bearer token for authentication | - |
 | `--config` | Configuration file path | - |
+
+## SEO Metadata Extraction
+
+The `--assisted-crawl` option enables extraction of SEO metadata by crawling actual page URLs. This is useful when:
+
+- RankMath, Yoast, or other SEO plugins are installed
+- SEO data is not exposed via WordPress REST API
+- You need accurate `<title>` tags and meta descriptions
+
+### Extracted SEO Fields
+
+| Field | Source |
+|-------|--------|
+| `seo_title` | `<title>` tag content |
+| `meta_description` | `<meta name="description">` |
+| `meta_keywords` | `<meta name="keywords">` |
+| `og_title` | `<meta property="og:title">` |
+| `og_description` | `<meta property="og:description">` |
+| `og_image` | `<meta property="og:image">` |
+| `canonical_url` | `<link rel="canonical">` |
+
+### Usage Example
+
+```bash
+# Export with SEO metadata extraction
+wpexportjson export --url https://example.com --assisted-crawl -f markdown
+
+# Combine with path filter for specific sections
+wpexportjson export --url https://example.com --path-filter=/blog/ --assisted-crawl -f markdown
+
+# With authentication for protected sites
+wpexportjson export --url https://example.com --auth-user admin --auth-pass secret --assisted-crawl
+```
+
+### Markdown Frontmatter Output
+
+When using `--assisted-crawl` with markdown format, SEO fields are included in the frontmatter:
+
+```yaml
+---
+id: 123
+title: "Original Post Title"
+seo_title: "SEO Optimized Title | Site Name"
+meta_description: "A compelling description for search engines..."
+og_title: "Title for Social Sharing"
+og_image: "https://example.com/social-image.jpg"
+# ... other fields
+---
+```
 
 ## Development
 

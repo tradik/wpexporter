@@ -13,45 +13,51 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	URL           string `mapstructure:"url" json:"url"`
-	Output        string `mapstructure:"output" json:"output"`
-	Format        string `mapstructure:"format" json:"format"`
-	BruteForce    bool   `mapstructure:"brute_force" json:"brute_force"`
-	MaxID         int    `mapstructure:"max_id" json:"max_id"`
-	DownloadMedia bool   `mapstructure:"download_media" json:"download_media"`
-	Concurrent    int    `mapstructure:"concurrent" json:"concurrent"`
-	Timeout       int    `mapstructure:"timeout" json:"timeout"`
-	Retries       int    `mapstructure:"retries" json:"retries"`
-	UserAgent     string `mapstructure:"user_agent" json:"user_agent"`
-	Verbose       bool   `mapstructure:"verbose" json:"verbose"`
-	CreateZip     bool   `mapstructure:"create_zip" json:"create_zip"`
-	NoFiles       bool   `mapstructure:"no_files" json:"no_files"`
-	NoPosts       bool   `mapstructure:"no_posts" json:"no_posts"`
-	NoPages       bool   `mapstructure:"no_pages" json:"no_pages"`
-	NoProducts    bool   `mapstructure:"no_products" json:"no_products"`
-	AuthUser      string `mapstructure:"auth_user" json:"auth_user"`
-	AuthPass      string `mapstructure:"auth_pass" json:"auth_pass"`
-	AuthToken     string `mapstructure:"auth_token" json:"auth_token"`
+	URL               string `mapstructure:"url" json:"url"`
+	Output            string `mapstructure:"output" json:"output"`
+	Format            string `mapstructure:"format" json:"format"`
+	BruteForce        bool   `mapstructure:"brute_force" json:"brute_force"`
+	MaxID             int    `mapstructure:"max_id" json:"max_id"`
+	DownloadMedia     bool   `mapstructure:"download_media" json:"download_media"`
+	RelevantMediaOnly bool   `mapstructure:"relevant_media_only" json:"relevant_media_only"`
+	Concurrent        int    `mapstructure:"concurrent" json:"concurrent"`
+	Timeout           int    `mapstructure:"timeout" json:"timeout"`
+	Retries           int    `mapstructure:"retries" json:"retries"`
+	UserAgent         string `mapstructure:"user_agent" json:"user_agent"`
+	Verbose           bool   `mapstructure:"verbose" json:"verbose"`
+	CreateZip         bool   `mapstructure:"create_zip" json:"create_zip"`
+	NoFiles           bool   `mapstructure:"no_files" json:"no_files"`
+	NoPosts           bool   `mapstructure:"no_posts" json:"no_posts"`
+	NoPages           bool   `mapstructure:"no_pages" json:"no_pages"`
+	NoProducts        bool   `mapstructure:"no_products" json:"no_products"`
+	PathFilter        string `mapstructure:"path_filter" json:"path_filter"`
+	AssistedCrawl     bool   `mapstructure:"assisted_crawl" json:"assisted_crawl"`
+	AuthUser          string `mapstructure:"auth_user" json:"auth_user"`
+	AuthPass          string `mapstructure:"auth_pass" json:"auth_pass"`
+	AuthToken         string `mapstructure:"auth_token" json:"auth_token"`
 }
 
 // DefaultConfig returns a configuration with default values
 func DefaultConfig() *Config {
 	return &Config{
-		Output:        "", // Will be generated based on URL and date
-		Format:        "json",
-		BruteForce:    false,
-		MaxID:         10000,
-		DownloadMedia: true,
-		Concurrent:    5,
-		Timeout:       30,
-		Retries:       3,
-		UserAgent:     "WordPress-Export-JSON/1.0",
-		Verbose:       false,
-		CreateZip:     false,
-		NoFiles:       false,
-		NoPosts:       false,
-		NoPages:       false,
-		NoProducts:    false,
+		Output:            "", // Will be generated based on URL and date
+		Format:            "json",
+		BruteForce:        false,
+		MaxID:             10000,
+		DownloadMedia:     true,
+		RelevantMediaOnly: false,
+		Concurrent:        5,
+		Timeout:           30,
+		Retries:           3,
+		UserAgent:         "WordPress-Export-JSON/1.0",
+		Verbose:           false,
+		CreateZip:         false,
+		NoFiles:           false,
+		NoPosts:           false,
+		NoPages:           false,
+		NoProducts:        false,
+		PathFilter:        "",
+		AssistedCrawl:     false,
 	}
 }
 
@@ -88,6 +94,15 @@ func LoadConfig(configFile string) (*Config, error) {
 	}
 	if err := viper.BindEnv("download_media", "WPEXPORT_DOWNLOAD_MEDIA"); err != nil {
 		return nil, fmt.Errorf("failed to bind download_media environment variable: %w", err)
+	}
+	if err := viper.BindEnv("relevant_media_only", "WPEXPORT_RELEVANT_MEDIA_ONLY"); err != nil {
+		return nil, fmt.Errorf("failed to bind relevant_media_only environment variable: %w", err)
+	}
+	if err := viper.BindEnv("path_filter", "WPEXPORT_PATH_FILTER"); err != nil {
+		return nil, fmt.Errorf("failed to bind path_filter environment variable: %w", err)
+	}
+	if err := viper.BindEnv("assisted_crawl", "WPEXPORT_ASSISTED_CRAWL"); err != nil {
+		return nil, fmt.Errorf("failed to bind assisted_crawl environment variable: %w", err)
 	}
 	if err := viper.BindEnv("concurrent", "WPEXPORT_CONCURRENT"); err != nil {
 		return nil, fmt.Errorf("failed to bind concurrent environment variable: %w", err)

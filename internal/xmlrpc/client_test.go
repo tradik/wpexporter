@@ -741,3 +741,744 @@ func TestXMLRPCStructures(t *testing.T) {
 func intPtr(i int) *int {
 	return &i
 }
+
+func TestNewClientURLWithoutHost(t *testing.T) {
+	cfg := &config.Config{
+		URL: "http://",
+	}
+
+	_, err := NewClient(cfg, "testuser", "testpass")
+	if err == nil {
+		t.Error("NewClient() should return error for URL without host")
+	}
+}
+
+func TestNewClientParseError(t *testing.T) {
+	cfg := &config.Config{
+		URL: "://invalid-url",
+	}
+
+	_, err := NewClient(cfg, "testuser", "testpass")
+	if err == nil {
+		t.Error("NewClient() should return error for invalid URL")
+	}
+}
+
+func TestGetSiteInfoError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetSiteInfo()
+	if err == nil {
+		t.Error("GetSiteInfo() should return error for HTTP error")
+	}
+}
+
+func TestGetSiteInfoEmptyResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/xml")
+		w.WriteHeader(http.StatusOK)
+		response := `<?xml version="1.0" encoding="UTF-8"?>
+<methodResponse>
+	<params>
+	</params>
+</methodResponse>`
+		_, _ = w.Write([]byte(response))
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	siteInfo, err := client.GetSiteInfo()
+	if err != nil {
+		t.Errorf("GetSiteInfo() error = %v, want nil", err)
+	}
+
+	// With empty params, should still return default name
+	if siteInfo.Name != "WordPress Site (XML-RPC)" {
+		t.Errorf("GetSiteInfo() Name = %v, want default name", siteInfo.Name)
+	}
+}
+
+func TestGetPostsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetPosts()
+	if err == nil {
+		t.Error("GetPosts() should return error for HTTP error")
+	}
+}
+
+func TestGetPostsEmptyResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/xml")
+		w.WriteHeader(http.StatusOK)
+		// Response with empty params (no posts)
+		response := `<?xml version="1.0" encoding="UTF-8"?>
+<methodResponse>
+	<params>
+	</params>
+</methodResponse>`
+		_, _ = w.Write([]byte(response))
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	posts, err := client.GetPosts()
+	if err != nil {
+		t.Errorf("GetPosts() error = %v, want nil", err)
+	}
+
+	// Empty params should return empty posts
+	if len(posts) != 0 {
+		t.Errorf("GetPosts() with empty response should return empty slice, got %d posts", len(posts))
+	}
+}
+
+func TestGetPagesError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetPages()
+	if err == nil {
+		t.Error("GetPages() should return error for HTTP error")
+	}
+}
+
+func TestGetMediaError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetMedia()
+	if err == nil {
+		t.Error("GetMedia() should return error for HTTP error")
+	}
+}
+
+func TestGetCategoriesError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetCategories()
+	if err == nil {
+		t.Error("GetCategories() should return error for HTTP error")
+	}
+}
+
+func TestGetTagsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetTags()
+	if err == nil {
+		t.Error("GetTags() should return error for HTTP error")
+	}
+}
+
+func TestGetUsersError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetUsers()
+	if err == nil {
+		t.Error("GetUsers() should return error for HTTP error")
+	}
+}
+
+func TestMakeRequestInvalidXMLResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/xml")
+		w.WriteHeader(http.StatusOK)
+		// Invalid XML
+		_, _ = w.Write([]byte("not valid xml"))
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	req := &XMLRPCRequest{
+		Method: "wp.test",
+	}
+
+	_, err = client.makeRequest(req)
+	if err == nil {
+		t.Error("makeRequest() should return error for invalid XML response")
+	}
+}
+
+func TestMakeRequestNetworkError(t *testing.T) {
+	cfg := &config.Config{
+		URL:     "http://192.0.2.1", // Non-routable IP
+		Timeout: 1,                   // Very short timeout
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	req := &XMLRPCRequest{
+		Method: "wp.test",
+	}
+
+	_, err = client.makeRequest(req)
+	if err == nil {
+		t.Error("makeRequest() should return error for network error")
+	}
+}
+
+func TestParsePostsResponse(t *testing.T) {
+	cfg := &config.Config{
+		URL:     "https://example.com",
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Test with params (returns 1 sample post)
+	respWithParams := &XMLRPCResponse{
+		Params: []Param{
+			{Value: Value{String: stringPtr("data")}},
+		},
+	}
+
+	posts := client.parsePostsResponse(respWithParams)
+	if len(posts) != 1 {
+		t.Errorf("parsePostsResponse() with params should return 1 post, got %d", len(posts))
+	}
+
+	// Test with empty params
+	respEmpty := &XMLRPCResponse{
+		Params: []Param{},
+	}
+
+	postsEmpty := client.parsePostsResponse(respEmpty)
+	if len(postsEmpty) != 0 {
+		t.Errorf("parsePostsResponse() with empty params should return 0 posts, got %d", len(postsEmpty))
+	}
+}
+
+func TestXMLRPCValueTypes(t *testing.T) {
+	// Test struct with members
+	s := Struct{
+		Members: []Member{
+			{Name: "key1", Value: Value{String: stringPtr("value1")}},
+			{Name: "key2", Value: Value{Int: intPtr(42)}},
+		},
+	}
+
+	if len(s.Members) != 2 {
+		t.Errorf("Struct Members length = %d, want 2", len(s.Members))
+	}
+
+	// Test array with values
+	a := Array{
+		Data: []Value{
+			{String: stringPtr("item1")},
+			{String: stringPtr("item2")},
+		},
+	}
+
+	if len(a.Data) != 2 {
+		t.Errorf("Array Data length = %d, want 2", len(a.Data))
+	}
+
+	// Test fault structure
+	fault := Fault{
+		Value: Value{
+			Struct: &Struct{
+				Members: []Member{
+					{Name: "faultCode", Value: Value{Int: intPtr(403)}},
+					{Name: "faultString", Value: Value{String: stringPtr("Forbidden")}},
+				},
+			},
+		},
+	}
+
+	if fault.Value.Struct == nil {
+		t.Error("Fault Value Struct should not be nil")
+	}
+
+	if len(fault.Value.Struct.Members) != 2 {
+		t.Errorf("Fault Members length = %d, want 2", len(fault.Value.Struct.Members))
+	}
+}
+
+func TestGetMediaEmptyResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/xml")
+		w.WriteHeader(http.StatusOK)
+		// Response with empty params
+		response := `<?xml version="1.0" encoding="UTF-8"?>
+<methodResponse>
+	<params>
+	</params>
+</methodResponse>`
+		_, _ = w.Write([]byte(response))
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	media, err := client.GetMedia()
+	if err != nil {
+		t.Errorf("GetMedia() error = %v, want nil", err)
+	}
+
+	if len(media) != 0 {
+		t.Errorf("GetMedia() with empty response should return empty slice, got %d items", len(media))
+	}
+}
+
+func TestGetPagesEmptyResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/xml")
+		w.WriteHeader(http.StatusOK)
+		response := `<?xml version="1.0" encoding="UTF-8"?>
+<methodResponse>
+	<params>
+	</params>
+</methodResponse>`
+		_, _ = w.Write([]byte(response))
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	pages, err := client.GetPages()
+	if err != nil {
+		t.Errorf("GetPages() error = %v, want nil", err)
+	}
+
+	if len(pages) != 0 {
+		t.Errorf("GetPages() with empty response should return empty slice, got %d pages", len(pages))
+	}
+}
+
+func TestMakeRequestWithFault(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/xml")
+		w.WriteHeader(http.StatusOK)
+		// Response with fault
+		response := `<?xml version="1.0" encoding="UTF-8"?>
+<methodResponse>
+	<fault>
+		<value>
+			<struct>
+				<member>
+					<name>faultCode</name>
+					<value><int>401</int></value>
+				</member>
+				<member>
+					<name>faultString</name>
+					<value><string>Unauthorized</string></value>
+				</member>
+			</struct>
+		</value>
+	</fault>
+</methodResponse>`
+		_, _ = w.Write([]byte(response))
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	err = client.TestConnection()
+	if err == nil {
+		t.Error("TestConnection() should return error for fault response")
+	}
+}
+
+func TestMakeRequestReadBodyError(t *testing.T) {
+	cfg := &config.Config{
+		URL:     "http://192.0.2.1", // Non-routable IP
+		Timeout: 1,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	req := &XMLRPCRequest{
+		Method: "wp.test",
+	}
+
+	_, err = client.makeRequest(req)
+	if err == nil {
+		t.Error("makeRequest() should return error for network error")
+	}
+}
+
+func TestParseMediaResponse(t *testing.T) {
+	cfg := &config.Config{
+		URL:     "https://example.com",
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Test with empty params
+	respEmpty := &XMLRPCResponse{
+		Params: []Param{},
+	}
+
+	media := client.parseMediaResponse(respEmpty)
+	if len(media) != 0 {
+		t.Errorf("parseMediaResponse() with empty params should return 0 items, got %d", len(media))
+	}
+}
+
+func TestParseCategoriesResponse(t *testing.T) {
+	cfg := &config.Config{
+		URL:     "https://example.com",
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Test with empty params
+	respEmpty := &XMLRPCResponse{
+		Params: []Param{},
+	}
+
+	categories := client.parseCategoriesResponse(respEmpty)
+	if len(categories) != 0 {
+		t.Errorf("parseCategoriesResponse() with empty params should return 0 items, got %d", len(categories))
+	}
+}
+
+func TestParseTagsResponse(t *testing.T) {
+	cfg := &config.Config{
+		URL:     "https://example.com",
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Test with empty params
+	respEmpty := &XMLRPCResponse{
+		Params: []Param{},
+	}
+
+	tags := client.parseTagsResponse(respEmpty)
+	if len(tags) != 0 {
+		t.Errorf("parseTagsResponse() with empty params should return 0 items, got %d", len(tags))
+	}
+}
+
+func TestParseUsersResponse(t *testing.T) {
+	cfg := &config.Config{
+		URL:     "https://example.com",
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Test with empty params
+	respEmpty := &XMLRPCResponse{
+		Params: []Param{},
+	}
+
+	users := client.parseUsersResponse(respEmpty)
+	if len(users) != 0 {
+		t.Errorf("parseUsersResponse() with empty params should return 0 items, got %d", len(users))
+	}
+}
+
+func TestGetMediaPagination(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+
+		w.Header().Set("Content-Type", "text/xml")
+		w.WriteHeader(http.StatusOK)
+
+		// Return different responses based on request count
+		if requestCount == 1 {
+			// First request returns 1 item (less than limit of 100, triggering early pagination break)
+			_, _ = w.Write([]byte(`<?xml version="1.0"?>
+<methodResponse>
+  <params>
+    <param>
+      <value>
+        <array>
+          <data>
+            <value><struct>
+              <member><name>attachment_id</name><value><int>1</int></value></member>
+              <member><name>link</name><value><string>https://example.com/media/1.jpg</string></value></member>
+            </struct></value>
+          </data>
+        </array>
+      </value>
+    </param>
+  </params>
+</methodResponse>`))
+		} else {
+			// Should not be called if pagination breaks early
+			_, _ = w.Write([]byte(`<?xml version="1.0"?>
+<methodResponse>
+  <params>
+    <param>
+      <value>
+        <array>
+          <data>
+          </data>
+        </array>
+      </value>
+    </param>
+  </params>
+</methodResponse>`))
+		}
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	media, err := client.GetMedia()
+	if err != nil {
+		t.Fatalf("GetMedia() error = %v", err)
+	}
+
+	// Test that pagination works - just ensure no error and some result
+	t.Logf("GetMedia() returned %d items", len(media))
+}
+
+func TestGetMediaEmptyFirstResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/xml")
+		w.WriteHeader(http.StatusOK)
+
+		// Return empty array immediately
+		_, _ = w.Write([]byte(`<?xml version="1.0"?>
+<methodResponse>
+  <params>
+    <param>
+      <value>
+        <array>
+          <data>
+          </data>
+        </array>
+      </value>
+    </param>
+  </params>
+</methodResponse>`))
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	media, err := client.GetMedia()
+	if err != nil {
+		t.Fatalf("GetMedia() error = %v", err)
+	}
+
+	if len(media) != 0 {
+		t.Errorf("GetMedia() returned %d items, expected 0", len(media))
+	}
+}
+
+func TestGetPagesEmptyFirstResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/xml")
+		w.WriteHeader(http.StatusOK)
+
+		_, _ = w.Write([]byte(`<?xml version="1.0"?>
+<methodResponse>
+  <params>
+    <param>
+      <value>
+        <array>
+          <data>
+          </data>
+        </array>
+      </value>
+    </param>
+  </params>
+</methodResponse>`))
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Timeout: 10,
+	}
+
+	client, err := NewClient(cfg, "testuser", "testpass")
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	pages, err := client.GetPages()
+	if err != nil {
+		t.Fatalf("GetPages() error = %v", err)
+	}
+
+	// Just ensure no error - the parsing might return default values
+	t.Logf("GetPages() returned %d items", len(pages))
+}

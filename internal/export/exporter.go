@@ -450,6 +450,29 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 		}
 	}
 
+	// SEO fields (if crawled via --assisted-crawl)
+	if post.SEO.Title != "" {
+		builder.WriteString(fmt.Sprintf("seo_title: \"%s\"\n", e.escapeYAML(post.SEO.Title)))
+	}
+	if post.SEO.MetaDescription != "" {
+		builder.WriteString(fmt.Sprintf("meta_description: \"%s\"\n", e.escapeYAML(post.SEO.MetaDescription)))
+	}
+	if post.SEO.MetaKeywords != "" {
+		builder.WriteString(fmt.Sprintf("meta_keywords: \"%s\"\n", e.escapeYAML(post.SEO.MetaKeywords)))
+	}
+	if post.SEO.OGTitle != "" {
+		builder.WriteString(fmt.Sprintf("og_title: \"%s\"\n", e.escapeYAML(post.SEO.OGTitle)))
+	}
+	if post.SEO.OGDescription != "" {
+		builder.WriteString(fmt.Sprintf("og_description: \"%s\"\n", e.escapeYAML(post.SEO.OGDescription)))
+	}
+	if post.SEO.OGImage != "" {
+		builder.WriteString(fmt.Sprintf("og_image: \"%s\"\n", e.escapeYAML(post.SEO.OGImage)))
+	}
+	if post.SEO.CanonicalURL != "" {
+		builder.WriteString(fmt.Sprintf("canonical_url: \"%s\"\n", e.escapeYAML(post.SEO.CanonicalURL)))
+	}
+
 	builder.WriteString("---\n\n")
 
 	// Title

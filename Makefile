@@ -46,7 +46,7 @@ XMLRPC_BINARY := wpxmlrpc
 LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT) -s -w"
 PROD_LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT) -s -w -extldflags '-static'"
 
-.PHONY: help build clean test deps run install dev lint format build-prod release package packages docker-build docker-push version tag
+.PHONY: help build clean test test-coverage deps run install dev lint vet sec check format build-prod release package packages docker-build docker-push version tag
 
 help: ## Show this help message
 	@grep -h -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-40s\033[0m %s\n", $$1, $$2}'
@@ -79,9 +79,31 @@ test: ## Run tests
 	@echo "${BLUE}Running tests...${RESET}"
 	$(GOTEST) -v ./...
 
+test-coverage: ## Run tests with coverage and generate HTML report
+	@echo "${BLUE}Running tests with coverage...${RESET}"
+	$(GOTEST) -v -race -coverprofile=coverage.out -covermode=atomic ./...
+	$(GOCMD) tool cover -html=coverage.out -o coverage.html
+	$(GOCMD) tool cover -func=coverage.out
+	@echo "${GREEN}Coverage report generated: coverage.html${RESET}"
+
 lint: ## Run linter
 	@echo "${BLUE}Running linter...${RESET}"
 	golangci-lint run
+
+vet: ## Run go vet
+	@echo "${BLUE}Running go vet...${RESET}"
+	$(GOCMD) vet ./...
+
+sec: ## Run gosec security scanner
+	@echo "${BLUE}Running gosec security scanner...${RESET}"
+	@if command -v gosec >/dev/null 2>&1; then \
+		gosec ./...; \
+	else \
+		echo "${YELLOW}gosec not installed. Install with: go install github.com/securego/gosec/v2/cmd/gosec@latest${RESET}"; \
+	fi
+
+check: vet lint sec test ## Run all checks (vet, lint, security, tests)
+	@echo "${GREEN}All checks passed${RESET}"
 
 format: ## Format code
 	@echo "${BLUE}Formatting code...${RESET}"
@@ -222,6 +244,7 @@ install-tools: ## Install development tools
 	$(GOGET) github.com/air-verse/air@latest
 	$(GOGET) golang.org/x/vuln/cmd/govulncheck@latest
 	$(GOGET) github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	$(GOGET) github.com/securego/gosec/v2/cmd/gosec@latest
 	@echo "${GREEN}Development tools installed${RESET}"
 
 ci: deps test lint security-scan ## Run CI pipeline locally

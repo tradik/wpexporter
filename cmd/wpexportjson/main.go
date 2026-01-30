@@ -7,34 +7,43 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 	"github.com/tradik/wpexporter/internal/api"
 	"github.com/tradik/wpexporter/internal/bruteforce"
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/internal/export"
+	"github.com/tradik/wpexporter/internal/filter"
+	mediafilter "github.com/tradik/wpexporter/internal/media"
+	"github.com/tradik/wpexporter/internal/seo"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
 var (
-	cfgFile       string
-	url           string
-	output        string
-	format        string
-	bruteForce    bool
-	maxID         int
-	downloadMedia bool
-	concurrent    int
-	verbose       bool
-	createZip     bool
-	noFiles       bool
-	noPosts       bool
-	noPages       bool
-	noProducts    bool
-	authUser      string
-	authPass      string
-	authToken     string
+	cfgFile           string
+	url               string
+	output            string
+	format            string
+	bruteForce        bool
+	maxID             int
+	downloadMedia     bool
+	noMedia           bool
+	relevantMediaOnly bool
+	concurrent        int
+	verbose           bool
+	createZip         bool
+	noFiles           bool
+	noPosts           bool
+	noPages           bool
+	noProducts        bool
+	pathFilter        string
+	assistedCrawl     bool
+	authUser          string
+	authPass          string
+	authToken         string
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -107,6 +116,8 @@ func init() {
 	exportCmd.Flags().BoolVar(&bruteForce, "brute-force", false, "enable brute force ID discovery")
 	exportCmd.Flags().IntVar(&maxID, "max-id", 10000, "maximum ID for brute force")
 	exportCmd.Flags().BoolVar(&downloadMedia, "download-media", true, "download images and videos")
+	exportCmd.Flags().BoolVar(&noMedia, "no-media", false, "disable media downloads (alias for --download-media=false)")
+	exportCmd.Flags().BoolVar(&relevantMediaOnly, "relevant-media-only", false, "only download featured images and images embedded in content")
 	exportCmd.Flags().IntVarP(&concurrent, "concurrent", "c", 5, "concurrent downloads")
 	exportCmd.Flags().BoolVar(&createZip, "zip", false, "create ZIP archive of export")
 	exportCmd.Flags().BoolVar(&noFiles, "no-files", false, "remove export files after creating ZIP (requires --zip)")
@@ -116,6 +127,8 @@ func init() {
 	exportCmd.Flags().StringVar(&authUser, "auth-user", "", "username for Basic Auth")
 	exportCmd.Flags().StringVar(&authPass, "auth-pass", "", "password for Basic Auth")
 	exportCmd.Flags().StringVar(&authToken, "auth-token", "", "Bearer token for authentication")
+	exportCmd.Flags().StringVar(&pathFilter, "path-filter", "", "filter posts/pages by URL path pattern (e.g., /fr/arts/)")
+	exportCmd.Flags().BoolVar(&assistedCrawl, "assisted-crawl", false, "crawl actual URLs to extract SEO metadata (title, description, og tags)")
 
 	// Mark required flags
 	if err := exportCmd.MarkFlagRequired("url"); err != nil {
@@ -127,6 +140,17 @@ func init() {
 
 func initConfig() {
 	// Configuration will be loaded in runExport
+}
+
+// promptPassword prompts the user to enter a password securely (hidden input)
+func promptPassword(prompt string) (string, error) {
+	fmt.Print(prompt)
+	password, err := term.ReadPassword(int(syscall.Stdin))
+	fmt.Println() // Print newline after password input
+	if err != nil {
+		return "", fmt.Errorf("failed to read password: %w", err)
+	}
+	return string(password), nil
 }
 
 // configFileExists checks if a configuration file exists in standard locations
@@ -180,6 +204,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if cmd.Flags().Changed("download-media") {
 		cfg.DownloadMedia = downloadMedia
 	}
+	if cmd.Flags().Changed("no-media") && noMedia {
+		cfg.DownloadMedia = false
+	}
+	if cmd.Flags().Changed("relevant-media-only") {
+		cfg.RelevantMediaOnly = relevantMediaOnly
+	}
 	if cmd.Flags().Changed("concurrent") {
 		cfg.Concurrent = concurrent
 	}
@@ -209,6 +239,21 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 	if cmd.Flags().Changed("auth-token") {
 		cfg.AuthToken = authToken
+	}
+
+	// Prompt for password if auth-user is provided but auth-pass is not
+	if cfg.AuthUser != "" && cfg.AuthPass == "" && cfg.AuthToken == "" {
+		password, err := promptPassword("Enter password for " + cfg.AuthUser + ": ")
+		if err != nil {
+			return fmt.Errorf("failed to read password: %w", err)
+		}
+		cfg.AuthPass = password
+	}
+	if cmd.Flags().Changed("path-filter") {
+		cfg.PathFilter = pathFilter
+	}
+	if cmd.Flags().Changed("assisted-crawl") {
+		cfg.AssistedCrawl = assistedCrawl
 	}
 
 	// Validate --no-files requires --zip
@@ -299,12 +344,44 @@ func runExport(cmd *cobra.Command, args []string) error {
 		fmt.Println("Skipping products (--no-products)")
 	}
 
+	// Apply path filter if specified
+	if cfg.PathFilter != "" {
+		pathFilter := filter.NewPathFilter(cfg.PathFilter)
+		originalPosts := len(posts)
+		originalPages := len(pages)
+		posts = pathFilter.FilterPosts(posts)
+		pages = pathFilter.FilterPosts(pages)
+		fmt.Printf("Path filter '%s': %d/%d posts, %d/%d pages matched\n",
+			cfg.PathFilter, len(posts), originalPosts, len(pages), originalPages)
+	}
+
+	// Crawl URLs for SEO data if enabled
+	if cfg.AssistedCrawl {
+		fmt.Println("\nCrawling URLs for SEO metadata...")
+		crawler := seo.NewCrawler(cfg)
+		if len(posts) > 0 {
+			posts = crawler.EnrichPostsWithSEO(posts)
+		}
+		if len(pages) > 0 {
+			pages = crawler.EnrichPostsWithSEO(pages)
+		}
+		fmt.Println("SEO metadata extraction complete")
+	}
+
 	fmt.Println("Fetching media...")
 	media, err := apiClient.GetMedia()
 	if err != nil {
 		return fmt.Errorf("failed to get media: %w", err)
 	}
 	fmt.Printf("Found %d media items\n", len(media))
+
+	// Filter to relevant media only if enabled
+	if cfg.RelevantMediaOnly && cfg.DownloadMedia {
+		mf := mediafilter.NewFilter()
+		originalMedia := len(media)
+		media = mf.FilterRelevantMedia(posts, pages, media)
+		fmt.Printf("Filtered to %d relevant media items (from %d total)\n", len(media), originalMedia)
+	}
 
 	fmt.Println("Fetching categories...")
 	categories, err := apiClient.GetCategories()

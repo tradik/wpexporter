@@ -842,3 +842,1120 @@ func TestPaginationHandling(t *testing.T) {
 		t.Errorf("Expected at least 3 API calls for pagination, got %d", callCount)
 	}
 }
+
+func TestGetPostsNetworkError(t *testing.T) {
+	cfg := &config.Config{
+		URL:       "http://192.0.2.1", // Non-routable IP
+		Timeout:   1,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetPosts()
+	if err == nil {
+		t.Error("GetPosts() should return error for network failure")
+	}
+}
+
+func TestGetPagesNetworkError(t *testing.T) {
+	cfg := &config.Config{
+		URL:       "http://192.0.2.1",
+		Timeout:   1,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetPages()
+	if err == nil {
+		t.Error("GetPages() should return error for network failure")
+	}
+}
+
+func TestGetSiteInfoNetworkError(t *testing.T) {
+	cfg := &config.Config{
+		URL:       "http://192.0.2.1",
+		Timeout:   1,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetSiteInfo()
+	if err == nil {
+		t.Error("GetSiteInfo() should return error for network failure")
+	}
+}
+
+func TestGetProductsNetworkError(t *testing.T) {
+	cfg := &config.Config{
+		URL:       "http://192.0.2.1",
+		Timeout:   1,
+		Retries:   0,
+		UserAgent: "test-agent",
+		Verbose:   true,
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// GetProducts returns empty slice on error, not an error
+	products, err := client.GetProducts()
+	if err != nil {
+		t.Errorf("GetProducts() should return empty slice on network error, got error: %v", err)
+	}
+	if len(products) != 0 {
+		t.Errorf("GetProducts() should return empty slice on network error")
+	}
+}
+
+func TestGetProducts400Response(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   10,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	products, err := client.GetProducts()
+	if err != nil {
+		t.Errorf("GetProducts() error = %v, should return empty slice", err)
+	}
+	if len(products) != 0 {
+		t.Errorf("GetProducts() should return empty slice for 400 response")
+	}
+}
+
+func TestGetProducts500Response(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   10,
+		Retries:   0,
+		UserAgent: "test-agent",
+		Verbose:   true,
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	products, err := client.GetProducts()
+	if err != nil {
+		t.Errorf("GetProducts() error = %v, should return empty slice", err)
+	}
+	if len(products) != 0 {
+		t.Errorf("GetProducts() should return empty slice for 500 response")
+	}
+}
+
+func TestGetMediaNetworkError(t *testing.T) {
+	cfg := &config.Config{
+		URL:       "http://192.0.2.1",
+		Timeout:   1,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetMedia()
+	if err == nil {
+		t.Error("GetMedia() should return error for network failure")
+	}
+}
+
+func TestGetCategoriesNetworkError(t *testing.T) {
+	cfg := &config.Config{
+		URL:       "http://192.0.2.1",
+		Timeout:   1,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetCategories()
+	if err == nil {
+		t.Error("GetCategories() should return error for network failure")
+	}
+}
+
+func TestGetTagsNetworkError(t *testing.T) {
+	cfg := &config.Config{
+		URL:       "http://192.0.2.1",
+		Timeout:   1,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetTags()
+	if err == nil {
+		t.Error("GetTags() should return error for network failure")
+	}
+}
+
+func TestGetUsersNetworkError(t *testing.T) {
+	cfg := &config.Config{
+		URL:       "http://192.0.2.1",
+		Timeout:   1,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetUsers()
+	if err == nil {
+		t.Error("GetUsers() should return error for network failure")
+	}
+}
+
+func TestGetPostByIDNetworkError(t *testing.T) {
+	cfg := &config.Config{
+		URL:       "http://192.0.2.1",
+		Timeout:   1,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetPostByID(1)
+	if err == nil {
+		t.Error("GetPostByID() should return error for network failure")
+	}
+}
+
+func TestGetPageByIDNetworkError(t *testing.T) {
+	cfg := &config.Config{
+		URL:       "http://192.0.2.1",
+		Timeout:   1,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetPageByID(1)
+	if err == nil {
+		t.Error("GetPageByID() should return error for network failure")
+	}
+}
+
+func TestGetMediaByIDNetworkError(t *testing.T) {
+	cfg := &config.Config{
+		URL:       "http://192.0.2.1",
+		Timeout:   1,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetMediaByID(1)
+	if err == nil {
+		t.Error("GetMediaByID() should return error for network failure")
+	}
+}
+
+func TestNewClientWithURLWithoutHost(t *testing.T) {
+	cfg := &config.Config{
+		URL: "http://",
+	}
+
+	_, err := NewClient(cfg)
+	if err == nil {
+		t.Error("NewClient() should return error for URL without host")
+	}
+}
+
+func TestNewClientWithInvalidURLScheme(t *testing.T) {
+	cfg := &config.Config{
+		URL: "mailto:user@example.com",
+	}
+
+	_, err := NewClient(cfg)
+	if err == nil {
+		t.Error("NewClient() should return error for invalid URL scheme")
+	}
+}
+
+func TestNewClientWithOnlyAuthUser(t *testing.T) {
+	cfg := &config.Config{
+		URL:       "https://example.com",
+		Timeout:   10,
+		Retries:   0,
+		UserAgent: "test-agent",
+		AuthUser:  "user",
+		AuthPass:  "", // Empty password, should NOT set basic auth
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	if client == nil {
+		t.Error("NewClient() should create client even with only auth user")
+	}
+}
+
+func TestGetSiteInfoFallbackInvalidJSON(t *testing.T) {
+	// Server that returns non-200 for settings, then invalid JSON for fallback
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/settings" {
+			// Return non-200 to trigger fallback
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		if r.URL.Path == "/wp-json/wp/v2" {
+			// Return invalid JSON to test unmarshal error handling
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`not json at all`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	siteInfo, err := client.GetSiteInfo()
+	if err != nil {
+		t.Fatalf("GetSiteInfo() error = %v, should fallback to default", err)
+	}
+
+	// Should fallback to default site info when JSON parsing fails
+	if siteInfo.Name != "WordPress Site" {
+		t.Errorf("GetSiteInfo() should fallback to default name, got %s", siteInfo.Name)
+	}
+}
+
+func TestGetSiteInfoFallbackNetworkError(t *testing.T) {
+	// Server that returns non-200 for settings, then hijacks connection for fallback
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/settings" {
+			// Return non-200 to trigger fallback
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		if r.URL.Path == "/wp-json/wp/v2" {
+			// Hijack connection and close it to simulate network error
+			hj, ok := w.(http.Hijacker)
+			if ok {
+				conn, _, _ := hj.Hijack()
+				if conn != nil {
+					conn.Close()
+				}
+			}
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetSiteInfo()
+	if err == nil {
+		t.Error("GetSiteInfo() should return error when fallback fails with network error")
+	}
+}
+
+func TestGetPostsNon200Status(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/posts" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetPosts()
+	if err == nil {
+		t.Error("GetPosts() should return error for non-200 status")
+	}
+}
+
+func TestGetPagesNon200Status(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/pages" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetPages()
+	if err == nil {
+		t.Error("GetPages() should return error for non-200 status")
+	}
+}
+
+func TestGetPostsJSONUnmarshalError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/posts" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`not valid json`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetPosts()
+	if err == nil {
+		t.Error("GetPosts() should return error for invalid JSON")
+	}
+}
+
+func TestGetMediaNon200Status(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/media" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetMedia()
+	if err == nil {
+		t.Error("GetMedia() should return error for non-200 status")
+	}
+}
+
+func TestGetMediaJSONUnmarshalError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/media" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`invalid json`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetMedia()
+	if err == nil {
+		t.Error("GetMedia() should return error for invalid JSON")
+	}
+}
+
+func TestGetCategoriesNon200Status(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/categories" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetCategories()
+	if err == nil {
+		t.Error("GetCategories() should return error for non-200 status")
+	}
+}
+
+func TestGetCategoriesJSONUnmarshalError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/categories" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`invalid json`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetCategories()
+	if err == nil {
+		t.Error("GetCategories() should return error for invalid JSON")
+	}
+}
+
+func TestGetTagsNon200Status(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/tags" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetTags()
+	if err == nil {
+		t.Error("GetTags() should return error for non-200 status")
+	}
+}
+
+func TestGetTagsJSONUnmarshalError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/tags" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`invalid json`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetTags()
+	if err == nil {
+		t.Error("GetTags() should return error for invalid JSON")
+	}
+}
+
+func TestGetUsersNon200Status(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/users" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetUsers()
+	if err == nil {
+		t.Error("GetUsers() should return error for non-200 status")
+	}
+}
+
+func TestGetUsersJSONUnmarshalError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/users" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`invalid json`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetUsers()
+	if err == nil {
+		t.Error("GetUsers() should return error for invalid JSON")
+	}
+}
+
+func TestGetPostByIDNon200Status(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/posts/1" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetPostByID(1)
+	if err == nil {
+		t.Error("GetPostByID() should return error for non-200 status")
+	}
+}
+
+func TestGetPostByIDJSONUnmarshalError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/posts/1" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`invalid json`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetPostByID(1)
+	if err == nil {
+		t.Error("GetPostByID() should return error for invalid JSON")
+	}
+}
+
+func TestGetPageByIDNon200Status(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/pages/1" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetPageByID(1)
+	if err == nil {
+		t.Error("GetPageByID() should return error for non-200 status")
+	}
+}
+
+func TestGetPageByIDJSONUnmarshalError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/pages/1" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`invalid json`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetPageByID(1)
+	if err == nil {
+		t.Error("GetPageByID() should return error for invalid JSON")
+	}
+}
+
+func TestGetMediaByIDNon200Status(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/media/1" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetMediaByID(1)
+	if err == nil {
+		t.Error("GetMediaByID() should return error for non-200 status")
+	}
+}
+
+func TestGetMediaByIDJSONUnmarshalError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/media/1" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`invalid json`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	_, err = client.GetMediaByID(1)
+	if err == nil {
+		t.Error("GetMediaByID() should return error for invalid JSON")
+	}
+}
+
+func TestGetProductsJSONUnmarshalError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wc/v3/products" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`invalid json`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+		Verbose:   true,
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	products, err := client.GetProducts()
+	if err != nil {
+		t.Errorf("GetProducts() should return empty slice for JSON error, got error: %v", err)
+	}
+	if len(products) != 0 {
+		t.Errorf("GetProducts() should return empty slice for JSON error")
+	}
+}
+
+func TestNewClientWithAuthToken(t *testing.T) {
+	cfg := &config.Config{
+		URL:       "https://example.com",
+		Timeout:   10,
+		Retries:   0,
+		UserAgent: "test-agent",
+		AuthToken: "bearer-token-123",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	if client == nil {
+		t.Error("NewClient() should create client with auth token")
+	}
+}
+
+func TestGetMedia400Pagination(t *testing.T) {
+	media := []models.WordPressMedia{
+		{ID: 1, Slug: "media-1"},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/media" {
+			page := r.URL.Query().Get("page")
+			if page == "1" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				response, _ := json.Marshal(media)
+				_, _ = w.Write(response)
+				return
+			}
+			// Return 400 for page 2+ to signal end of pagination
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	result, err := client.GetMedia()
+	if err != nil {
+		t.Fatalf("GetMedia() error = %v", err)
+	}
+
+	if len(result) != 1 {
+		t.Errorf("GetMedia() returned %d items, want 1", len(result))
+	}
+}
+
+func TestGetCategories400Pagination(t *testing.T) {
+	categories := []models.WordPressCategory{
+		{ID: 1, Name: "Cat1", Slug: "cat1"},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/categories" {
+			page := r.URL.Query().Get("page")
+			if page == "1" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				response, _ := json.Marshal(categories)
+				_, _ = w.Write(response)
+				return
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	result, err := client.GetCategories()
+	if err != nil {
+		t.Fatalf("GetCategories() error = %v", err)
+	}
+
+	if len(result) != 1 {
+		t.Errorf("GetCategories() returned %d items, want 1", len(result))
+	}
+}
+
+func TestGetTags400Pagination(t *testing.T) {
+	tags := []models.WordPressTag{
+		{ID: 1, Name: "Tag1", Slug: "tag1"},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/tags" {
+			page := r.URL.Query().Get("page")
+			if page == "1" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				response, _ := json.Marshal(tags)
+				_, _ = w.Write(response)
+				return
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	result, err := client.GetTags()
+	if err != nil {
+		t.Fatalf("GetTags() error = %v", err)
+	}
+
+	if len(result) != 1 {
+		t.Errorf("GetTags() returned %d items, want 1", len(result))
+	}
+}
+
+func TestGetUsers400Pagination(t *testing.T) {
+	users := []models.WordPressUser{
+		{ID: 1, Name: "User1", Slug: "user1"},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wp-json/wp/v2/users" {
+			page := r.URL.Query().Get("page")
+			if page == "1" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				response, _ := json.Marshal(users)
+				_, _ = w.Write(response)
+				return
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:       server.URL,
+		Timeout:   5,
+		Retries:   0,
+		UserAgent: "test-agent",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	result, err := client.GetUsers()
+	if err != nil {
+		t.Fatalf("GetUsers() error = %v", err)
+	}
+
+	if len(result) != 1 {
+		t.Errorf("GetUsers() returned %d items, want 1", len(result))
+	}
+}
+

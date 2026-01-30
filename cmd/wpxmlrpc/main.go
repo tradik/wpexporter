@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/internal/export"
 	"github.com/tradik/wpexporter/internal/xmlrpc"
@@ -70,6 +72,17 @@ func initConfig() {
 	// Configuration will be loaded in runExport
 }
 
+// promptPassword prompts the user to enter a password securely (hidden input)
+func promptPassword(prompt string) (string, error) {
+	fmt.Print(prompt)
+	pwd, err := term.ReadPassword(int(syscall.Stdin))
+	fmt.Println() // Print newline after password input
+	if err != nil {
+		return "", fmt.Errorf("failed to read password: %w", err)
+	}
+	return string(pwd), nil
+}
+
 // configFileExists checks if a configuration file exists in standard locations
 func configFileExists() bool {
 	configPaths := []string{
@@ -115,6 +128,15 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 	if cmd.Flags().Changed("verbose") {
 		cfg.Verbose = verbose
+	}
+
+	// Prompt for password if username is provided but password is not
+	if username != "" && password == "" {
+		pwd, err := promptPassword("Enter password for " + username + ": ")
+		if err != nil {
+			return fmt.Errorf("failed to read password: %w", err)
+		}
+		password = pwd
 	}
 
 	// Generate default output path if not specified

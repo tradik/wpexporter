@@ -25,6 +25,10 @@ max_id: 10000
 # Download media files (images, videos, etc.)
 download_media: true
 
+# Download only featured images and images embedded in content
+# (only applies when download_media is true)
+relevant_media_only: false
+
 # Number of concurrent downloads
 concurrent: 5
 
@@ -39,3 +43,11 @@ user_agent: "WordPress-Export-JSON/1.0"
 
 # Enable verbose output
 verbose: false
+
+# Filter posts/pages by URL path pattern (e.g., /fr/arts/)
+# Only posts/pages with matching paths will be exported
+# path_filter: "/fr/arts/"
+
+# Crawl actual URLs to extract SEO metadata (title, description, og tags)
+# Useful for extracting RankMath/Yoast SEO data not exposed via REST API
+assisted_crawl: false

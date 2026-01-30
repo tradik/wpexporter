@@ -97,16 +97,12 @@ func (c *Client) GetSiteInfo() (*models.SiteInfo, error) {
 
 // GetPosts retrieves all posts with pagination
 func (c *Client) GetPosts() ([]models.WordPressPost, error) {
-	return c.getAllContent("posts", func() interface{} {
-		return &[]models.WordPressPost{}
-	})
+	return c.getAllContent("posts")
 }
 
 // GetPages retrieves all pages with pagination
 func (c *Client) GetPages() ([]models.WordPressPost, error) {
-	return c.getAllContent("pages", func() interface{} {
-		return &[]models.WordPressPost{}
-	})
+	return c.getAllContent("pages")
 }
 
 // GetProducts retrieves all WooCommerce products with pagination
@@ -397,7 +393,7 @@ func (c *Client) GetMediaByID(id int) (*models.WordPressMedia, error) {
 }
 
 // getAllContent is a generic function to retrieve all content with pagination
-func (c *Client) getAllContent(endpoint string, factory func() interface{}) ([]models.WordPressPost, error) {
+func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) {
 	var allContent []models.WordPressPost
 	page := 1
 	perPage := 100

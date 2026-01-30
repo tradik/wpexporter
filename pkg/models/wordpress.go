@@ -34,15 +34,20 @@ func (wt *WordPressTime) UnmarshalJSON(data []byte) error {
 		}
 	}
 
-	// If all formats fail, try to parse as is and assume UTC
-	if t, err := time.Parse("2006-01-02T15:04:05", s); err == nil {
-		wt.Time = t.UTC()
-		return nil
-	}
-
 	// Default to current time if parsing fails
 	wt.Time = time.Now()
 	return nil
+}
+
+// SEOData holds extracted SEO metadata from page crawling
+type SEOData struct {
+	Title           string `json:"seo_title,omitempty"`
+	MetaDescription string `json:"meta_description,omitempty"`
+	MetaKeywords    string `json:"meta_keywords,omitempty"`
+	OGTitle         string `json:"og_title,omitempty"`
+	OGDescription   string `json:"og_description,omitempty"`
+	OGImage         string `json:"og_image,omitempty"`
+	CanonicalURL    string `json:"canonical_url,omitempty"`
 }
 
 // WordPressPost represents a WordPress post or page
@@ -71,6 +76,7 @@ type WordPressPost struct {
 	Categories    []int                  `json:"categories"`
 	Tags          []int                  `json:"tags"`
 	Links         Links                  `json:"_links"`
+	SEO           SEOData                `json:"seo,omitempty"`
 }
 
 // WordPressMedia represents a WordPress media item
