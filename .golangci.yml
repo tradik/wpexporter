@@ -1,5 +1,5 @@
 # golangci-lint configuration file
-# https://golangci-lint.run/usage/configuration/
+# https://golangci-lint.run/docs/configuration/
 
 version: "2"
 
@@ -7,35 +7,8 @@ run:
   timeout: 5m
   tests: true
 
-linters-settings:
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment
-  gocyclo:
-    min-complexity: 15
-  goconst:
-    min-len: 2
-    min-occurrences: 2
-  misspell:
-    locale: US
-  lll:
-    line-length: 140
-  nakedret:
-    max-func-lines: 30
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - performance
-      - style
-    disabled-checks:
-      - dupImport
-      - ifElseChain
-      - octalLiteral
-      - whyNoLint
-      - wrapperFunc
-
 linters:
+  default: none
   disable:
     - depguard
   enable:
@@ -60,26 +33,56 @@ linters:
     - unparam
     - unused
     - whitespace
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+    gocyclo:
+      min-complexity: 15
+    goconst:
+      min-len: 2
+      min-occurrences: 2
+    misspell:
+      locale: US
+    lll:
+      line-length: 140
+    nakedret:
+      max-func-lines: 30
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+      disabled-checks:
+        - dupImport
+        - ifElseChain
+        - octalLiteral
+        - whyNoLint
+        - wrapperFunc
+  exclusions:
+    presets:
+      - comments
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - errcheck
+          - dupl
+          - gosec
+          - lll
+      - text: "weak cryptographic primitive"
+        linters:
+          - gosec
+      - text: "shadow: declaration of \"err\""
+        linters:
+          - govet
 
 formatters:
   enable:
     - goimports
   settings:
     goimports:
-      local-prefixes: github.com/tradik/wpexporter
-
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - errcheck
-        - dupl
-        - gosec
-        - lll
-    - text: "weak cryptographic primitive"
-      linters:
-        - gosec
-    - text: "shadow: declaration of \"err\""
-      linters:
-        - govet
+      local-prefixes:
+        - github.com/tradik/wpexporter
