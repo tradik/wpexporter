@@ -72,6 +72,7 @@ linters:
           - dupl
           - gosec
           - lll
+          - goconst
       - text: "weak cryptographic primitive"
         linters:
           - gosec
