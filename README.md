@@ -185,6 +185,7 @@ wpexportjson export --config config.yaml
 | `--auth-pass` | Password for Basic Auth | - |
 | `--auth-token` | Bearer token for authentication | - |
 | `--rate-limit` | Delay between API requests in milliseconds (prevents server rate limiting) | `0` |
+| `--resume` | Resume from checkpoint if previous export was interrupted | `false` |
 | `--config` | Configuration file path | - |
 
 ## SEO Metadata Extraction
@@ -221,7 +222,27 @@ wpexportjson export --url https://example.com --auth-user admin --auth-pass secr
 
 # With rate limiting to prevent server overload (500ms delay between requests)
 wpexportjson export --url https://example.com --rate-limit 500 -f markdown
+
+# Resume interrupted export (checkpoint is saved automatically)
+wpexportjson export --url https://example.com --resume -f markdown
 ```
+
+## Resume / Checkpoint Feature
+
+When exporting large sites, the `--resume` flag enables automatic checkpoint saving. If the export is interrupted (network error, server timeout, etc.), you can resume from where it left off:
+
+```bash
+# First export attempt (interrupted at 90%)
+wpexportjson export --url https://large-site.com --resume -f markdown
+# Error: connection timeout...
+
+# Resume from checkpoint
+wpexportjson export --url https://large-site.com --resume -f markdown
+# Resuming from checkpoint: export/large-site.com.2026-02-02/.wpexport_checkpoint.json
+# Checkpoint: posts=1500 (done=true), pages=42 (done=false)...
+```
+
+The checkpoint file (`.wpexport_checkpoint.json`) is automatically deleted on successful completion.
 
 ### Markdown Frontmatter Output
 

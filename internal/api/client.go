@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -9,9 +10,13 @@ import (
 
 	"github.com/go-resty/resty/v2"
 
+	"github.com/tradik/wpexporter/internal/checkpoint"
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/pkg/models"
 )
+
+// ProgressCallback is called after each page is fetched for checkpoint saving
+type ProgressCallback func() error
 
 // Client represents a WordPress REST API client
 type Client struct {
@@ -502,4 +507,332 @@ func (c *Client) BruteForceContent(contentType string, maxID int, found chan<- i
 		// Small delay to avoid overwhelming the server
 		time.Sleep(10 * time.Millisecond)
 	}
+}
+
+// GetPostsWithCheckpoint retrieves posts with checkpoint support for resume
+func (c *Client) GetPostsWithCheckpoint(state *checkpoint.State, onProgress ProgressCallback) ([]models.WordPressPost, error) {
+	if state != nil && state.IsPostsCompleted() {
+		return []models.WordPressPost{}, nil // Already completed
+	}
+
+	var allContent []models.WordPressPost
+	startPage := 1
+	if state != nil {
+		startPage = state.GetPostsPage()
+	}
+
+	page := startPage
+	perPage := 100
+
+	for {
+		if page > 1 {
+			c.applyRateLimit()
+		}
+
+		url := fmt.Sprintf("%s/posts?page=%d&per_page=%d", c.baseURL, page, perPage)
+
+		resp, err := c.httpClient.R().Get(url)
+		if err != nil {
+			if state != nil {
+				state.SetLastError(err.Error())
+			}
+			return nil, fmt.Errorf("failed to get posts page %d: %w", page, err)
+		}
+
+		if resp.StatusCode() == 400 {
+			break
+		}
+
+		if resp.StatusCode() != 200 {
+			errMsg := fmt.Sprintf("API returned status %d for posts page %d", resp.StatusCode(), page)
+			if state != nil {
+				state.SetLastError(errMsg)
+			}
+			return nil, errors.New(errMsg)
+		}
+
+		var content []models.WordPressPost
+		if err := json.Unmarshal(resp.Body(), &content); err != nil {
+			return nil, fmt.Errorf("failed to parse posts response: %w", err)
+		}
+
+		if len(content) == 0 {
+			break
+		}
+
+		allContent = append(allContent, content...)
+
+		// Update checkpoint
+		if state != nil {
+			ids := make([]int, len(content))
+			for i, c := range content {
+				ids[i] = c.ID
+			}
+			state.AddPostIDs(ids)
+			state.SetPostsPage(page + 1)
+			if onProgress != nil {
+				if err := onProgress(); err != nil {
+					return nil, fmt.Errorf("failed to save checkpoint: %w", err)
+				}
+			}
+		}
+
+		page++
+	}
+
+	if state != nil {
+		state.SetPostsCompleted()
+		if onProgress != nil {
+			_ = onProgress()
+		}
+	}
+
+	return allContent, nil
+}
+
+// GetPagesWithCheckpoint retrieves pages with checkpoint support for resume
+func (c *Client) GetPagesWithCheckpoint(state *checkpoint.State, onProgress ProgressCallback) ([]models.WordPressPost, error) {
+	if state != nil && state.IsPagesCompleted() {
+		return []models.WordPressPost{}, nil
+	}
+
+	var allContent []models.WordPressPost
+	startPage := 1
+	if state != nil {
+		startPage = state.GetPagesPage()
+	}
+
+	page := startPage
+	perPage := 100
+
+	for {
+		if page > 1 {
+			c.applyRateLimit()
+		}
+
+		url := fmt.Sprintf("%s/pages?page=%d&per_page=%d", c.baseURL, page, perPage)
+
+		resp, err := c.httpClient.R().Get(url)
+		if err != nil {
+			if state != nil {
+				state.SetLastError(err.Error())
+			}
+			return nil, fmt.Errorf("failed to get pages page %d: %w", page, err)
+		}
+
+		if resp.StatusCode() == 400 {
+			break
+		}
+
+		if resp.StatusCode() != 200 {
+			errMsg := fmt.Sprintf("API returned status %d for pages page %d", resp.StatusCode(), page)
+			if state != nil {
+				state.SetLastError(errMsg)
+			}
+			return nil, errors.New(errMsg)
+		}
+
+		var content []models.WordPressPost
+		if err := json.Unmarshal(resp.Body(), &content); err != nil {
+			return nil, fmt.Errorf("failed to parse pages response: %w", err)
+		}
+
+		if len(content) == 0 {
+			break
+		}
+
+		allContent = append(allContent, content...)
+
+		if state != nil {
+			ids := make([]int, len(content))
+			for i, c := range content {
+				ids[i] = c.ID
+			}
+			state.AddPageIDs(ids)
+			state.SetPagesPage(page + 1)
+			if onProgress != nil {
+				if err := onProgress(); err != nil {
+					return nil, fmt.Errorf("failed to save checkpoint: %w", err)
+				}
+			}
+		}
+
+		page++
+	}
+
+	if state != nil {
+		state.SetPagesCompleted()
+		if onProgress != nil {
+			_ = onProgress()
+		}
+	}
+
+	return allContent, nil
+}
+
+// GetProductsWithCheckpoint retrieves WooCommerce products with checkpoint support
+func (c *Client) GetProductsWithCheckpoint(state *checkpoint.State, onProgress ProgressCallback) ([]models.WooCommerceProduct, error) {
+	if state != nil && state.IsProductsCompleted() {
+		return []models.WooCommerceProduct{}, nil
+	}
+
+	var allProducts []models.WooCommerceProduct
+	startPage := 1
+	if state != nil {
+		startPage = state.GetProductsPage()
+	}
+
+	page := startPage
+	perPage := 100
+	wooBaseURL := strings.Replace(c.baseURL, "/wp/v2", "/wc/v3", 1)
+
+	for {
+		if page > 1 {
+			c.applyRateLimit()
+		}
+
+		url := fmt.Sprintf("%s/products?page=%d&per_page=%d", wooBaseURL, page, perPage)
+
+		resp, err := c.httpClient.R().Get(url)
+		if err != nil {
+			if c.config.Verbose {
+				fmt.Printf("Note: Could not fetch WooCommerce products: %v\n", err)
+			}
+			return allProducts, nil
+		}
+
+		if resp.StatusCode() == 404 || resp.StatusCode() == 401 {
+			return allProducts, nil
+		}
+
+		if resp.StatusCode() == 400 {
+			break
+		}
+
+		if resp.StatusCode() != 200 {
+			if c.config.Verbose {
+				fmt.Printf("Note: WooCommerce API returned status %d (may require authentication)\n", resp.StatusCode())
+			}
+			return allProducts, nil
+		}
+
+		var products []models.WooCommerceProduct
+		if err := json.Unmarshal(resp.Body(), &products); err != nil {
+			if c.config.Verbose {
+				fmt.Printf("Note: Could not parse WooCommerce products: %v\n", err)
+			}
+			return allProducts, nil
+		}
+
+		if len(products) == 0 {
+			break
+		}
+
+		allProducts = append(allProducts, products...)
+
+		if state != nil {
+			ids := make([]int, len(products))
+			for i, p := range products {
+				ids[i] = p.ID
+			}
+			state.AddProductIDs(ids)
+			state.SetProductsPage(page + 1)
+			if onProgress != nil {
+				if err := onProgress(); err != nil {
+					return nil, fmt.Errorf("failed to save checkpoint: %w", err)
+				}
+			}
+		}
+
+		page++
+	}
+
+	if state != nil {
+		state.SetProductsCompleted()
+		if onProgress != nil {
+			_ = onProgress()
+		}
+	}
+
+	return allProducts, nil
+}
+
+// GetMediaWithCheckpoint retrieves media with checkpoint support
+func (c *Client) GetMediaWithCheckpoint(state *checkpoint.State, onProgress ProgressCallback) ([]models.WordPressMedia, error) {
+	if state != nil && state.IsMediaCompleted() {
+		return []models.WordPressMedia{}, nil
+	}
+
+	var allMedia []models.WordPressMedia
+	startPage := 1
+	if state != nil {
+		startPage = state.GetMediaPage()
+	}
+
+	page := startPage
+	perPage := 100
+
+	for {
+		if page > 1 {
+			c.applyRateLimit()
+		}
+
+		url := fmt.Sprintf("%s/media?page=%d&per_page=%d", c.baseURL, page, perPage)
+
+		resp, err := c.httpClient.R().Get(url)
+		if err != nil {
+			if state != nil {
+				state.SetLastError(err.Error())
+			}
+			return nil, fmt.Errorf("failed to get media page %d: %w", page, err)
+		}
+
+		if resp.StatusCode() == 400 {
+			break
+		}
+
+		if resp.StatusCode() != 200 {
+			errMsg := fmt.Sprintf("API returned status %d for media page %d", resp.StatusCode(), page)
+			if state != nil {
+				state.SetLastError(errMsg)
+			}
+			return nil, errors.New(errMsg)
+		}
+
+		var media []models.WordPressMedia
+		if err := json.Unmarshal(resp.Body(), &media); err != nil {
+			return nil, fmt.Errorf("failed to parse media response: %w", err)
+		}
+
+		if len(media) == 0 {
+			break
+		}
+
+		allMedia = append(allMedia, media...)
+
+		if state != nil {
+			ids := make([]int, len(media))
+			for i, m := range media {
+				ids[i] = m.ID
+			}
+			state.AddMediaIDs(ids)
+			state.SetMediaPage(page + 1)
+			if onProgress != nil {
+				if err := onProgress(); err != nil {
+					return nil, fmt.Errorf("failed to save checkpoint: %w", err)
+				}
+			}
+		}
+
+		page++
+	}
+
+	if state != nil {
+		state.SetMediaCompleted()
+		if onProgress != nil {
+			_ = onProgress()
+		}
+	}
+
+	return allMedia, nil
 }

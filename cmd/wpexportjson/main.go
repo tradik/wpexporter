@@ -15,6 +15,7 @@ import (
 
 	"github.com/tradik/wpexporter/internal/api"
 	"github.com/tradik/wpexporter/internal/bruteforce"
+	"github.com/tradik/wpexporter/internal/checkpoint"
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/internal/export"
 	"github.com/tradik/wpexporter/internal/filter"
@@ -46,6 +47,7 @@ var (
 	authPass          string
 	authToken         string
 	rateLimit         int
+	resume            bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -130,6 +132,7 @@ func init() {
 	exportCmd.Flags().StringVar(&authPass, "auth-pass", "", "password for Basic Auth")
 	exportCmd.Flags().StringVar(&authToken, "auth-token", "", "Bearer token for authentication")
 	exportCmd.Flags().IntVar(&rateLimit, "rate-limit", 0, "delay between API requests in milliseconds (0 = no limit)")
+	exportCmd.Flags().BoolVar(&resume, "resume", false, "resume from checkpoint if previous export was interrupted")
 	exportCmd.Flags().StringVar(&pathFilter, "path-filter", "", "filter posts/pages by URL path pattern (e.g., /fr/arts/)")
 	exportCmd.Flags().BoolVar(&assistedCrawl, "assisted-crawl", false, "crawl actual URLs to extract SEO metadata (title, description, og tags)")
 
@@ -265,6 +268,9 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if cmd.Flags().Changed("rate-limit") {
 		cfg.RateLimit = rateLimit
 	}
+	if cmd.Flags().Changed("resume") {
+		cfg.Resume = resume
+	}
 
 	// Validate --no-files requires --zip
 	if cfg.NoFiles && !cfg.CreateZip {
@@ -293,6 +299,28 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// Create brute force scanner
 	scanner := bruteforce.NewScanner(cfg, apiClient)
 
+	// Create checkpoint manager
+	checkpointMgr := checkpoint.NewManager(cfg.Output, cfg.Resume)
+	var checkpointState *checkpoint.State
+
+	// Load or create checkpoint state
+	if cfg.Resume {
+		var err error
+		checkpointState, err = checkpointMgr.Load(cfg.URL)
+		if err != nil {
+			return fmt.Errorf("failed to load checkpoint: %w", err)
+		}
+		if checkpointMgr.Exists() {
+			fmt.Printf("Resuming from checkpoint: %s\n", checkpointMgr.GetFilePath())
+			fmt.Println(checkpointState.Summary())
+		}
+	}
+
+	// Progress callback to save checkpoint after each page
+	saveCheckpoint := func() error {
+		return checkpointMgr.Save()
+	}
+
 	fmt.Printf("Starting WordPress export from: %s\n", cfg.URL)
 	fmt.Printf("Output: %s (format: %s)\n", cfg.Output, cfg.Format)
 
@@ -317,7 +345,11 @@ func runExport(cmd *cobra.Command, args []string) error {
 	var posts []models.WordPressPost
 	if !cfg.NoPosts {
 		fmt.Println("Fetching posts...")
-		posts, err = apiClient.GetPosts()
+		if cfg.Resume {
+			posts, err = apiClient.GetPostsWithCheckpoint(checkpointState, saveCheckpoint)
+		} else {
+			posts, err = apiClient.GetPosts()
+		}
 		if err != nil {
 			return fmt.Errorf("failed to get posts: %w", err)
 		}
@@ -329,7 +361,11 @@ func runExport(cmd *cobra.Command, args []string) error {
 	var pages []models.WordPressPost
 	if !cfg.NoPages {
 		fmt.Println("Fetching pages...")
-		pages, err = apiClient.GetPages()
+		if cfg.Resume {
+			pages, err = apiClient.GetPagesWithCheckpoint(checkpointState, saveCheckpoint)
+		} else {
+			pages, err = apiClient.GetPages()
+		}
 		if err != nil {
 			return fmt.Errorf("failed to get pages: %w", err)
 		}
@@ -341,7 +377,11 @@ func runExport(cmd *cobra.Command, args []string) error {
 	var products []models.WooCommerceProduct
 	if !cfg.NoProducts {
 		fmt.Println("Fetching WooCommerce products...")
-		products, err = apiClient.GetProducts()
+		if cfg.Resume {
+			products, err = apiClient.GetProductsWithCheckpoint(checkpointState, saveCheckpoint)
+		} else {
+			products, err = apiClient.GetProducts()
+		}
 		if err != nil {
 			return fmt.Errorf("failed to get products: %w", err)
 		}
@@ -379,7 +419,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("Fetching media...")
-	media, err := apiClient.GetMedia()
+	var media []models.WordPressMedia
+	if cfg.Resume {
+		media, err = apiClient.GetMediaWithCheckpoint(checkpointState, saveCheckpoint)
+	} else {
+		media, err = apiClient.GetMedia()
+	}
 	if err != nil {
 		return fmt.Errorf("failed to get media: %w", err)
 	}
@@ -507,6 +552,13 @@ func runExport(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		fmt.Printf("Output: %s\n", cfg.Output)
+	}
+
+	// Delete checkpoint on successful completion
+	if cfg.Resume {
+		if err := checkpointMgr.Delete(); err != nil {
+			fmt.Printf("Warning: failed to delete checkpoint: %v\n", err)
+		}
 	}
 
 	return nil

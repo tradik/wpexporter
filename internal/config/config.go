@@ -36,6 +36,7 @@ type Config struct {
 	AuthPass          string `mapstructure:"auth_pass" json:"auth_pass"`
 	AuthToken         string `mapstructure:"auth_token" json:"auth_token"`
 	RateLimit         int    `mapstructure:"rate_limit" json:"rate_limit"` // Milliseconds delay between API requests
+	Resume            bool   `mapstructure:"resume" json:"resume"`         // Resume from checkpoint if available
 }
 
 // DefaultConfig returns a configuration with default values
@@ -59,7 +60,8 @@ func DefaultConfig() *Config {
 		NoProducts:        false,
 		PathFilter:        "",
 		AssistedCrawl:     false,
-		RateLimit:         0, // No rate limiting by default
+		RateLimit:         0,     // No rate limiting by default
+		Resume:            false, // Don't resume by default
 	}
 }
 
@@ -123,6 +125,9 @@ func LoadConfig(configFile string) (*Config, error) {
 	}
 	if err := viper.BindEnv("rate_limit", "WPEXPORT_RATE_LIMIT"); err != nil {
 		return nil, fmt.Errorf("failed to bind rate_limit environment variable: %w", err)
+	}
+	if err := viper.BindEnv("resume", "WPEXPORT_RESUME"); err != nil {
+		return nil, fmt.Errorf("failed to bind resume environment variable: %w", err)
 	}
 
 	// Load config file if specified
