@@ -1,9 +1,15 @@
 package export
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/pkg/models"
 )
 
 func TestExtractCategoriesFromLink(t *testing.T) {
@@ -104,4 +110,235 @@ func TestIsNumeric(t *testing.T) {
 			}
 		})
 	}
+}
+
+// createTestData creates sample export data for testing
+func createTestData() *models.ExportData {
+	return &models.ExportData{
+		Site: models.SiteInfo{
+			Name:        "Test Site",
+			Description: "Test Description",
+			URL:         "https://example.com",
+			Language:    "en-US",
+		},
+		Posts: []models.WordPressPost{
+			{
+				ID:      1,
+				Slug:    "test-post",
+				Status:  "publish",
+				Title:   models.RenderedContent{Rendered: "Test Post"},
+				Content: models.RenderedContent{Rendered: "<p>Test content</p>"},
+			},
+		},
+		Pages: []models.WordPressPost{
+			{
+				ID:      1,
+				Slug:    "test-page",
+				Status:  "publish",
+				Title:   models.RenderedContent{Rendered: "Test Page"},
+				Content: models.RenderedContent{Rendered: "<p>Page content</p>"},
+			},
+		},
+		Categories: []models.WordPressCategory{
+			{ID: 1, Name: "Test Category", Slug: "test-category"},
+		},
+		Tags: []models.WordPressTag{
+			{ID: 1, Name: "Test Tag", Slug: "test-tag"},
+		},
+		Users: []models.WordPressUser{
+			{ID: 1, Name: "Test User", Slug: "test-user"},
+		},
+		Media: []models.WordPressMedia{
+			{ID: 1, Title: models.RenderedContent{Rendered: "Test Image"}, SourceURL: "https://example.com/image.jpg", MimeType: "image/jpeg"},
+		},
+	}
+}
+
+func TestExporter_ExportWix(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "exporter-wix-test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	cfg := &config.Config{
+		Output: tempDir,
+		Format: "wix",
+	}
+	exporter := NewExporter(cfg)
+
+	err = exporter.Export(createTestData())
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(tempDir, "wix_export.json"))
+}
+
+func TestExporter_ExportSquarespace(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "exporter-squarespace-test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	cfg := &config.Config{
+		Output: tempDir,
+		Format: "squarespace",
+	}
+	exporter := NewExporter(cfg)
+
+	err = exporter.Export(createTestData())
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(tempDir, "squarespace_export.xml"))
+}
+
+func TestExporter_ExportWebflow(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "exporter-webflow-test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	cfg := &config.Config{
+		Output: tempDir,
+		Format: "webflow",
+	}
+	exporter := NewExporter(cfg)
+
+	err = exporter.Export(createTestData())
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(tempDir, "webflow_posts.csv"))
+	assert.FileExists(t, filepath.Join(tempDir, "webflow_export.json"))
+}
+
+func TestExporter_ExportWeebly(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "exporter-weebly-test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	cfg := &config.Config{
+		Output: tempDir,
+		Format: "weebly",
+	}
+	exporter := NewExporter(cfg)
+
+	err = exporter.Export(createTestData())
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(tempDir, "weebly_export.xml"))
+	assert.FileExists(t, filepath.Join(tempDir, "weebly_export.json"))
+}
+
+func TestExporter_ExportPrestaShop(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "exporter-prestashop-test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	cfg := &config.Config{
+		Output: tempDir,
+		Format: "prestashop",
+	}
+	exporter := NewExporter(cfg)
+
+	err = exporter.Export(createTestData())
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(tempDir, "prestashop_products.csv"))
+	assert.FileExists(t, filepath.Join(tempDir, "prestashop_export.json"))
+}
+
+func TestExporter_ExportGhost(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "exporter-ghost-test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	cfg := &config.Config{
+		Output: tempDir,
+		Format: "ghost",
+	}
+	exporter := NewExporter(cfg)
+
+	err = exporter.Export(createTestData())
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(tempDir, "ghost_export.json"))
+}
+
+func TestExporter_ExportStrapi(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "exporter-strapi-test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	cfg := &config.Config{
+		Output: tempDir,
+		Format: "strapi",
+	}
+	exporter := NewExporter(cfg)
+
+	err = exporter.Export(createTestData())
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(tempDir, "strapi_export.json"))
+}
+
+func TestExporter_ExportContentful(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "exporter-contentful-test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	cfg := &config.Config{
+		Output: tempDir,
+		Format: "contentful",
+	}
+	exporter := NewExporter(cfg)
+
+	err = exporter.Export(createTestData())
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(tempDir, "contentful_export.json"))
+}
+
+func TestExporter_ExportWordPress(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "exporter-wordpress-test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	cfg := &config.Config{
+		Output: tempDir,
+		Format: "wordpress",
+	}
+	exporter := NewExporter(cfg)
+
+	err = exporter.Export(createTestData())
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(tempDir, "wordpress_export.xml"))
+}
+
+func TestExporter_ExportDrupal(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "exporter-drupal-test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	cfg := &config.Config{
+		Output: tempDir,
+		Format: "drupal",
+	}
+	exporter := NewExporter(cfg)
+
+	err = exporter.Export(createTestData())
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(tempDir, "drupal_export.json"))
+}
+
+func TestExporter_UnsupportedFormat(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "exporter-unsupported-test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	cfg := &config.Config{
+		Output: tempDir,
+		Format: "unsupported_format",
+	}
+	exporter := NewExporter(cfg)
+
+	err = exporter.Export(createTestData())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported export format")
 }

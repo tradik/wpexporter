@@ -163,8 +163,15 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("URL is required")
 	}
 
-	if c.Format != "json" && c.Format != "markdown" && c.Format != "shopify" && c.Format != "magento" {
-		return fmt.Errorf("format must be 'json', 'markdown', 'shopify', or 'magento'")
+	validFormats := map[string]bool{
+		"json": true, "markdown": true, "shopify": true, "magento": true,
+		"wordpress": true, "drupal": true, "wix": true, "squarespace": true,
+		"webflow": true, "weebly": true, "prestashop": true, "ghost": true,
+		"strapi": true, "contentful": true,
+	}
+	if !validFormats[c.Format] {
+		return fmt.Errorf("format must be one of: json, markdown, shopify, magento, wordpress, drupal, " +
+			"wix, squarespace, webflow, weebly, prestashop, ghost, strapi, contentful")
 	}
 
 	if c.MaxID <= 0 {

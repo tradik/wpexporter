@@ -17,19 +17,20 @@ A comprehensive WordPress content export toolkit with two powerful applications:
 - **wpexportjson** - REST API based exporter with brute force content discovery
 - **wpxmlrpc** - XML-RPC based exporter for authenticated access
 
-Both tools export content to JSON, Markdown, **Shopify-compatible CSV**, or **Magento-compatible CSV** format with full media download support.
+**Export to 14+ popular platforms** including e-commerce systems ([Shopify](https://www.shopify.com/), [Magento](https://business.adobe.com/products/magento/magento-commerce.html), [PrestaShop](https://www.prestashop.com/)), traditional CMS platforms ([WordPress](https://wordpress.org/), [Drupal](https://www.drupal.org/), [Wix](https://www.wix.com/), [Squarespace](https://www.squarespace.com/), [Webflow](https://webflow.com/), [Weebly](https://www.weebly.com/)), and headless CMS solutions ([Ghost](https://ghost.org/), [Strapi](https://strapi.io/), [Contentful](https://www.contentful.com/)), plus JSON and Markdown formats with full media download support.
 
 ## Features
 
 ### wpexporter (REST API Client)
 - 🔍 **Complete Content Discovery**: Scans WordPress REST API for posts, pages, and media
 - 🚀 **Brute Force Mode**: Attempts to discover unlisted content by ID enumeration
-- 📁 **Multiple Export Formats**: JSON, Markdown, Shopify CSV, and Magento CSV output support
-- 🛒 **Shopify Integration**: Export directly to Shopify-compatible product CSV format
-- 🏪 **Magento Integration**: Export directly to Magento 2-compatible product CSV format
-- � **WooCommerce Support**: Detects and exports WooCommerce products automatically
+- 📁 **Multiple Export Formats**: JSON, Markdown, Shopify, Magento, WordPress, Drupal, Wix, Squarespace, Webflow, Weebly, PrestaShop, Ghost, Strapi, and Contentful
+- 🛒 **E-commerce Integration**: Export to [Shopify](https://www.shopify.com/), [Magento](https://business.adobe.com/products/magento/magento-commerce.html), [PrestaShop](https://www.prestashop.com/) CSV formats
+- 🌐 **CMS Migration**: Export to [WordPress](https://wordpress.org/), [Drupal](https://www.drupal.org/), [Wix](https://www.wix.com/), [Squarespace](https://www.squarespace.com/), [Webflow](https://webflow.com/), [Weebly](https://www.weebly.com/)
+- 📝 **Headless CMS Support**: Export to [Ghost](https://ghost.org/), [Strapi](https://strapi.io/), [Contentful](https://www.contentful.com/) JSON formats
+- 🛍️ **WooCommerce Support**: Detects and exports WooCommerce products automatically
 - 🧹 **Content Filtering**: Control what to export with `--no-posts`, `--no-pages`, and `--no-products` flags
-- �🖼️ **Media Download**: Downloads images and videos with content
+- 🖼️ **Media Download**: Downloads images and videos with content
 - ⚡ **Concurrent Processing**: Fast parallel downloads and processing
 - 📊 **Progress Tracking**: Real-time progress bars and status updates
 - 🛠️ **Configurable**: Flexible configuration options via CLI or config file
@@ -109,6 +110,36 @@ wpexportjson export --url https://example.com -f magento
 
 # Export to Magento CSV with ZIP archive
 wpexportjson export --url https://example.com -f magento --zip
+
+# Export to WordPress WXR format (for WordPress import)
+wpexportjson export --url https://example.com -f wordpress
+
+# Export to Drupal-compatible JSON format
+wpexportjson export --url https://example.com -f drupal
+
+# Export to Wix-compatible JSON format
+wpexportjson export --url https://example.com -f wix
+
+# Export to Squarespace-compatible XML format
+wpexportjson export --url https://example.com -f squarespace
+
+# Export to Webflow-compatible CSV format
+wpexportjson export --url https://example.com -f webflow
+
+# Export to Weebly-compatible format (XML + JSON)
+wpexportjson export --url https://example.com -f weebly
+
+# Export to PrestaShop-compatible CSV format
+wpexportjson export --url https://example.com -f prestashop
+
+# Export to Ghost-compatible JSON format
+wpexportjson export --url https://example.com -f ghost
+
+# Export to Strapi-compatible JSON format
+wpexportjson export --url https://example.com -f strapi
+
+# Export to Contentful-compatible JSON format
+wpexportjson export --url https://example.com -f contentful
 ```
 
 ### XML-RPC Export (wpxmlrpc)
@@ -167,7 +198,7 @@ wpexportjson export --config config.yaml
 |--------|-------------|---------|
 | `--url` | WordPress site URL | Required |
 | `--output` | Output directory or file | `./export` |
-| `--format` | Export format (json/markdown/shopify/magento) | `json` |
+| `--format` | Export format (json/markdown/shopify/magento/wordpress/drupal/wix/squarespace/webflow/weebly/prestashop/ghost/strapi/contentful) | `json` |
 | `--brute-force` | Enable brute force ID discovery | `false` |
 | `--max-id` | Maximum ID for brute force | `10000` |
 | `--download-media` | Download images and videos | `true` |
@@ -342,10 +373,16 @@ graph TB
     G --> I[Markdown Exporter]
     G --> K[Shopify Exporter]
     G --> L[Magento Exporter]
+    G --> M[Wix/Squarespace/Webflow]
+    G --> N[Ghost/Strapi/Contentful]
+    G --> O[Weebly/PrestaShop]
     H --> J[Output Files]
     I --> J
     K --> J
     L --> J
+    M --> J
+    N --> J
+    O --> J
 ```
 
 ## Shopify Export Format
@@ -454,6 +491,356 @@ wpexportjson export --url https://your-wordpress-site.com -f magento --zip
 7. Click **Import** to complete
 
 > **Note**: Before importing, ensure image files are uploaded to `/pub/media/import/` on your Magento server. For best results, review the [Magento 2 CSV import documentation](https://experienceleague.adobe.com/docs/commerce-admin/systems/data-transfer/import/data-import.html).
+
+## WordPress WXR Export Format
+
+The WordPress export format generates a WXR (WordPress eXtended RSS) XML file that can be imported into another WordPress installation. This is the standard format used by WordPress for content migration.
+
+### Output Files
+
+When exporting to WordPress format, the following file is generated:
+
+| File | Description |
+|------|-------------|
+| `wordpress_export.xml` | Complete WXR export with all content |
+
+### WXR Content Mapping
+
+| WordPress Source | WXR Element |
+|------------------|-------------|
+| Posts | `<item>` with `<wp:post_type>post</wp:post_type>` |
+| Pages | `<item>` with `<wp:post_type>page</wp:post_type>` |
+| Media/Attachments | `<item>` with `<wp:post_type>attachment</wp:post_type>` |
+| Categories | `<wp:category>` |
+| Tags | `<wp:tag>` |
+| Authors | `<wp:author>` |
+| Featured Images | `<wp:postmeta>` with `_thumbnail_id` |
+| SEO Data | `<wp:postmeta>` with Yoast-compatible keys |
+
+### Usage Example
+
+```bash
+# Export WordPress content to WXR format
+wpexportjson export --url https://your-wordpress-site.com -f wordpress
+
+# Export to WordPress WXR and create ZIP for easy transfer
+wpexportjson export --url https://your-wordpress-site.com -f wordpress --zip
+```
+
+### Importing to WordPress
+
+1. Log in to your WordPress Admin Dashboard
+2. Go to **Tools** > **Import**
+3. Click **Install Now** under WordPress (if not already installed)
+4. Click **Run Importer**
+5. Upload `wordpress_export.xml`
+6. Assign authors and select whether to import attachments
+7. Click **Submit** to complete
+
+> **Note**: WXR is the official WordPress import/export format. For best results, review the [WordPress Import documentation](https://wordpress.org/documentation/article/importing-content/#wordpress).
+
+## Drupal Export Format
+
+The Drupal export format generates JSON files compatible with Drupal's Migrate module. This format is designed for migrating WordPress content to Drupal 8/9/10.
+
+### Output Files
+
+When exporting to Drupal format, the following files are generated:
+
+| File | Description |
+|------|-------------|
+| `drupal_export.json` | Complete export with all content types |
+| `drupal_nodes.json` | Posts and pages as Drupal nodes |
+| `drupal_terms.json` | Categories and tags as taxonomy terms |
+| `drupal_users.json` | Users as Drupal user accounts |
+| `drupal_media.json` | Media files as Drupal media entities |
+
+### Drupal Content Mapping
+
+| WordPress Source | Drupal Destination |
+|------------------|-------------------|
+| Posts | Node type: `article` |
+| Pages | Node type: `page` |
+| Categories | Taxonomy vocabulary: `categories` |
+| Tags | Taxonomy vocabulary: `tags` |
+| Featured Image | Media entity reference (`field_image`) |
+| Post Content | Body field with `full_html` format |
+| Post Excerpt | Body summary field |
+| SEO Data | Metatag module fields |
+
+### Usage Example
+
+```bash
+# Export WordPress content to Drupal format
+wpexportjson export --url https://your-wordpress-site.com -f drupal
+
+# Export to Drupal and create ZIP for easy transfer
+wpexportjson export --url https://your-wordpress-site.com -f drupal --zip
+```
+
+### Importing to Drupal
+
+1. Install the **Migrate** and **Migrate Source JSON** modules
+2. Upload the JSON files to your Drupal server
+3. Create migration configuration files referencing the JSON sources
+4. Run migrations using Drush: `drush migrate:import --all`
+
+> **Note**: Drupal migration requires custom migration YAML configuration. The JSON structure is designed to work with `migrate_source_json` plugin. For best results, review the [Drupal Migrate documentation](https://www.drupal.org/docs/drupal-apis/migrate-api).
+
+## Wix Export Format
+
+The [Wix](https://www.wix.com/) export format generates a JSON file containing posts, pages, categories, tags, and media that can be imported to Wix.
+
+### Output Files
+
+| File | Description |
+|------|-------------|
+| `wix_export.json` | Complete export with all content |
+
+### Wix Content Mapping
+
+| WordPress Source | Wix Destination |
+|------------------|-----------------|
+| Posts | Blog posts |
+| Pages | Static pages |
+| Categories | Blog categories |
+| Tags | Blog tags |
+| Featured Image | Cover image |
+| SEO Data | SEO fields |
+
+### Usage Example
+
+```bash
+wpexportjson export --url https://your-wordpress-site.com -f wix
+```
+
+## Squarespace Export Format
+
+The [Squarespace](https://www.squarespace.com/) export format generates a WXR-compatible XML file that can be imported directly into Squarespace.
+
+### Output Files
+
+| File | Description |
+|------|-------------|
+| `squarespace_export.xml` | Complete WXR export for Squarespace import |
+
+### Squarespace Content Mapping
+
+| WordPress Source | Squarespace Destination |
+|------------------|------------------------|
+| Posts | Blog posts |
+| Pages | Pages |
+| Categories | Categories |
+| Tags | Tags |
+| Media | Media library items |
+
+### Usage Example
+
+```bash
+wpexportjson export --url https://your-wordpress-site.com -f squarespace
+```
+
+### Importing to Squarespace
+
+1. Log in to your Squarespace account
+2. Go to **Settings** > **Advanced** > **Import/Export**
+3. Click **Import**
+4. Select **WordPress** as the source
+5. Upload `squarespace_export.xml`
+
+## Webflow Export Format
+
+The [Webflow](https://webflow.com/) export format generates CSV files compatible with Webflow CMS import.
+
+### Output Files
+
+| File | Description |
+|------|-------------|
+| `webflow_posts.csv` | Blog posts as CMS items |
+| `webflow_pages.csv` | Static pages |
+| `webflow_categories.csv` | Categories |
+| `webflow_authors.csv` | Authors |
+| `webflow_export.json` | Complete JSON backup |
+
+### Webflow Content Mapping
+
+| WordPress Source | Webflow Destination |
+|------------------|---------------------|
+| Post Title | Name |
+| Post Slug | Slug |
+| Post Content | Post Body |
+| Post Date | Published On |
+| Author | Author reference |
+| Categories | Categories (multi-reference) |
+| Tags | Tags |
+| SEO Data | SEO fields |
+
+### Usage Example
+
+```bash
+wpexportjson export --url https://your-wordpress-site.com -f webflow
+```
+
+## Weebly Export Format
+
+The [Weebly](https://www.weebly.com/) export format generates both XML and JSON files for maximum compatibility.
+
+### Output Files
+
+| File | Description |
+|------|-------------|
+| `weebly_export.xml` | WXR-compatible XML export |
+| `weebly_export.json` | JSON export with posts and pages |
+
+### Usage Example
+
+```bash
+wpexportjson export --url https://your-wordpress-site.com -f weebly
+```
+
+## PrestaShop Export Format
+
+The [PrestaShop](https://www.prestashop.com/) export format generates semicolon-delimited CSV files compatible with PrestaShop's import system. Posts and pages are converted to products.
+
+### Output Files
+
+| File | Description |
+|------|-------------|
+| `prestashop_products.csv` | Products (from posts/pages) |
+| `prestashop_posts.csv` | Blog posts |
+| `prestashop_pages.csv` | CMS pages |
+| `prestashop_categories.csv` | Product categories |
+| `prestashop_metadata.csv` | Export metadata |
+| `prestashop_export.json` | Complete JSON backup |
+
+### PrestaShop Content Mapping
+
+| WordPress Source | PrestaShop Destination |
+|------------------|----------------------|
+| Post Title | Product name |
+| Post Content | Product description |
+| Post Excerpt | Short description |
+| Categories | Product categories |
+| Tags | Tags |
+| Featured Image | Product image |
+| Post ID | Reference (WP-{id}) |
+
+### Usage Example
+
+```bash
+wpexportjson export --url https://your-wordpress-site.com -f prestashop
+```
+
+## Ghost Export Format
+
+The [Ghost](https://ghost.org/) export format generates a JSON file compatible with Ghost CMS import.
+
+### Output Files
+
+| File | Description |
+|------|-------------|
+| `ghost_export.json` | Complete Ghost import format |
+
+### Ghost Content Mapping
+
+| WordPress Source | Ghost Destination |
+|------------------|-------------------|
+| Posts | Posts |
+| Pages | Pages |
+| Categories | Tags (with category prefix) |
+| Tags | Tags |
+| Users | Users |
+| Featured Image | Feature image |
+| SEO Data | Meta fields |
+
+### Usage Example
+
+```bash
+wpexportjson export --url https://your-wordpress-site.com -f ghost
+```
+
+### Importing to Ghost
+
+1. Log in to your Ghost Admin panel
+2. Go to **Settings** > **Labs**
+3. Find **Import content** section
+4. Upload `ghost_export.json`
+
+## Strapi Export Format
+
+The [Strapi](https://strapi.io/) export format generates JSON files compatible with Strapi v4 headless CMS.
+
+### Output Files
+
+| File | Description |
+|------|-------------|
+| `strapi_export.json` | Complete export with all content types |
+| `strapi_articles.json` | Blog articles |
+| `strapi_pages.json` | Pages |
+| `strapi_categories.json` | Categories |
+| `strapi_tags.json` | Tags |
+| `strapi_authors.json` | Authors |
+| `strapi_media.json` | Media files |
+
+### Strapi Content Mapping
+
+| WordPress Source | Strapi Destination |
+|------------------|-------------------|
+| Posts | Articles (collection type) |
+| Pages | Pages (collection type) |
+| Categories | Categories (collection type) |
+| Tags | Tags (collection type) |
+| Users | Authors (collection type) |
+| Media | Media library |
+| SEO Data | SEO component fields |
+
+### Usage Example
+
+```bash
+wpexportjson export --url https://your-wordpress-site.com -f strapi
+```
+
+## Contentful Export Format
+
+The [Contentful](https://www.contentful.com/) export format generates a JSON file compatible with Contentful's import tool.
+
+### Output Files
+
+| File | Description |
+|------|-------------|
+| `contentful_export.json` | Complete Contentful import format |
+
+### Contentful Content Mapping
+
+| WordPress Source | Contentful Destination |
+|------------------|----------------------|
+| Posts | blogPost content type |
+| Pages | page content type |
+| Categories | category content type |
+| Tags | tag content type |
+| Users | author content type |
+| Media | Assets |
+
+### Content Types Created
+
+The export includes content type definitions for:
+- `blogPost` - Blog posts with title, slug, content, author, categories, tags
+- `page` - Static pages with title, slug, content
+- `category` - Categories with name, slug, description
+- `tag` - Tags with name, slug
+- `author` - Authors with name, slug, bio
+
+### Usage Example
+
+```bash
+wpexportjson export --url https://your-wordpress-site.com -f contentful
+```
+
+### Importing to Contentful
+
+1. Install the Contentful CLI: `npm install -g contentful-cli`
+2. Log in: `contentful login`
+3. Import: `contentful space import --content-file contentful_export.json`
 
 ## Contributing
 

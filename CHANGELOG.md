@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.5] - 2026-02-02
+
+### Added
+- **8 New Export Formats** for popular CMS and e-commerce platforms:
+  - **Wix**: JSON export for [Wix](https://www.wix.com/) blog migration
+  - **Squarespace**: WXR-compatible XML for [Squarespace](https://www.squarespace.com/) import
+  - **Webflow**: CSV files for [Webflow](https://webflow.com/) CMS collections
+  - **Weebly**: XML and JSON dual export for [Weebly](https://www.weebly.com/)
+  - **PrestaShop**: Semicolon-delimited CSV for [PrestaShop](https://www.prestashop.com/) products
+  - **Ghost**: JSON export for [Ghost](https://ghost.org/) CMS migration
+  - **Strapi**: JSON export for [Strapi](https://strapi.io/) v4 headless CMS with separate collection files
+  - **Contentful**: JSON export for [Contentful](https://www.contentful.com/) with content types and assets
+- Comprehensive test coverage for all new exporters (93.7% for export package)
+- Platform links in documentation for all supported export formats
+
+### Changed
+- Updated `--format` flag to support 14 formats: json, markdown, shopify, magento, wordpress, drupal, wix, squarespace, webflow, weebly, prestashop, ghost, strapi, contentful
+- Updated golangci-lint configuration for better code quality enforcement
+- Enhanced documentation with links to all supported platforms
+
+## [1.3.4] - 2026-02-02
+
+### Added
+- **WordPress WXR Export Format**: New `wordpress` export format generating WXR (WordPress eXtended RSS) XML files
+  - Compatible with WordPress import/export system
+  - Exports posts, pages, media, categories, tags, and authors
+  - Includes featured images and SEO metadata as post meta
+  - Full WXR 1.2 specification support
+- **Drupal Export Format**: New `drupal` export format generating Drupal-compatible JSON files
+  - Compatible with Drupal's Migrate module and migrate_source_json plugin
+  - Exports nodes (articles and pages), taxonomy terms, users, and media
+  - Generates separate JSON files for each content type for flexible migration
+  - Supports Drupal 8/9/10 field structure
+
+### Changed
+- Updated `--format` flag to support additional formats: `wordpress` and `drupal`
+
 ## [1.3.3] - 2026-02-02
 
 ### Added

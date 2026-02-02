@@ -57,6 +57,26 @@ func (e *Exporter) Export(data *models.ExportData) error {
 		return e.exportShopify(data)
 	case "magento":
 		return e.exportMagento(data)
+	case "wordpress":
+		return e.exportWordPress(data)
+	case "drupal":
+		return e.exportDrupal(data)
+	case "wix":
+		return e.exportWix(data)
+	case "squarespace":
+		return e.exportSquarespace(data)
+	case "webflow":
+		return e.exportWebflow(data)
+	case "weebly":
+		return e.exportWeebly(data)
+	case "prestashop":
+		return e.exportPrestaShop(data)
+	case "ghost":
+		return e.exportGhost(data)
+	case "strapi":
+		return e.exportStrapi(data)
+	case "contentful":
+		return e.exportContentful(data)
 	default:
 		return fmt.Errorf("unsupported export format: %s", e.config.Format)
 	}
@@ -633,6 +653,116 @@ func (e *Exporter) exportMagento(data *models.ExportData) error {
 	// Export metadata
 	if err := magentoExporter.ExportMetadata(data); err != nil {
 		return fmt.Errorf("failed to export Magento metadata: %w", err)
+	}
+
+	return nil
+}
+
+// exportWordPress exports data as WordPress WXR (WordPress eXtended RSS) XML
+func (e *Exporter) exportWordPress(data *models.ExportData) error {
+	wpExporter := NewWordPressExporter(e.config)
+
+	if err := wpExporter.Export(data); err != nil {
+		return fmt.Errorf("failed to export WordPress WXR: %w", err)
+	}
+
+	return nil
+}
+
+// exportDrupal exports data as Drupal-compatible JSON
+func (e *Exporter) exportDrupal(data *models.ExportData) error {
+	drupalExporter := NewDrupalExporter(e.config)
+
+	if err := drupalExporter.Export(data); err != nil {
+		return fmt.Errorf("failed to export Drupal JSON: %w", err)
+	}
+
+	return nil
+}
+
+// exportWix exports data as Wix-compatible JSON
+func (e *Exporter) exportWix(data *models.ExportData) error {
+	wixExporter := NewWixExporter(e.config)
+
+	if err := wixExporter.Export(data); err != nil {
+		return fmt.Errorf("failed to export Wix JSON: %w", err)
+	}
+
+	return nil
+}
+
+// exportSquarespace exports data as Squarespace-compatible XML
+func (e *Exporter) exportSquarespace(data *models.ExportData) error {
+	sqExporter := NewSquarespaceExporter(e.config)
+
+	if err := sqExporter.Export(data); err != nil {
+		return fmt.Errorf("failed to export Squarespace XML: %w", err)
+	}
+
+	return nil
+}
+
+// exportWebflow exports data as Webflow-compatible CSV
+func (e *Exporter) exportWebflow(data *models.ExportData) error {
+	webflowExporter := NewWebflowExporter(e.config)
+
+	if err := webflowExporter.Export(data); err != nil {
+		return fmt.Errorf("failed to export Webflow CSV: %w", err)
+	}
+
+	return nil
+}
+
+// exportWeebly exports data as Weebly-compatible XML/JSON
+func (e *Exporter) exportWeebly(data *models.ExportData) error {
+	weeblyExporter := NewWeeblyExporter(e.config)
+
+	if err := weeblyExporter.Export(data); err != nil {
+		return fmt.Errorf("failed to export Weebly: %w", err)
+	}
+
+	return nil
+}
+
+// exportPrestaShop exports data as PrestaShop-compatible CSV
+func (e *Exporter) exportPrestaShop(data *models.ExportData) error {
+	psExporter := NewPrestaShopExporter(e.config)
+
+	if err := psExporter.Export(data); err != nil {
+		return fmt.Errorf("failed to export PrestaShop CSV: %w", err)
+	}
+
+	return nil
+}
+
+// exportGhost exports data as Ghost-compatible JSON
+func (e *Exporter) exportGhost(data *models.ExportData) error {
+	ghostExporter := NewGhostExporter(e.config)
+
+	if err := ghostExporter.Export(data); err != nil {
+		return fmt.Errorf("failed to export Ghost JSON: %w", err)
+	}
+
+	return nil
+}
+
+// exportStrapi exports data as Strapi-compatible JSON
+func (e *Exporter) exportStrapi(data *models.ExportData) error {
+	strapiExporter := NewStrapiExporter(e.config)
+
+	if err := strapiExporter.Export(data); err != nil {
+		return fmt.Errorf("failed to export Strapi JSON: %w", err)
+	}
+
+	return nil
+}
+
+// exportContentful exports data as Contentful-compatible JSON
+func (e *Exporter) exportContentful(data *models.ExportData) error {
+	contentfulExporter := NewContentfulExporter(e.config)
+
+	if err := contentfulExporter.Export(data); err != nil {
+		return fmt.Errorf("failed to export Contentful JSON: %w", err)
 	}
 
 	return nil

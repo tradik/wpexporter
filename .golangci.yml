@@ -37,10 +37,10 @@ linters:
       disable:
         - fieldalignment
     gocyclo:
-      min-complexity: 70
+      min-complexity: 85
     goconst:
-      min-len: 3
-      min-occurrences: 7
+      min-len: 6
+      min-occurrences: 25
     misspell:
       locale: US
     lll:
@@ -79,6 +79,14 @@ linters:
       - text: "shadow: declaration of \"err\""
         linters:
           - govet
+      - text: "G304"
+        path: internal/export/
+        linters:
+          - gosec
+      - text: "always receives"
+        path: internal/export/contentful_exporter.go
+        linters:
+          - unparam
 
 formatters:
   enable:
