@@ -136,7 +136,7 @@ func (e *PrestaShopExporter) exportProductsCSV(
 	mediaMap map[int]string,
 ) error {
 	outputPath := filepath.Join(baseDir, filename)
-	file, err := os.Create(outputPath)
+	file, err := os.Create(outputPath) // #nosec G304 -- outputPath is safely constructed from config.Output
 	if err != nil {
 		return err
 	}
@@ -206,7 +206,7 @@ func (e *PrestaShopExporter) exportProductsCSV(
 // exportCategoriesCSV exports categories in PrestaShop format
 func (e *PrestaShopExporter) exportCategoriesCSV(categories []models.WordPressCategory, baseDir string) error {
 	outputPath := filepath.Join(baseDir, "prestashop_categories.csv")
-	file, err := os.Create(outputPath)
+	file, err := os.Create(outputPath) // #nosec G304 -- outputPath is safely constructed from config.Output
 	if err != nil {
 		return err
 	}
@@ -292,7 +292,7 @@ func (e *PrestaShopExporter) exportJSON(
 // exportMetadata exports export metadata
 func (e *PrestaShopExporter) exportMetadata(data *models.ExportData, baseDir string) error {
 	outputPath := filepath.Join(baseDir, "prestashop_metadata.csv")
-	file, err := os.Create(outputPath)
+	file, err := os.Create(outputPath) // #nosec G304 -- outputPath is safely constructed from config.Output
 	if err != nil {
 		return err
 	}

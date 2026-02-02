@@ -115,7 +115,7 @@ func (e *WebflowExporter) exportPostsCSV(
 	mediaMap map[int]string,
 ) error {
 	outputPath := filepath.Join(baseDir, "webflow_posts.csv")
-	file, err := os.Create(outputPath)
+	file, err := os.Create(outputPath) // #nosec G304 -- outputPath is safely constructed from config.Output
 	if err != nil {
 		return err
 	}
@@ -202,7 +202,7 @@ func (e *WebflowExporter) exportPostsCSV(
 // exportPagesCSV exports pages as Webflow-compatible CSV
 func (e *WebflowExporter) exportPagesCSV(pages []models.WordPressPost, baseDir string) error {
 	outputPath := filepath.Join(baseDir, "webflow_pages.csv")
-	file, err := os.Create(outputPath)
+	file, err := os.Create(outputPath) // #nosec G304 -- outputPath is safely constructed from config.Output
 	if err != nil {
 		return err
 	}
@@ -247,7 +247,7 @@ func (e *WebflowExporter) exportPagesCSV(pages []models.WordPressPost, baseDir s
 // exportCategoriesCSV exports categories as Webflow-compatible CSV
 func (e *WebflowExporter) exportCategoriesCSV(categories []models.WordPressCategory, baseDir string) error {
 	outputPath := filepath.Join(baseDir, "webflow_categories.csv")
-	file, err := os.Create(outputPath)
+	file, err := os.Create(outputPath) // #nosec G304 -- outputPath is safely constructed from config.Output
 	if err != nil {
 		return err
 	}
@@ -276,7 +276,7 @@ func (e *WebflowExporter) exportCategoriesCSV(categories []models.WordPressCateg
 // exportAuthorsCSV exports authors as Webflow-compatible CSV
 func (e *WebflowExporter) exportAuthorsCSV(users []models.WordPressUser, baseDir string) error {
 	outputPath := filepath.Join(baseDir, "webflow_authors.csv")
-	file, err := os.Create(outputPath)
+	file, err := os.Create(outputPath) // #nosec G304 -- outputPath is safely constructed from config.Output
 	if err != nil {
 		return err
 	}
