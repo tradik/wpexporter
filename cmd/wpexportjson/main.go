@@ -48,6 +48,7 @@ var (
 	authToken         string
 	rateLimit         int
 	resume            bool
+	timeout           int
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -133,6 +134,7 @@ func init() {
 	exportCmd.Flags().StringVar(&authToken, "auth-token", "", "Bearer token for authentication")
 	exportCmd.Flags().IntVar(&rateLimit, "rate-limit", 0, "delay between API requests in milliseconds (0 = no limit)")
 	exportCmd.Flags().BoolVar(&resume, "resume", false, "resume from checkpoint if previous export was interrupted")
+	exportCmd.Flags().IntVar(&timeout, "timeout", 30, "HTTP request timeout in seconds (default 30)")
 	exportCmd.Flags().StringVar(&pathFilter, "path-filter", "", "filter posts/pages by URL path pattern (e.g., /fr/arts/)")
 	exportCmd.Flags().BoolVar(&assistedCrawl, "assisted-crawl", false, "crawl actual URLs to extract SEO metadata (title, description, og tags)")
 
@@ -270,6 +272,9 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 	if cmd.Flags().Changed("resume") {
 		cfg.Resume = resume
+	}
+	if cmd.Flags().Changed("timeout") {
+		cfg.Timeout = timeout
 	}
 
 	// Validate --no-files requires --zip

@@ -186,6 +186,7 @@ wpexportjson export --config config.yaml
 | `--auth-token` | Bearer token for authentication | - |
 | `--rate-limit` | Delay between API requests in milliseconds (prevents server rate limiting) | `0` |
 | `--resume` | Resume from checkpoint if previous export was interrupted | `false` |
+| `--timeout` | HTTP request timeout in seconds (increase for slow servers) | `30` |
 | `--config` | Configuration file path | - |
 
 ## SEO Metadata Extraction
