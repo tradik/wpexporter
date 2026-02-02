@@ -45,6 +45,7 @@ var (
 	authUser          string
 	authPass          string
 	authToken         string
+	rateLimit         int
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -128,6 +129,7 @@ func init() {
 	exportCmd.Flags().StringVar(&authUser, "auth-user", "", "username for Basic Auth")
 	exportCmd.Flags().StringVar(&authPass, "auth-pass", "", "password for Basic Auth")
 	exportCmd.Flags().StringVar(&authToken, "auth-token", "", "Bearer token for authentication")
+	exportCmd.Flags().IntVar(&rateLimit, "rate-limit", 0, "delay between API requests in milliseconds (0 = no limit)")
 	exportCmd.Flags().StringVar(&pathFilter, "path-filter", "", "filter posts/pages by URL path pattern (e.g., /fr/arts/)")
 	exportCmd.Flags().BoolVar(&assistedCrawl, "assisted-crawl", false, "crawl actual URLs to extract SEO metadata (title, description, og tags)")
 
@@ -259,6 +261,9 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 	if cmd.Flags().Changed("assisted-crawl") {
 		cfg.AssistedCrawl = assistedCrawl
+	}
+	if cmd.Flags().Changed("rate-limit") {
+		cfg.RateLimit = rateLimit
 	}
 
 	// Validate --no-files requires --zip

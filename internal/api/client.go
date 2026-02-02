@@ -67,6 +67,13 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	}, nil
 }
 
+// applyRateLimit applies delay between API requests if rate limiting is configured
+func (c *Client) applyRateLimit() {
+	if c.config.RateLimit > 0 {
+		time.Sleep(time.Duration(c.config.RateLimit) * time.Millisecond)
+	}
+}
+
 // GetSiteInfo retrieves WordPress site information
 func (c *Client) GetSiteInfo() (*models.SiteInfo, error) {
 	settingsURL := strings.Replace(c.baseURL, "/wp/v2", "", 1) + "/wp/v2/settings"
@@ -116,6 +123,11 @@ func (c *Client) GetProducts() ([]models.WooCommerceProduct, error) {
 	wooBaseURL := strings.Replace(c.baseURL, "/wp/v2", "/wc/v3", 1)
 
 	for {
+		// Apply rate limiting between requests
+		if page > 1 {
+			c.applyRateLimit()
+		}
+
 		url := fmt.Sprintf("%s/products?page=%d&per_page=%d", wooBaseURL, page, perPage)
 
 		resp, err := c.httpClient.R().Get(url)
@@ -172,6 +184,11 @@ func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
 	perPage := 100
 
 	for {
+		// Apply rate limiting between requests
+		if page > 1 {
+			c.applyRateLimit()
+		}
+
 		url := fmt.Sprintf("%s/media?page=%d&per_page=%d", c.baseURL, page, perPage)
 
 		resp, err := c.httpClient.R().Get(url)
@@ -211,6 +228,11 @@ func (c *Client) GetCategories() ([]models.WordPressCategory, error) {
 	perPage := 100
 
 	for {
+		// Apply rate limiting between requests
+		if page > 1 {
+			c.applyRateLimit()
+		}
+
 		url := fmt.Sprintf("%s/categories?page=%d&per_page=%d", c.baseURL, page, perPage)
 
 		resp, err := c.httpClient.R().Get(url)
@@ -249,6 +271,11 @@ func (c *Client) GetTags() ([]models.WordPressTag, error) {
 	perPage := 100
 
 	for {
+		// Apply rate limiting between requests
+		if page > 1 {
+			c.applyRateLimit()
+		}
+
 		url := fmt.Sprintf("%s/tags?page=%d&per_page=%d", c.baseURL, page, perPage)
 
 		resp, err := c.httpClient.R().Get(url)
@@ -287,6 +314,11 @@ func (c *Client) GetUsers() ([]models.WordPressUser, error) {
 	perPage := 100
 
 	for {
+		// Apply rate limiting between requests
+		if page > 1 {
+			c.applyRateLimit()
+		}
+
 		url := fmt.Sprintf("%s/users?page=%d&per_page=%d", c.baseURL, page, perPage)
 
 		resp, err := c.httpClient.R().Get(url)
@@ -400,6 +432,11 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 	perPage := 100
 
 	for {
+		// Apply rate limiting between requests
+		if page > 1 {
+			c.applyRateLimit()
+		}
+
 		url := fmt.Sprintf("%s/%s?page=%d&per_page=%d", c.baseURL, endpoint, page, perPage)
 
 		resp, err := c.httpClient.R().Get(url)
