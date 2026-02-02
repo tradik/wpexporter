@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2026-02-02
+
+### Added
+- **Skip Users**: New `--no-users` flag to skip exporting users
+- **Timeout Flag**: New `--timeout` flag to configure HTTP request timeout in seconds (default 30)
+
+### Fixed
+- Fixed JSON parsing error for users/categories/tags when WordPress returns `meta` field as object instead of array
+- Users fetching is now graceful - errors don't stop the export, just warn and continue
+
 ## [1.3.0] - 2026-01-30
 
 ### Added

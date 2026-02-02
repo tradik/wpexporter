@@ -41,6 +41,7 @@ var (
 	noPosts           bool
 	noPages           bool
 	noProducts        bool
+	noUsers           bool
 	pathFilter        string
 	assistedCrawl     bool
 	authUser          string
@@ -129,6 +130,7 @@ func init() {
 	exportCmd.Flags().BoolVar(&noPosts, "no-posts", false, "skip exporting blog posts")
 	exportCmd.Flags().BoolVar(&noPages, "no-pages", false, "skip exporting pages")
 	exportCmd.Flags().BoolVar(&noProducts, "no-products", false, "skip exporting WooCommerce products")
+	exportCmd.Flags().BoolVar(&noUsers, "no-users", false, "skip exporting users")
 	exportCmd.Flags().StringVar(&authUser, "auth-user", "", "username for Basic Auth")
 	exportCmd.Flags().StringVar(&authPass, "auth-pass", "", "password for Basic Auth")
 	exportCmd.Flags().StringVar(&authToken, "auth-token", "", "Bearer token for authentication")
@@ -238,6 +240,9 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 	if cmd.Flags().Changed("no-products") {
 		cfg.NoProducts = noProducts
+	}
+	if cmd.Flags().Changed("no-users") {
+		cfg.NoUsers = noUsers
 	}
 	if cmd.Flags().Changed("auth-user") {
 		cfg.AuthUser = authUser
@@ -457,12 +462,20 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("Found %d tags\n", len(tags))
 
-	fmt.Println("Fetching users...")
-	users, err := apiClient.GetUsers()
-	if err != nil {
-		return fmt.Errorf("failed to get users: %w", err)
+	var users []models.WordPressUser
+	if !cfg.NoUsers {
+		fmt.Println("Fetching users...")
+		users, err = apiClient.GetUsers()
+		if err != nil {
+			// Don't fail on users fetch error, just warn and continue
+			fmt.Printf("Warning: could not fetch users: %v\n", err)
+			users = []models.WordPressUser{}
+		} else {
+			fmt.Printf("Found %d users\n", len(users))
+		}
+	} else {
+		fmt.Println("Skipping users (--no-users)")
 	}
-	fmt.Printf("Found %d users\n", len(users))
 
 	// Perform brute force scanning if enabled
 	var bruteForceFound int

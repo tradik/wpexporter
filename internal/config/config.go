@@ -30,6 +30,7 @@ type Config struct {
 	NoPosts           bool   `mapstructure:"no_posts" json:"no_posts"`
 	NoPages           bool   `mapstructure:"no_pages" json:"no_pages"`
 	NoProducts        bool   `mapstructure:"no_products" json:"no_products"`
+	NoUsers           bool   `mapstructure:"no_users" json:"no_users"`
 	PathFilter        string `mapstructure:"path_filter" json:"path_filter"`
 	AssistedCrawl     bool   `mapstructure:"assisted_crawl" json:"assisted_crawl"`
 	AuthUser          string `mapstructure:"auth_user" json:"auth_user"`
@@ -58,6 +59,7 @@ func DefaultConfig() *Config {
 		NoPosts:           false,
 		NoPages:           false,
 		NoProducts:        false,
+		NoUsers:           false,
 		PathFilter:        "",
 		AssistedCrawl:     false,
 		RateLimit:         0,     // No rate limiting by default

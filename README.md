@@ -179,6 +179,7 @@ wpexportjson export --config config.yaml
 | `--no-posts` | Skip exporting blog posts | `false` |
 | `--no-pages` | Skip exporting pages | `false` |
 | `--no-products` | Skip exporting WooCommerce products | `false` |
+| `--no-users` | Skip exporting users | `false` |
 | `--path-filter` | Filter posts/pages by URL path pattern (e.g., /fr/arts/) | - |
 | `--assisted-crawl` | Crawl URLs to extract SEO metadata (title, description, og tags) | `false` |
 | `--auth-user` | Username for Basic Auth (prompts for password if `--auth-pass` not provided) | - |

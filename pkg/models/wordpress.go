@@ -110,29 +110,29 @@ type WordPressMedia struct {
 
 // WordPressCategory represents a WordPress category
 type WordPressCategory struct {
-	ID          int           `json:"id"`
-	Count       int           `json:"count"`
-	Description string        `json:"description"`
-	Link        string        `json:"link"`
-	Name        string        `json:"name"`
-	Slug        string        `json:"slug"`
-	Taxonomy    string        `json:"taxonomy"`
-	Parent      int           `json:"parent"`
-	Meta        []interface{} `json:"meta"`
-	Links       Links         `json:"_links"`
+	ID          int         `json:"id"`
+	Count       int         `json:"count"`
+	Description string      `json:"description"`
+	Link        string      `json:"link"`
+	Name        string      `json:"name"`
+	Slug        string      `json:"slug"`
+	Taxonomy    string      `json:"taxonomy"`
+	Parent      int         `json:"parent"`
+	Meta        interface{} `json:"meta"` // Can be array or object depending on WP config
+	Links       Links       `json:"_links"`
 }
 
 // WordPressTag represents a WordPress tag
 type WordPressTag struct {
-	ID          int           `json:"id"`
-	Count       int           `json:"count"`
-	Description string        `json:"description"`
-	Link        string        `json:"link"`
-	Name        string        `json:"name"`
-	Slug        string        `json:"slug"`
-	Taxonomy    string        `json:"taxonomy"`
-	Meta        []interface{} `json:"meta"`
-	Links       Links         `json:"_links"`
+	ID          int         `json:"id"`
+	Count       int         `json:"count"`
+	Description string      `json:"description"`
+	Link        string      `json:"link"`
+	Name        string      `json:"name"`
+	Slug        string      `json:"slug"`
+	Taxonomy    string      `json:"taxonomy"`
+	Meta        interface{} `json:"meta"` // Can be array or object depending on WP config
+	Links       Links       `json:"_links"`
 }
 
 // WordPressUser represents a WordPress user
@@ -144,7 +144,7 @@ type WordPressUser struct {
 	Link        string            `json:"link"`
 	Slug        string            `json:"slug"`
 	AvatarURLs  map[string]string `json:"avatar_urls"`
-	Meta        []interface{}     `json:"meta"`
+	Meta        interface{}       `json:"meta"` // Can be array or object depending on WP config
 	Links       Links             `json:"_links"`
 }
 
