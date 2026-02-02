@@ -184,6 +184,7 @@ wpexportjson export --config config.yaml
 | `--auth-user` | Username for Basic Auth (prompts for password if `--auth-pass` not provided) | - |
 | `--auth-pass` | Password for Basic Auth | - |
 | `--auth-token` | Bearer token for authentication | - |
+| `--rate-limit` | Delay between API requests in milliseconds (prevents server rate limiting) | `0` |
 | `--config` | Configuration file path | - |
 
 ## SEO Metadata Extraction
@@ -217,6 +218,9 @@ wpexportjson export --url https://example.com --path-filter=/blog/ --assisted-cr
 
 # With authentication for protected sites
 wpexportjson export --url https://example.com --auth-user admin --auth-pass secret --assisted-crawl
+
+# With rate limiting to prevent server overload (500ms delay between requests)
+wpexportjson export --url https://example.com --rate-limit 500 -f markdown
 ```
 
 ### Markdown Frontmatter Output
