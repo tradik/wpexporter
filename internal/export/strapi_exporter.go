@@ -173,7 +173,7 @@ func (e *StrapiExporter) Export(data *models.ExportData) error {
 // buildStrapiData constructs the complete Strapi export structure
 func (e *StrapiExporter) buildStrapiData(data *models.ExportData) StrapiExportData {
 	strapiData := StrapiExportData{
-		Version: "1.3.6",
+		Version: "1.3.7",
 		Meta: StrapiMeta{
 			Exporter:   "wpexporter",
 			ExportedAt: time.Now(),

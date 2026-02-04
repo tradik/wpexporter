@@ -297,6 +297,11 @@ func runExport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
+	// Check output directory permissions before starting expensive operations
+	if err := checkOutputPermissions(cfg.Output); err != nil {
+		return fmt.Errorf("output directory check failed: %w", err)
+	}
+
 	// Create API client
 	apiClient, err := api.NewClient(cfg)
 	if err != nil {
@@ -582,6 +587,28 @@ func runExport(cmd *cobra.Command, args []string) error {
 			fmt.Printf("Warning: failed to delete checkpoint: %v\n", err)
 		}
 	}
+
+	return nil
+}
+
+// checkOutputPermissions verifies we can write to the output directory
+func checkOutputPermissions(outputPath string) error {
+	// Get the parent directory
+	parentDir := filepath.Dir(outputPath)
+
+	// Create parent directory if it doesn't exist
+	if err := os.MkdirAll(parentDir, 0750); err != nil {
+		return fmt.Errorf("cannot create output directory '%s': %w", parentDir, err)
+	}
+
+	// Try to create a temporary file to verify write permissions
+	testFile := filepath.Join(parentDir, ".wpexporter_permission_test")
+	f, err := os.Create(testFile) // #nosec G304 -- testFile is constructed from validated config output
+	if err != nil {
+		return fmt.Errorf("no write permission for output directory '%s': %w", parentDir, err)
+	}
+	_ = f.Close()
+	_ = os.Remove(testFile)
 
 	return nil
 }
