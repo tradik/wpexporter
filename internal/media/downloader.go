@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/schollz/progressbar/v3"
-
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/pkg/models"
 )
@@ -21,7 +19,6 @@ type Downloader struct {
 	config     *config.Config
 	httpClient *http.Client
 	mediaDir   string
-	progress   *progressbar.ProgressBar
 }
 
 // NewDownloader creates a new media downloader
@@ -51,20 +48,9 @@ func (d *Downloader) DownloadMedia(mediaItems []models.WordPressMedia) (int, err
 		return 0, fmt.Errorf("media directory path must be absolute")
 	}
 
-	// Create progress bar
-	d.progress = progressbar.NewOptions(len(mediaItems),
-		progressbar.OptionSetDescription("Downloading media"),
-		progressbar.OptionSetWidth(50),
-		progressbar.OptionShowCount(),
-		progressbar.OptionShowIts(),
-		progressbar.OptionSetTheme(progressbar.Theme{
-			Saucer:        "=",
-			SaucerHead:    ">",
-			SaucerPadding: " ",
-			BarStart:      "[",
-			BarEnd:        "]",
-		}),
-	)
+	if !d.config.Quiet {
+		fmt.Printf("Downloading %d media files to: %s\n", len(mediaItems), d.mediaDir)
+	}
 
 	// Create worker pool for concurrent downloads
 	jobs := make(chan models.WordPressMedia, len(mediaItems))
@@ -87,14 +73,12 @@ func (d *Downloader) DownloadMedia(mediaItems []models.WordPressMedia) (int, err
 		if <-results {
 			downloaded++
 		}
-		if err := d.progress.Add(1); err != nil {
-			return downloaded, err
-		}
 	}
 
-	if err := d.progress.Finish(); err != nil {
-		return downloaded, err
+	if !d.config.Quiet {
+		fmt.Printf("Downloaded %d/%d media files\n", downloaded, len(mediaItems))
 	}
+
 	return downloaded, nil
 }
 
@@ -132,12 +116,18 @@ func (d *Downloader) downloadMediaItem(media models.WordPressMedia) bool {
 
 	// Check if file already exists
 	if _, err := os.Stat(filePath); err == nil {
+		if !d.config.Quiet {
+			fmt.Printf("  ✓ %s (exists)\n", filename)
+		}
 		return true // File already exists
 	}
 
 	// Download file with retries
 	for attempt := 0; attempt <= d.config.Retries; attempt++ {
 		if d.downloadFile(media.SourceURL, filePath) {
+			if !d.config.Quiet {
+				fmt.Printf("  ↓ %s\n", filename)
+			}
 			return true
 		}
 
@@ -146,11 +136,14 @@ func (d *Downloader) downloadMediaItem(media models.WordPressMedia) bool {
 		}
 	}
 
+	if !d.config.Quiet {
+		fmt.Printf("  ✗ %s (failed)\n", filename)
+	}
 	return false
 }
 
 // downloadFile downloads a file from URL to local path
-func (d *Downloader) downloadFile(url, filePath string) bool {
+func (d *Downloader) downloadFile(downloadURL, filePath string) bool {
 	// Validate file path to prevent directory traversal
 	if err := d.validateFilePath(filePath); err != nil {
 		if d.config.Verbose {
@@ -160,15 +153,25 @@ func (d *Downloader) downloadFile(url, filePath string) bool {
 	}
 
 	// Create request
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", downloadURL, nil)
 	if err != nil {
 		return false
 	}
 	req.Header.Set("User-Agent", d.config.UserAgent)
 
+	// Apply authentication if configured
+	if d.config.AuthToken != "" {
+		req.Header.Set("Authorization", "Bearer "+d.config.AuthToken)
+	} else if d.config.AuthUser != "" && d.config.AuthPass != "" {
+		req.SetBasicAuth(d.config.AuthUser, d.config.AuthPass)
+	}
+
 	// Make request
 	resp, err := d.httpClient.Do(req)
 	if err != nil {
+		if d.config.Verbose {
+			fmt.Printf("Download error %s: %v\n", downloadURL, err)
+		}
 		return false
 	}
 	defer func() {
@@ -176,6 +179,9 @@ func (d *Downloader) downloadFile(url, filePath string) bool {
 	}()
 
 	if resp.StatusCode != http.StatusOK {
+		if d.config.Verbose {
+			fmt.Printf("Download failed %s: HTTP %d\n", downloadURL, resp.StatusCode)
+		}
 		return false
 	}
 
