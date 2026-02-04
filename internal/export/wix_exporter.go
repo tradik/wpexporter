@@ -134,7 +134,7 @@ func (e *WixExporter) Export(data *models.ExportData) error {
 // buildWixData constructs the complete Wix export structure
 func (e *WixExporter) buildWixData(data *models.ExportData) WixExportData {
 	wixData := WixExportData{
-		Version: "1.3.5",
+		Version: "1.3.6",
 		Meta: WixMeta{
 			Exporter:   "wpexporter",
 			ExportedAt: time.Now(),

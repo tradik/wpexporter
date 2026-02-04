@@ -419,7 +419,7 @@ func TestDrupalExporter_BuildDrupalData(t *testing.T) {
 	drupalData := exporter.buildDrupalData(data)
 
 	assert.Equal(t, "wpexporter", drupalData.Meta.Exporter)
-	assert.Equal(t, "1.3.5", drupalData.Meta.Version)
+	assert.Equal(t, "1.3.6", drupalData.Meta.Version)
 	assert.Equal(t, "https://example.com", drupalData.Meta.SourceSite)
 	assert.Equal(t, "Test Site", drupalData.Meta.SourceName)
 

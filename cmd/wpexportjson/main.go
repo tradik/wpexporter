@@ -136,7 +136,7 @@ func init() {
 	exportCmd.Flags().StringVar(&authToken, "auth-token", "", "Bearer token for authentication")
 	exportCmd.Flags().IntVar(&rateLimit, "rate-limit", 0, "delay between API requests in milliseconds (0 = no limit)")
 	exportCmd.Flags().BoolVar(&resume, "resume", false, "resume from checkpoint if previous export was interrupted")
-	exportCmd.Flags().IntVar(&timeout, "timeout", 30, "HTTP request timeout in seconds (default 30)")
+	exportCmd.Flags().IntVar(&timeout, "timeout", 30, "HTTP request timeout in seconds")
 	exportCmd.Flags().StringVar(&pathFilter, "path-filter", "", "filter posts/pages by URL path pattern (e.g., /fr/arts/)")
 	exportCmd.Flags().BoolVar(&assistedCrawl, "assisted-crawl", false, "crawl actual URLs to extract SEO metadata (title, description, og tags)")
 
@@ -428,24 +428,28 @@ func runExport(cmd *cobra.Command, args []string) error {
 		fmt.Println("SEO metadata extraction complete")
 	}
 
-	fmt.Println("Fetching media...")
 	var media []models.WordPressMedia
-	if cfg.Resume {
-		media, err = apiClient.GetMediaWithCheckpoint(checkpointState, saveCheckpoint)
-	} else {
-		media, err = apiClient.GetMedia()
-	}
-	if err != nil {
-		return fmt.Errorf("failed to get media: %w", err)
-	}
-	fmt.Printf("Found %d media items\n", len(media))
+	if cfg.DownloadMedia {
+		fmt.Println("Fetching media...")
+		if cfg.Resume {
+			media, err = apiClient.GetMediaWithCheckpoint(checkpointState, saveCheckpoint)
+		} else {
+			media, err = apiClient.GetMedia()
+		}
+		if err != nil {
+			return fmt.Errorf("failed to get media: %w", err)
+		}
+		fmt.Printf("Found %d media items\n", len(media))
 
-	// Filter to relevant media only if enabled
-	if cfg.RelevantMediaOnly && cfg.DownloadMedia {
-		mf := mediafilter.NewFilter()
-		originalMedia := len(media)
-		media = mf.FilterRelevantMedia(posts, pages, media)
-		fmt.Printf("Filtered to %d relevant media items (from %d total)\n", len(media), originalMedia)
+		// Filter to relevant media only if enabled
+		if cfg.RelevantMediaOnly {
+			mf := mediafilter.NewFilter()
+			originalMedia := len(media)
+			media = mf.FilterRelevantMedia(posts, pages, media)
+			fmt.Printf("Filtered to %d relevant media items (from %d total)\n", len(media), originalMedia)
+		}
+	} else {
+		fmt.Println("Skipping media (--no-media)")
 	}
 
 	fmt.Println("Fetching categories...")

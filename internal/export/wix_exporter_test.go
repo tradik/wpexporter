@@ -315,7 +315,7 @@ func TestWixExporter_BuildWixData(t *testing.T) {
 
 	wixData := exporter.buildWixData(data)
 
-	assert.Equal(t, "1.3.5", wixData.Version)
+	assert.Equal(t, "1.3.6", wixData.Version)
 	assert.Equal(t, "wpexporter", wixData.Meta.Exporter)
 	assert.Equal(t, "https://example.com", wixData.Meta.SourceURL)
 	assert.Equal(t, "Test Site", wixData.Site.Title)
