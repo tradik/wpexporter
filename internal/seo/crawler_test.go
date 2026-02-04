@@ -708,3 +708,92 @@ func TestEnrichPostsWithContent_SomeEmpty(t *testing.T) {
 	// Second post should be unchanged
 	assert.Equal(t, "<p>Has content</p>", enriched[1].Content.Rendered)
 }
+
+func TestEnrichPostsWithSEOAndContent(t *testing.T) {
+	html := `<!DOCTYPE html>
+<html>
+<head>
+<title>Combined Test Page</title>
+<meta name="description" content="This is a test description for combined crawl">
+<meta property="og:title" content="OG Combined Title">
+</head>
+<body>
+<main>
+<h1>Combined Content Title</h1>
+<p>This content was extracted along with SEO data in a single request.</p>
+</main>
+</body>
+</html>`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(html))
+	}))
+	defer server.Close()
+
+	posts := []models.WordPressPost{
+		{ID: 1, Link: server.URL, Content: models.RenderedContent{Rendered: ""}},                   // Empty content - needs crawling
+		{ID: 2, Link: server.URL, Content: models.RenderedContent{Rendered: "<p>Has content</p>"}}, // Has content - only needs SEO
+	}
+
+	cfg := config.DefaultConfig()
+	cfg.Concurrent = 1
+	c := NewCrawler(cfg)
+
+	enriched := c.EnrichPostsWithSEOAndContent(posts)
+
+	assert.Len(t, enriched, 2)
+
+	// First post should have both SEO and content
+	assert.Equal(t, "Combined Test Page", enriched[0].SEO.Title)
+	assert.Equal(t, "This is a test description for combined crawl", enriched[0].SEO.MetaDescription)
+	assert.Equal(t, "OG Combined Title", enriched[0].SEO.OGTitle)
+	assert.Contains(t, enriched[0].Content.Rendered, "Combined Content Title")
+	assert.Contains(t, enriched[0].Content.Rendered, "extracted along with SEO")
+
+	// Second post should have SEO but content unchanged
+	assert.Equal(t, "Combined Test Page", enriched[1].SEO.Title)
+	assert.Equal(t, "<p>Has content</p>", enriched[1].Content.Rendered)
+}
+
+func TestExtractSEOAndContent(t *testing.T) {
+	html := `<!DOCTYPE html>
+<html>
+<head>
+<title>Extract Both Test</title>
+<meta name="description" content="Both SEO and content">
+</head>
+<body>
+<main><p>Main content here for extraction test. This needs to be longer than 50 characters to pass the content threshold check in the crawler.</p></main>
+</body>
+</html>`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(html))
+	}))
+	defer server.Close()
+
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	// Test with content extraction
+	result := c.extractSEOAndContent(server.URL, true)
+	assert.Equal(t, "Extract Both Test", result.SEO.Title)
+	assert.Equal(t, "Both SEO and content", result.SEO.MetaDescription)
+	assert.Contains(t, result.Content, "Main content here")
+
+	// Test without content extraction
+	result2 := c.extractSEOAndContent(server.URL, false)
+	assert.Equal(t, "Extract Both Test", result2.SEO.Title)
+	assert.Empty(t, result2.Content)
+}
+
+func TestEnrichPostsWithSEOAndContent_EmptyPosts(t *testing.T) {
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	var posts []models.WordPressPost
+	result := c.EnrichPostsWithSEOAndContent(posts)
+	assert.Len(t, result, 0)
+}

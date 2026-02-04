@@ -224,6 +224,7 @@ wpexportjson export --config config.yaml
 | `--resume` | Resume from checkpoint if previous export was interrupted | `false` |
 | `--timeout` | HTTP request timeout in seconds (increase for slow servers) | `30` |
 | `--verbose`, `-v` | Enable verbose output | `false` |
+| `--quiet`, `-q` | Suppress all output, only return exit code | `false` |
 | `--config` | Configuration file path | - |
 
 ## SEO Metadata Extraction

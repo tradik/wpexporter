@@ -31,6 +31,23 @@ var (
 	BuildDate = "unknown"
 )
 
+// quietMode is set when --quiet flag is used to suppress output
+var quietMode bool
+
+// logf prints a formatted message unless quiet mode is enabled
+func logf(format string, args ...interface{}) {
+	if !quietMode {
+		fmt.Printf(format, args...)
+	}
+}
+
+// logln prints a line unless quiet mode is enabled
+func logln(args ...interface{}) {
+	if !quietMode {
+		fmt.Println(args...)
+	}
+}
+
 var (
 	cfgFile           string
 	url               string
@@ -61,6 +78,7 @@ var (
 	skipEmptyContent  bool
 	flatHTML          bool
 	noTags            bool
+	quiet             bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -79,6 +97,7 @@ Export Flags:
                               wix|squarespace|webflow|weebly|prestashop|ghost|strapi|contentful
   -c, --concurrent int        Concurrent downloads (default 5)
       --timeout int           HTTP timeout in seconds (default 30)
+  -q, --quiet                 Suppress all output, only return exit code
 
 Authentication:
       --auth-user string      Username for Basic Auth
@@ -155,6 +174,7 @@ func init() {
 	exportCmd.Flags().BoolVar(&skipEmptyContent, "skip-empty-content", false, "skip posts/pages with empty content")
 	exportCmd.Flags().BoolVar(&flatHTML, "flat-html", false, "convert HTML to Markdown (Bricks Builder support)")
 	exportCmd.Flags().BoolVar(&noTags, "no-tags", false, "skip exporting tags")
+	exportCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress all output, only return exit code")
 
 	// Mark required flags
 	if err := exportCmd.MarkFlagRequired("url"); err != nil {
@@ -309,6 +329,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if cmd.Flags().Changed("no-tags") {
 		cfg.NoTags = noTags
 	}
+	if cmd.Flags().Changed("quiet") || cmd.Flags().Changed("q") {
+		cfg.Quiet = quiet
+	}
+
+	// Set global quiet mode for log functions
+	quietMode = cfg.Quiet
 
 	// Validate --no-files requires --zip
 	if cfg.NoFiles && !cfg.CreateZip {
@@ -354,8 +380,8 @@ func runExport(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to load checkpoint: %w", err)
 		}
 		if checkpointMgr.Exists() {
-			fmt.Printf("Resuming from checkpoint: %s\n", checkpointMgr.GetFilePath())
-			fmt.Println(checkpointState.Summary())
+			logf("Resuming from checkpoint: %s\n", checkpointMgr.GetFilePath())
+			logln(checkpointState.Summary())
 		}
 	}
 
@@ -364,21 +390,21 @@ func runExport(cmd *cobra.Command, args []string) error {
 		return checkpointMgr.Save()
 	}
 
-	fmt.Printf("Starting WordPress export from: %s\n", cfg.URL)
-	fmt.Printf("Output: %s (format: %s)\n", cfg.Output, cfg.Format)
+	logf("Starting WordPress export from: %s\n", cfg.URL)
+	logf("Output: %s (format: %s)\n", cfg.Output, cfg.Format)
 
 	if cfg.BruteForce {
-		fmt.Printf("Brute force enabled (max ID: %d)\n", cfg.MaxID)
+		logf("Brute force enabled (max ID: %d)\n", cfg.MaxID)
 	}
 
 	if cfg.DownloadMedia {
-		fmt.Printf("Media download enabled (concurrent: %d)\n", cfg.Concurrent)
+		logf("Media download enabled (concurrent: %d)\n", cfg.Concurrent)
 	}
 
 	startTime := time.Now()
 
 	// Get site information
-	fmt.Println("\nFetching site information...")
+	logln("\nFetching site information...")
 	siteInfo, err := apiClient.GetSiteInfo()
 	if err != nil {
 		return fmt.Errorf("failed to get site info: %w", err)
@@ -387,7 +413,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// Get content via API (respecting filter flags)
 	var posts []models.WordPressPost
 	if !cfg.NoPosts {
-		fmt.Println("Fetching posts...")
+		logln("Fetching posts...")
 		if cfg.Resume {
 			posts, err = apiClient.GetPostsWithCheckpoint(checkpointState, saveCheckpoint)
 		} else {
@@ -396,14 +422,14 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to get posts: %w", err)
 		}
-		fmt.Printf("Found %d posts\n", len(posts))
+		logf("Found %d posts\n", len(posts))
 	} else {
-		fmt.Println("Skipping posts (--no-posts)")
+		logln("Skipping posts (--no-posts)")
 	}
 
 	var pages []models.WordPressPost
 	if !cfg.NoPages {
-		fmt.Println("Fetching pages...")
+		logln("Fetching pages...")
 		if cfg.Resume {
 			pages, err = apiClient.GetPagesWithCheckpoint(checkpointState, saveCheckpoint)
 		} else {
@@ -412,14 +438,14 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to get pages: %w", err)
 		}
-		fmt.Printf("Found %d pages\n", len(pages))
+		logf("Found %d pages\n", len(pages))
 	} else {
-		fmt.Println("Skipping pages (--no-pages)")
+		logln("Skipping pages (--no-pages)")
 	}
 
 	var products []models.WooCommerceProduct
 	if !cfg.NoProducts {
-		fmt.Println("Fetching WooCommerce products...")
+		logln("Fetching WooCommerce products...")
 		if cfg.Resume {
 			products, err = apiClient.GetProductsWithCheckpoint(checkpointState, saveCheckpoint)
 		} else {
@@ -429,12 +455,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to get products: %w", err)
 		}
 		if len(products) > 0 {
-			fmt.Printf("Found %d WooCommerce products\n", len(products))
+			logf("Found %d WooCommerce products\n", len(products))
 		} else {
-			fmt.Println("No WooCommerce products found (WooCommerce may not be installed)")
+			logln("No WooCommerce products found (WooCommerce may not be installed)")
 		}
 	} else {
-		fmt.Println("Skipping products (--no-products)")
+		logln("Skipping products (--no-products)")
 	}
 
 	// Apply path filter if specified
@@ -444,13 +470,25 @@ func runExport(cmd *cobra.Command, args []string) error {
 		originalPages := len(pages)
 		posts = pathFilter.FilterPosts(posts)
 		pages = pathFilter.FilterPosts(pages)
-		fmt.Printf("Path filter '%s': %d/%d posts, %d/%d pages matched\n",
+		logf("Path filter '%s': %d/%d posts, %d/%d pages matched\n",
 			cfg.PathFilter, len(posts), originalPosts, len(pages), originalPages)
 	}
 
-	// Crawl URLs for SEO data if enabled
-	if cfg.AssistedCrawl {
-		fmt.Println("\nCrawling URLs for SEO metadata...")
+	// Crawl URLs for SEO data and/or content
+	if cfg.AssistedCrawl && cfg.CrawlContent {
+		// Combined crawl - fetch each page once for both SEO and content
+		logln("\nCrawling URLs for SEO metadata and content (combined)...")
+		crawler := seo.NewCrawler(cfg)
+		if len(posts) > 0 {
+			posts = crawler.EnrichPostsWithSEOAndContent(posts)
+		}
+		if len(pages) > 0 {
+			pages = crawler.EnrichPostsWithSEOAndContent(pages)
+		}
+		logln("SEO metadata and content extraction complete")
+	} else if cfg.AssistedCrawl {
+		// SEO only
+		logln("\nCrawling URLs for SEO metadata...")
 		crawler := seo.NewCrawler(cfg)
 		if len(posts) > 0 {
 			posts = crawler.EnrichPostsWithSEO(posts)
@@ -458,12 +496,10 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if len(pages) > 0 {
 			pages = crawler.EnrichPostsWithSEO(pages)
 		}
-		fmt.Println("SEO metadata extraction complete")
-	}
-
-	// Crawl content for pages with empty content (page builders like Bricks, Elementor)
-	if cfg.CrawlContent {
-		fmt.Println("\nCrawling pages with empty content...")
+		logln("SEO metadata extraction complete")
+	} else if cfg.CrawlContent {
+		// Content only
+		logln("\nCrawling pages with empty content...")
 		crawler := seo.NewCrawler(cfg)
 		if len(posts) > 0 {
 			posts = crawler.EnrichPostsWithContent(posts)
@@ -479,13 +515,13 @@ func runExport(cmd *cobra.Command, args []string) error {
 		originalPages := len(pages)
 		posts = seo.FilterEmptyContent(posts)
 		pages = seo.FilterEmptyContent(pages)
-		fmt.Printf("Skipped empty content: %d/%d posts, %d/%d pages\n",
+		logf("Skipped empty content: %d/%d posts, %d/%d pages\n",
 			originalPosts-len(posts), originalPosts, originalPages-len(pages), originalPages)
 	}
 
 	// Convert HTML to Markdown if flat-html is enabled
 	if cfg.FlatHTML {
-		fmt.Println("\nConverting HTML to Markdown...")
+		logln("\nConverting HTML to Markdown...")
 		var converter *flathtml.Converter
 		if len(cfg.FlatHTMLRules) > 0 {
 			converter = flathtml.NewConverterWithRules(cfg.FlatHTMLRules)
@@ -498,12 +534,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if len(pages) > 0 {
 			pages = converter.ConvertPosts(pages)
 		}
-		fmt.Println("HTML to Markdown conversion complete")
+		logln("HTML to Markdown conversion complete")
 	}
 
 	var media []models.WordPressMedia
 	if cfg.DownloadMedia {
-		fmt.Println("Fetching media...")
+		logln("Fetching media...")
 		if cfg.Resume {
 			media, err = apiClient.GetMediaWithCheckpoint(checkpointState, saveCheckpoint)
 		} else {
@@ -512,57 +548,57 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to get media: %w", err)
 		}
-		fmt.Printf("Found %d media items\n", len(media))
+		logf("Found %d media items\n", len(media))
 
 		// Filter to relevant media only if enabled
 		if cfg.RelevantMediaOnly {
 			mf := mediafilter.NewFilter()
 			originalMedia := len(media)
 			media = mf.FilterRelevantMedia(posts, pages, media)
-			fmt.Printf("Filtered to %d relevant media items (from %d total)\n", len(media), originalMedia)
+			logf("Filtered to %d relevant media items (from %d total)\n", len(media), originalMedia)
 		}
 	} else {
-		fmt.Println("Skipping media (--no-media)")
+		logln("Skipping media (--no-media)")
 	}
 
-	fmt.Println("Fetching categories...")
+	logln("Fetching categories...")
 	categories, err := apiClient.GetCategories()
 	if err != nil {
 		return fmt.Errorf("failed to get categories: %w", err)
 	}
-	fmt.Printf("Found %d categories\n", len(categories))
+	logf("Found %d categories\n", len(categories))
 
 	var tags []models.WordPressTag
 	if !cfg.NoTags {
-		fmt.Println("Fetching tags...")
+		logln("Fetching tags...")
 		tags, err = apiClient.GetTags()
 		if err != nil {
 			return fmt.Errorf("failed to get tags: %w", err)
 		}
-		fmt.Printf("Found %d tags\n", len(tags))
+		logf("Found %d tags\n", len(tags))
 	} else {
-		fmt.Println("Skipping tags (--no-tags)")
+		logln("Skipping tags (--no-tags)")
 	}
 
 	var users []models.WordPressUser
 	if !cfg.NoUsers {
-		fmt.Println("Fetching users...")
+		logln("Fetching users...")
 		users, err = apiClient.GetUsers()
 		if err != nil {
 			// Don't fail on users fetch error, just warn and continue
-			fmt.Printf("Warning: could not fetch users: %v\n", err)
+			logf("Warning: could not fetch users: %v\n", err)
 			users = []models.WordPressUser{}
 		} else {
-			fmt.Printf("Found %d users\n", len(users))
+			logf("Found %d users\n", len(users))
 		}
 	} else {
-		fmt.Println("Skipping users (--no-users)")
+		logln("Skipping users (--no-users)")
 	}
 
 	// Perform brute force scanning if enabled
 	var bruteForceFound int
 	if cfg.BruteForce {
-		fmt.Println("\nPerforming brute force content discovery...")
+		logln("\nPerforming brute force content discovery...")
 		scanResult, err := scanner.ScanForContent(posts, pages, media)
 		if err != nil {
 			return fmt.Errorf("brute force scan failed: %w", err)
@@ -598,7 +634,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 
 	// Export data
-	fmt.Println("\nExporting data...")
+	logln("\nExporting data...")
 	if err := exporter.Export(exportData); err != nil {
 		return fmt.Errorf("export failed: %w", err)
 	}
@@ -606,58 +642,58 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// Create ZIP archive if requested
 	var zipPath string
 	if cfg.CreateZip {
-		fmt.Println("Creating ZIP archive...")
+		logln("Creating ZIP archive...")
 		zipPath = cfg.Output + ".zip"
 		if err := createZipArchive(cfg.Output, zipPath); err != nil {
 			return fmt.Errorf("failed to create ZIP archive: %w", err)
 		}
-		fmt.Printf("ZIP archive created: %s\n", zipPath)
+		logf("ZIP archive created: %s\n", zipPath)
 
 		// Remove files if --no-files is set
 		if cfg.NoFiles {
-			fmt.Println("Removing export files...")
+			logln("Removing export files...")
 			if err := os.RemoveAll(cfg.Output); err != nil {
 				return fmt.Errorf("failed to remove export files: %w", err)
 			}
-			fmt.Println("Export files removed")
+			logln("Export files removed")
 		}
 	}
 
 	// Print summary
 	duration := time.Since(startTime)
-	fmt.Printf("\n=== Export Summary ===\n")
-	fmt.Printf("Site: %s\n", siteInfo.Name)
-	fmt.Printf("Posts: %d\n", len(posts))
-	fmt.Printf("Pages: %d\n", len(pages))
-	fmt.Printf("Products: %d\n", len(products))
-	fmt.Printf("Media: %d\n", len(media))
-	fmt.Printf("Categories: %d\n", len(categories))
-	fmt.Printf("Tags: %d\n", len(tags))
-	fmt.Printf("Users: %d\n", len(users))
+	logf("\n=== Export Summary ===\n")
+	logf("Site: %s\n", siteInfo.Name)
+	logf("Posts: %d\n", len(posts))
+	logf("Pages: %d\n", len(pages))
+	logf("Products: %d\n", len(products))
+	logf("Media: %d\n", len(media))
+	logf("Categories: %d\n", len(categories))
+	logf("Tags: %d\n", len(tags))
+	logf("Users: %d\n", len(users))
 
 	if cfg.BruteForce && bruteForceFound > 0 {
-		fmt.Printf("Brute force found: %d\n", bruteForceFound)
+		logf("Brute force found: %d\n", bruteForceFound)
 	}
 
 	if cfg.DownloadMedia {
-		fmt.Printf("Media downloaded: %d\n", exportData.Stats.MediaDownloaded)
+		logf("Media downloaded: %d\n", exportData.Stats.MediaDownloaded)
 	}
 
-	fmt.Printf("Duration: %v\n", duration)
+	logf("Duration: %v\n", duration)
 
 	if cfg.CreateZip {
-		fmt.Printf("ZIP: %s\n", zipPath)
+		logf("ZIP: %s\n", zipPath)
 		if !cfg.NoFiles {
-			fmt.Printf("Output: %s\n", cfg.Output)
+			logf("Output: %s\n", cfg.Output)
 		}
 	} else {
-		fmt.Printf("Output: %s\n", cfg.Output)
+		logf("Output: %s\n", cfg.Output)
 	}
 
 	// Delete checkpoint on successful completion
 	if cfg.Resume {
 		if err := checkpointMgr.Delete(); err != nil {
-			fmt.Printf("Warning: failed to delete checkpoint: %v\n", err)
+			logf("Warning: failed to delete checkpoint: %v\n", err)
 		}
 	}
 

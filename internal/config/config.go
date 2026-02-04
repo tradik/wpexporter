@@ -42,6 +42,7 @@ type Config struct {
 	SkipEmptyContent  bool           `mapstructure:"skip_empty_content" json:"skip_empty_content"` // Skip posts/pages with empty content
 	FlatHTML          bool           `mapstructure:"flat_html" json:"flat_html"`                   // Convert HTML to Markdown
 	NoTags            bool           `mapstructure:"no_tags" json:"no_tags"`                       // Skip exporting tags
+	Quiet             bool           `mapstructure:"quiet" json:"quiet"`                           // Suppress all output
 	FlatHTMLRules     []FlatHTMLRule `mapstructure:"flat_html_rules" json:"flat_html_rules,omitempty"`
 }
 

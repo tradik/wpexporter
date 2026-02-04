@@ -32,15 +32,10 @@ func NewCrawler(cfg *config.Config) *Crawler {
 	}
 }
 
-// EnrichPostsWithSEO crawls post URLs and extracts SEO data
-func (c *Crawler) EnrichPostsWithSEO(posts []models.WordPressPost) []models.WordPressPost {
-	if len(posts) == 0 {
-		return posts
-	}
-
-	// Create progress bar
-	progress := progressbar.NewOptions(len(posts),
-		progressbar.OptionSetDescription("Crawling SEO data"),
+// createProgressBar creates a progress bar that respects quiet mode
+func (c *Crawler) createProgressBar(total int, description string) *progressbar.ProgressBar {
+	opts := []progressbar.Option{
+		progressbar.OptionSetDescription(description),
 		progressbar.OptionSetWidth(50),
 		progressbar.OptionShowCount(),
 		progressbar.OptionShowIts(),
@@ -51,7 +46,31 @@ func (c *Crawler) EnrichPostsWithSEO(posts []models.WordPressPost) []models.Word
 			BarStart:      "[",
 			BarEnd:        "]",
 		}),
-	)
+	}
+
+	// Disable output in quiet mode
+	if c.config.Quiet {
+		opts = append(opts, progressbar.OptionSetVisibility(false))
+	}
+
+	return progressbar.NewOptions(total, opts...)
+}
+
+// logf prints a formatted message unless quiet mode is enabled
+func (c *Crawler) logf(format string, args ...interface{}) {
+	if !c.config.Quiet {
+		fmt.Printf(format, args...)
+	}
+}
+
+// EnrichPostsWithSEO crawls post URLs and extracts SEO data
+func (c *Crawler) EnrichPostsWithSEO(posts []models.WordPressPost) []models.WordPressPost {
+	if len(posts) == 0 {
+		return posts
+	}
+
+	// Create progress bar
+	progress := c.createProgressBar(len(posts), "Crawling SEO data")
 
 	// Create work queue
 	type job struct {
@@ -270,6 +289,149 @@ func (c *Crawler) decodeHTMLEntities(s string) string {
 	return result
 }
 
+// CrawlResult contains both SEO data and content extracted from a single page fetch
+type CrawlResult struct {
+	SEO     models.SEOData
+	Content string
+}
+
+// EnrichPostsWithSEOAndContent crawls URLs once and extracts both SEO metadata and content
+// This is more efficient than calling EnrichPostsWithSEO and EnrichPostsWithContent separately
+func (c *Crawler) EnrichPostsWithSEOAndContent(posts []models.WordPressPost) []models.WordPressPost {
+	if len(posts) == 0 {
+		return posts
+	}
+
+	// Create progress bar
+	progress := c.createProgressBar(len(posts), "Crawling SEO & content")
+
+	// Create work queue
+	type job struct {
+		index        int
+		url          string
+		needsContent bool // true if content is empty and needs crawling
+	}
+
+	jobs := make(chan job, len(posts))
+	results := make(chan struct {
+		index    int
+		result   CrawlResult
+		hadEmpty bool
+	}, len(posts))
+
+	// Start workers
+	var wg sync.WaitGroup
+	for i := 0; i < c.config.Concurrent; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := range jobs {
+				crawlResult := c.extractSEOAndContent(j.url, j.needsContent)
+				results <- struct {
+					index    int
+					result   CrawlResult
+					hadEmpty bool
+				}{j.index, crawlResult, j.needsContent}
+			}
+		}()
+	}
+
+	// Send jobs - check which posts have empty content
+	for i, post := range posts {
+		needsContent := isContentEmpty(post.Content.Rendered)
+		jobs <- job{index: i, url: post.Link, needsContent: needsContent}
+	}
+	close(jobs)
+
+	// Wait for workers and close results
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collect results
+	enrichedContent := 0
+	for result := range results {
+		// Always set SEO data
+		posts[result.index].SEO = result.result.SEO
+
+		// Only set content if it was empty and we got content
+		if result.hadEmpty && result.result.Content != "" {
+			posts[result.index].Content.Rendered = result.result.Content
+			enrichedContent++
+		}
+		_ = progress.Add(1)
+	}
+
+	_ = progress.Finish()
+	c.logf("Enriched %d posts/pages with crawled content\n", enrichedContent)
+
+	return posts
+}
+
+// extractSEOAndContent fetches a URL once and extracts both SEO metadata and content
+func (c *Crawler) extractSEOAndContent(pageURL string, extractContent bool) CrawlResult {
+	result := CrawlResult{}
+
+	if pageURL == "" {
+		return result
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.config.Timeout)*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", pageURL, nil)
+	if err != nil {
+		return result
+	}
+
+	// Set user agent
+	req.Header.Set("User-Agent", c.config.UserAgent)
+
+	// Apply authentication if configured
+	if c.config.AuthToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.config.AuthToken)
+	} else if c.config.AuthUser != "" && c.config.AuthPass != "" {
+		req.SetBasicAuth(c.config.AuthUser, c.config.AuthPass)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return result
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return result
+	}
+
+	// Read response body (limit to 5MB for full page content)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 5*1024*1024))
+	if err != nil {
+		return result
+	}
+
+	html := string(body)
+
+	// Extract SEO data
+	result.SEO.Title = c.extractTitle(html)
+	result.SEO.MetaDescription = c.extractMetaContent(html, "description")
+	result.SEO.MetaKeywords = c.extractMetaContent(html, "keywords")
+	result.SEO.OGTitle = c.extractOGContent(html, "og:title")
+	result.SEO.OGDescription = c.extractOGContent(html, "og:description")
+	result.SEO.OGImage = c.extractOGContent(html, "og:image")
+	result.SEO.CanonicalURL = c.extractCanonical(html)
+
+	// Extract content only if needed
+	if extractContent {
+		result.Content = c.extractMainContent(html)
+	}
+
+	return result
+}
+
 // EnrichPostsWithContent crawls posts with empty content and extracts HTML body content
 func (c *Crawler) EnrichPostsWithContent(posts []models.WordPressPost) []models.WordPressPost {
 	// Find posts with empty content
@@ -284,22 +446,10 @@ func (c *Crawler) EnrichPostsWithContent(posts []models.WordPressPost) []models.
 		return posts
 	}
 
-	fmt.Printf("Found %d posts/pages with empty content, crawling...\n", len(emptyPosts))
+	c.logf("Found %d posts/pages with empty content, crawling...\n", len(emptyPosts))
 
 	// Create progress bar
-	progress := progressbar.NewOptions(len(emptyPosts),
-		progressbar.OptionSetDescription("Crawling content"),
-		progressbar.OptionSetWidth(50),
-		progressbar.OptionShowCount(),
-		progressbar.OptionShowIts(),
-		progressbar.OptionSetTheme(progressbar.Theme{
-			Saucer:        "=",
-			SaucerHead:    ">",
-			SaucerPadding: " ",
-			BarStart:      "[",
-			BarEnd:        "]",
-		}),
-	)
+	progress := c.createProgressBar(len(emptyPosts), "Crawling content")
 
 	// Create work queue
 	type job struct {
@@ -352,7 +502,7 @@ func (c *Crawler) EnrichPostsWithContent(posts []models.WordPressPost) []models.
 	}
 
 	_ = progress.Finish()
-	fmt.Printf("Enriched %d posts/pages with crawled content\n", enriched)
+	c.logf("Enriched %d posts/pages with crawled content\n", enriched)
 
 	return posts
 }

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.4.0] - 2026-02-04
 
 ### Added
+- **Quiet Mode**: New `--quiet` / `-q` flag suppresses all output, only returns exit code (useful for scripting and automation)
 - **HTML to Markdown Conversion**: New `--flat-html` flag converts HTML content to clean Markdown format
   - Built-in support for standard HTML elements (h1-h6, p, strong, em, a, img, ul, ol, blockquote, code, pre, hr)
   - Built-in support for **Bricks Builder** CSS classes (brxe-heading, brxe-text, brxe-list, brxe-image)
@@ -23,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fixed `--crawl-content` HTML extraction bug where closing tags were disappearing due to non-greedy regex matching. Implemented balanced tag extraction algorithm that properly handles nested HTML elements.
+
+### Changed
+- **Optimized Crawling**: When both `--assisted-crawl` and `--crawl-content` are enabled, pages are now fetched only once to extract both SEO metadata and content (previously required two separate HTTP requests per page)
 
 ## [1.3.8] - 2026-02-04
 
