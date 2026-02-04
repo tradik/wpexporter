@@ -205,7 +205,7 @@ wpexportjson export --config config.yaml
 <tbody>
 <tr><td><code>--url</code></td><td>WordPress site URL</td><td>Required</td></tr>
 <tr><td><code>--output</code></td><td>Output directory or file</td><td><code>./export</code></td></tr>
-<tr><td><code>--format</code></td><td>Export format (json/markdown/shopify/magento/wordpress/drupal/wix/squarespace/webflow/weebly/prestashop/ghost/strapi/contentful)</td><td><code>json</code></td></tr>
+<tr><td><code>--format</code></td><td>Export format (json/ markdown/ shopify/ magento/ wordpress/ drupal/ wix/ squarespace/ webflow/ weebly/ prestashop/ ghost/ strapi/ contentful)</td><td><code>json</code></td></tr>
 <tr><td><code>--brute-force</code></td><td>Enable brute force ID discovery</td><td><code>false</code></td></tr>
 <tr><td><code>--max-id</code></td><td>Maximum ID for brute force</td><td><code>10000</code></td></tr>
 <tr><td><code>--download-media</code></td><td>Download images and videos</td><td><code>true</code></td></tr>
