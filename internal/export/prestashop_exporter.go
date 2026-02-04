@@ -309,7 +309,7 @@ func (e *PrestaShopExporter) exportMetadata(data *models.ExportData, baseDir str
 
 	// Write metadata
 	rows := [][]string{
-		{"Exporter", "wpexporter v1.3.8"},
+		{"Exporter", "wpexporter v1.4.0"},
 		{"Export Date", time.Now().Format(time.RFC3339)},
 		{"Source Site", data.Site.URL},
 		{"Site Name", data.Site.Name},

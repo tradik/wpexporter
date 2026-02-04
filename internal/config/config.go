@@ -13,33 +13,53 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	URL               string `mapstructure:"url" json:"url"`
-	Output            string `mapstructure:"output" json:"output"`
-	Format            string `mapstructure:"format" json:"format"`
-	BruteForce        bool   `mapstructure:"brute_force" json:"brute_force"`
-	MaxID             int    `mapstructure:"max_id" json:"max_id"`
-	DownloadMedia     bool   `mapstructure:"download_media" json:"download_media"`
-	RelevantMediaOnly bool   `mapstructure:"relevant_media_only" json:"relevant_media_only"`
-	Concurrent        int    `mapstructure:"concurrent" json:"concurrent"`
-	Timeout           int    `mapstructure:"timeout" json:"timeout"`
-	Retries           int    `mapstructure:"retries" json:"retries"`
-	UserAgent         string `mapstructure:"user_agent" json:"user_agent"`
-	Verbose           bool   `mapstructure:"verbose" json:"verbose"`
-	CreateZip         bool   `mapstructure:"create_zip" json:"create_zip"`
-	NoFiles           bool   `mapstructure:"no_files" json:"no_files"`
-	NoPosts           bool   `mapstructure:"no_posts" json:"no_posts"`
-	NoPages           bool   `mapstructure:"no_pages" json:"no_pages"`
-	NoProducts        bool   `mapstructure:"no_products" json:"no_products"`
-	NoUsers           bool   `mapstructure:"no_users" json:"no_users"`
-	PathFilter        string `mapstructure:"path_filter" json:"path_filter"`
-	AssistedCrawl     bool   `mapstructure:"assisted_crawl" json:"assisted_crawl"`
-	AuthUser          string `mapstructure:"auth_user" json:"auth_user"`
-	AuthPass          string `mapstructure:"auth_pass" json:"auth_pass"`
-	AuthToken         string `mapstructure:"auth_token" json:"auth_token"`
-	RateLimit         int    `mapstructure:"rate_limit" json:"rate_limit"`                 // Milliseconds delay between API requests
-	Resume            bool   `mapstructure:"resume" json:"resume"`                         // Resume from checkpoint if available
-	CrawlContent      bool   `mapstructure:"crawl_content" json:"crawl_content"`           // Crawl pages with empty content to extract HTML
-	SkipEmptyContent  bool   `mapstructure:"skip_empty_content" json:"skip_empty_content"` // Skip posts/pages with empty content
+	URL               string         `mapstructure:"url" json:"url"`
+	Output            string         `mapstructure:"output" json:"output"`
+	Format            string         `mapstructure:"format" json:"format"`
+	BruteForce        bool           `mapstructure:"brute_force" json:"brute_force"`
+	MaxID             int            `mapstructure:"max_id" json:"max_id"`
+	DownloadMedia     bool           `mapstructure:"download_media" json:"download_media"`
+	RelevantMediaOnly bool           `mapstructure:"relevant_media_only" json:"relevant_media_only"`
+	Concurrent        int            `mapstructure:"concurrent" json:"concurrent"`
+	Timeout           int            `mapstructure:"timeout" json:"timeout"`
+	Retries           int            `mapstructure:"retries" json:"retries"`
+	UserAgent         string         `mapstructure:"user_agent" json:"user_agent"`
+	Verbose           bool           `mapstructure:"verbose" json:"verbose"`
+	CreateZip         bool           `mapstructure:"create_zip" json:"create_zip"`
+	NoFiles           bool           `mapstructure:"no_files" json:"no_files"`
+	NoPosts           bool           `mapstructure:"no_posts" json:"no_posts"`
+	NoPages           bool           `mapstructure:"no_pages" json:"no_pages"`
+	NoProducts        bool           `mapstructure:"no_products" json:"no_products"`
+	NoUsers           bool           `mapstructure:"no_users" json:"no_users"`
+	PathFilter        string         `mapstructure:"path_filter" json:"path_filter"`
+	AssistedCrawl     bool           `mapstructure:"assisted_crawl" json:"assisted_crawl"`
+	AuthUser          string         `mapstructure:"auth_user" json:"auth_user"`
+	AuthPass          string         `mapstructure:"auth_pass" json:"auth_pass"`
+	AuthToken         string         `mapstructure:"auth_token" json:"auth_token"`
+	RateLimit         int            `mapstructure:"rate_limit" json:"rate_limit"`                 // Milliseconds delay between API requests
+	Resume            bool           `mapstructure:"resume" json:"resume"`                         // Resume from checkpoint if available
+	CrawlContent      bool           `mapstructure:"crawl_content" json:"crawl_content"`           // Crawl pages with empty content to extract HTML
+	SkipEmptyContent  bool           `mapstructure:"skip_empty_content" json:"skip_empty_content"` // Skip posts/pages with empty content
+	FlatHTML          bool           `mapstructure:"flat_html" json:"flat_html"`                   // Convert HTML to Markdown
+	NoTags            bool           `mapstructure:"no_tags" json:"no_tags"`                       // Skip exporting tags
+	FlatHTMLRules     []FlatHTMLRule `mapstructure:"flat_html_rules" json:"flat_html_rules,omitempty"`
+}
+
+// FlatHTMLRule defines a custom HTML to Markdown conversion rule
+// Example config.yaml:
+//
+//	flat_html_rules:
+//	  - class: "brxe-heading"
+//	    tag: "div"
+//	    markdown: "## {content}\n\n"
+//	  - class: "elementor-heading-title"
+//	    markdown: "# {content}\n\n"
+//	  - class: "my-paragraph"
+//	    markdown: "{content}\n\n"
+type FlatHTMLRule struct {
+	Class    string `mapstructure:"class" json:"class"`       // CSS class to match (required)
+	Tag      string `mapstructure:"tag" json:"tag"`           // HTML tag to match (optional, e.g., "div", "span")
+	Markdown string `mapstructure:"markdown" json:"markdown"` // Markdown template ({content} placeholder)
 }
 
 // DefaultConfig returns a configuration with default values
@@ -68,6 +88,8 @@ func DefaultConfig() *Config {
 		Resume:            false, // Don't resume by default
 		CrawlContent:      false, // Don't crawl empty content by default
 		SkipEmptyContent:  false, // Don't skip empty content by default
+		FlatHTML:          false, // Don't flatten HTML by default
+		NoTags:            false, // Don't skip tags by default
 	}
 }
 
@@ -140,6 +162,12 @@ func LoadConfig(configFile string) (*Config, error) {
 	}
 	if err := viper.BindEnv("skip_empty_content", "WPEXPORT_SKIP_EMPTY_CONTENT"); err != nil {
 		return nil, fmt.Errorf("failed to bind skip_empty_content environment variable: %w", err)
+	}
+	if err := viper.BindEnv("flat_html", "WPEXPORT_FLAT_HTML"); err != nil {
+		return nil, fmt.Errorf("failed to bind flat_html environment variable: %w", err)
+	}
+	if err := viper.BindEnv("no_tags", "WPEXPORT_NO_TAGS"); err != nil {
+		return nil, fmt.Errorf("failed to bind no_tags environment variable: %w", err)
 	}
 
 	// Load config file if specified

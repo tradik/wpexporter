@@ -211,7 +211,9 @@ wpexportjson export --config config.yaml
 | `--no-pages` | Skip exporting pages | `false` |
 | `--no-products` | Skip exporting WooCommerce products | `false` |
 | `--no-users` | Skip exporting users | `false` |
+| `--no-tags` | Skip exporting tags | `false` |
 | `--path-filter` | Filter posts/pages by URL path pattern (e.g., /fr/arts/) | - |
+| `--flat-html` | Convert HTML to Markdown (Bricks Builder, Elementor support) | `false` |
 | `--assisted-crawl` | Crawl URLs to extract SEO metadata (title, description, og tags) | `false` |
 | `--crawl-content` | Crawl pages with empty content (Bricks, Elementor page builders) | `false` |
 | `--skip-empty-content` | Skip posts/pages with empty content from export | `false` |
@@ -279,6 +281,305 @@ wpexportjson export --url https://large-site.com --resume -f markdown
 ```
 
 The checkpoint file (`.wpexport_checkpoint.json`) is automatically deleted on successful completion.
+
+## HTML to Markdown Conversion
+
+The `--flat-html` option converts HTML content to clean Markdown format. This is useful for:
+
+- Sites using page builders (Bricks Builder, Elementor) that output complex HTML
+- Migrating content to markdown-based systems
+- Cleaning up HTML before export
+
+### Built-in Conversions
+
+| HTML Element | Markdown Output |
+|--------------|-----------------|
+| `<h1>` - `<h6>` | `#` - `######` |
+| `<p>` | Plain text with line breaks |
+| `<strong>`, `<b>` | `**bold**` |
+| `<em>`, `<i>` | `*italic*` |
+| `<a href="...">` | `[text](url)` |
+| `<img src="..." alt="...">` | `![alt](src)` |
+| `<ul>`, `<ol>` | `-` or `1.` lists |
+| `<blockquote>` | `>` quote |
+| `<code>` | `` `inline` `` |
+| `<pre><code>` | ` ``` ` code block |
+| `<hr>` | `---` |
+| Bricks: `.brxe-heading` | `##` heading |
+| Bricks: `.brxe-text` | paragraph |
+
+### Custom Conversion Rules
+
+You can define custom rules in your `config.yaml` for site-specific HTML classes:
+
+```yaml
+flat_html_rules:
+  # Bricks Builder custom headings
+  - class: "brxe-heading"
+    tag: "div"
+    markdown: "## {content}\n\n"
+
+  # Elementor headings
+  - class: "elementor-heading-title"
+    markdown: "# {content}\n\n"
+
+  # Custom paragraph class
+  - class: "my-paragraph"
+    markdown: "{content}\n\n"
+
+  # Specific tag + class combination
+  - class: "custom-quote"
+    tag: "span"
+    markdown: "> {content}\n\n"
+```
+
+**Rule fields:**
+- `class` (required): CSS class to match
+- `tag` (optional): HTML tag to match (e.g., "div", "span")
+- `markdown`: Output template where `{content}` is replaced with the element's text
+
+### Page Builder Configuration Examples
+
+Below are complete configuration examples for popular WordPress page builders.
+
+#### Bricks Builder
+
+```yaml
+# config-bricks.yaml
+flat_html_rules:
+  # Headings
+  - class: "brxe-heading"
+    tag: "div"
+    markdown: "## {content}\n\n"
+  - class: "brxe-heading"
+    tag: "h1"
+    markdown: "# {content}\n\n"
+  - class: "brxe-heading"
+    tag: "h2"
+    markdown: "## {content}\n\n"
+  - class: "brxe-heading"
+    tag: "h3"
+    markdown: "### {content}\n\n"
+
+  # Text blocks
+  - class: "brxe-text"
+    markdown: "{content}\n\n"
+  - class: "brxe-text-basic"
+    markdown: "{content}\n\n"
+
+  # Lists
+  - class: "brxe-list"
+    markdown: "{content}\n\n"
+
+  # Buttons (extract as links)
+  - class: "brxe-button"
+    markdown: "[{content}]\n\n"
+
+  # Code blocks
+  - class: "brxe-code"
+    markdown: "```\n{content}\n```\n\n"
+```
+
+#### Elementor
+
+```yaml
+# config-elementor.yaml
+flat_html_rules:
+  # Headings
+  - class: "elementor-heading-title"
+    markdown: "## {content}\n\n"
+  - class: "elementor-size-large"
+    markdown: "# {content}\n\n"
+  - class: "elementor-size-medium"
+    markdown: "## {content}\n\n"
+  - class: "elementor-size-small"
+    markdown: "### {content}\n\n"
+
+  # Text widgets
+  - class: "elementor-text-editor"
+    markdown: "{content}\n\n"
+  - class: "elementor-widget-text-editor"
+    markdown: "{content}\n\n"
+
+  # Buttons
+  - class: "elementor-button-text"
+    markdown: "[{content}]\n\n"
+
+  # Lists
+  - class: "elementor-icon-list-text"
+    markdown: "- {content}\n"
+
+  # Testimonials
+  - class: "elementor-testimonial-content"
+    markdown: "> {content}\n\n"
+  - class: "elementor-testimonial-name"
+    markdown: "**{content}**\n\n"
+
+  # Tabs and accordions
+  - class: "elementor-tab-title"
+    markdown: "### {content}\n\n"
+  - class: "elementor-tab-content"
+    markdown: "{content}\n\n"
+  - class: "elementor-accordion-title"
+    markdown: "### {content}\n\n"
+  - class: "elementor-accordion-content"
+    markdown: "{content}\n\n"
+```
+
+#### Divi Builder
+
+```yaml
+# config-divi.yaml
+flat_html_rules:
+  # Module titles
+  - class: "et_pb_module_header"
+    markdown: "## {content}\n\n"
+
+  # Text modules
+  - class: "et_pb_text_inner"
+    markdown: "{content}\n\n"
+
+  # Blurb modules
+  - class: "et_pb_blurb_content"
+    markdown: "{content}\n\n"
+  - class: "et_pb_blurb_title"
+    markdown: "### {content}\n\n"
+
+  # Buttons
+  - class: "et_pb_button"
+    markdown: "[{content}]\n\n"
+
+  # Testimonials
+  - class: "et_pb_testimonial_description"
+    markdown: "> {content}\n\n"
+  - class: "et_pb_testimonial_author"
+    markdown: "**{content}**\n\n"
+
+  # Tabs
+  - class: "et_pb_tab_title"
+    markdown: "### {content}\n\n"
+  - class: "et_pb_tab_content"
+    markdown: "{content}\n\n"
+
+  # Toggle/Accordion
+  - class: "et_pb_toggle_title"
+    markdown: "### {content}\n\n"
+  - class: "et_pb_toggle_content"
+    markdown: "{content}\n\n"
+
+  # Pricing tables
+  - class: "et_pb_pricing_title"
+    markdown: "### {content}\n\n"
+  - class: "et_pb_pricing_content"
+    markdown: "{content}\n\n"
+```
+
+#### Oxygen Builder
+
+```yaml
+# config-oxygen.yaml
+flat_html_rules:
+  # Headings
+  - class: "ct-headline"
+    markdown: "## {content}\n\n"
+  - class: "ct-headline"
+    tag: "h1"
+    markdown: "# {content}\n\n"
+  - class: "ct-headline"
+    tag: "h2"
+    markdown: "## {content}\n\n"
+  - class: "ct-headline"
+    tag: "h3"
+    markdown: "### {content}\n\n"
+
+  # Text blocks
+  - class: "ct-text-block"
+    markdown: "{content}\n\n"
+
+  # Rich text
+  - class: "ct-rich-text"
+    markdown: "{content}\n\n"
+
+  # Buttons
+  - class: "ct-button"
+    markdown: "[{content}]\n\n"
+
+  # Links
+  - class: "ct-link-text"
+    markdown: "{content}\n\n"
+```
+
+#### GenerateBlocks
+
+```yaml
+# config-generateblocks.yaml
+flat_html_rules:
+  # Headlines
+  - class: "gb-headline"
+    markdown: "## {content}\n\n"
+  - class: "gb-headline"
+    tag: "h1"
+    markdown: "# {content}\n\n"
+  - class: "gb-headline"
+    tag: "h2"
+    markdown: "## {content}\n\n"
+  - class: "gb-headline"
+    tag: "h3"
+    markdown: "### {content}\n\n"
+
+  # Buttons
+  - class: "gb-button"
+    markdown: "[{content}]\n\n"
+  - class: "gb-button-text"
+    markdown: "{content}"
+```
+
+#### Combining Multiple Page Builders
+
+If your site uses multiple page builders or plugins, you can combine rules:
+
+```yaml
+# config-combined.yaml
+flat_html_rules:
+  # Bricks Builder
+  - class: "brxe-heading"
+    markdown: "## {content}\n\n"
+  - class: "brxe-text"
+    markdown: "{content}\n\n"
+
+  # Elementor
+  - class: "elementor-heading-title"
+    markdown: "## {content}\n\n"
+  - class: "elementor-text-editor"
+    markdown: "{content}\n\n"
+
+  # WPBakery/Visual Composer
+  - class: "vc_custom_heading"
+    markdown: "## {content}\n\n"
+  - class: "wpb_text_column"
+    markdown: "{content}\n\n"
+
+  # Gutenberg blocks
+  - class: "wp-block-heading"
+    markdown: "## {content}\n\n"
+  - class: "wp-block-paragraph"
+    markdown: "{content}\n\n"
+  - class: "wp-block-quote"
+    markdown: "> {content}\n\n"
+```
+
+### Usage Example
+
+```bash
+# Convert HTML to Markdown with default rules
+wpexportjson export --url https://example.com --flat-html -f markdown
+
+# With custom rules from config file
+wpexportjson export --url https://example.com --flat-html --config config.yaml -f markdown
+
+# Combine with content crawling for page builder sites
+wpexportjson export --url https://example.com --crawl-content --flat-html -f markdown
+```
 
 ### Markdown Frontmatter Output
 

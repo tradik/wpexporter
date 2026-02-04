@@ -409,50 +409,204 @@ func (c *Crawler) extractPageContent(pageURL string) string {
 
 // extractMainContent extracts the main content from HTML
 func (c *Crawler) extractMainContent(html string) string {
-	// Try to find main content area in order of preference
-	contentPatterns := []string{
-		// WordPress main content areas
-		`(?is)<main[^>]*id\s*=\s*["']?content["']?[^>]*>(.*?)</main>`,
-		`(?is)<main[^>]*>(.*?)</main>`,
-		`(?is)<article[^>]*class\s*=\s*["'][^"']*(?:post|page|entry)[^"']*["'][^>]*>(.*?)</article>`,
-		`(?is)<article[^>]*>(.*?)</article>`,
-		// Bricks Builder specific
-		`(?is)<div[^>]*id\s*=\s*["']?brx-content["']?[^>]*>(.*?)</div>`,
-		`(?is)<section[^>]*class\s*=\s*["'][^"']*brxe-[^"']*["'][^>]*>(.*?)</section>`,
-		// Elementor specific
-		`(?is)<div[^>]*class\s*=\s*["'][^"']*elementor-widget-container[^"']*["'][^>]*>(.*?)</div>`,
-		// Generic content areas
-		`(?is)<div[^>]*id\s*=\s*["']?content["']?[^>]*>(.*?)</div>`,
-		`(?is)<div[^>]*class\s*=\s*["'][^"']*(?:content|entry-content|post-content|page-content)[^"']*["'][^>]*>(.*?)</div>`,
+	// First, remove header, footer, nav, aside elements to isolate main content
+	cleanedHTML := c.removeNonContentElements(html)
+
+	// Try to find main content area using balanced tag extraction
+	contentSelectors := []struct {
+		tag   string
+		attrs string
+	}{
+		{"main", `id\s*=\s*["']?content["']?`},
+		{"main", ""},
+		{"article", `class\s*=\s*["'][^"']*(?:post|page|entry)[^"']*["']`},
+		{"article", ""},
+		{"div", `id\s*=\s*["']?brx-content["']?`},
+		{"section", `class\s*=\s*["'][^"']*brxe-[^"']*["']`},
+		{"div", `class\s*=\s*["'][^"']*elementor-widget-container[^"']*["']`},
+		{"div", `id\s*=\s*["']?content["']?`},
+		{"div", `class\s*=\s*["'][^"']*(?:content|entry-content|post-content|page-content)[^"']*["']`},
 	}
 
-	for _, patternStr := range contentPatterns {
-		pattern := regexp.MustCompile(patternStr)
-		matches := pattern.FindStringSubmatch(html)
-		if len(matches) > 1 && strings.TrimSpace(matches[1]) != "" {
-			content := c.cleanHTMLContent(matches[1])
-			if len(content) > 50 { // Only return if we got substantial content
-				return content
+	for _, sel := range contentSelectors {
+		content := c.extractBalancedTag(cleanedHTML, sel.tag, sel.attrs)
+		if content != "" {
+			cleaned := c.cleanHTMLContent(content)
+			if len(cleaned) > 50 {
+				return cleaned
 			}
 		}
 	}
 
-	// Fallback: try to extract all text from Bricks text elements
-	bricksPattern := regexp.MustCompile(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-text[^"']*["'][^>]*>([^<]+)</[^>]+>`)
-	bricksMatches := bricksPattern.FindAllStringSubmatch(html, -1)
-	if len(bricksMatches) > 0 {
-		var texts []string
-		for _, match := range bricksMatches {
-			if len(match) > 1 {
-				text := strings.TrimSpace(c.decodeHTMLEntities(match[1]))
-				if text != "" {
-					texts = append(texts, "<p>"+text+"</p>")
-				}
+	// Fallback: try to extract all Bricks Builder elements
+	bricksContent := c.extractBricksContent(cleanedHTML)
+	if bricksContent != "" {
+		return bricksContent
+	}
+
+	return ""
+}
+
+// removeNonContentElements removes header, footer, nav, aside, and other non-content elements
+func (c *Crawler) removeNonContentElements(html string) string {
+	// Tags to remove completely
+	tagsToRemove := []string{"header", "footer", "nav", "aside", "script", "style", "noscript"}
+
+	result := html
+	for _, tag := range tagsToRemove {
+		result = c.removeBalancedTag(result, tag)
+	}
+
+	// Remove HTML comments
+	commentPattern := regexp.MustCompile(`(?is)<!--.*?-->`)
+	result = commentPattern.ReplaceAllString(result, "")
+
+	return result
+}
+
+// removeBalancedTag removes all occurrences of a tag with its content, handling nesting
+func (c *Crawler) removeBalancedTag(html string, tag string) string {
+	result := html
+	tagLower := strings.ToLower(tag)
+
+	for {
+		// Find opening tag
+		openPattern := regexp.MustCompile(`(?i)<` + tag + `[^>]*>`)
+		openLoc := openPattern.FindStringIndex(result)
+		if openLoc == nil {
+			break
+		}
+
+		// Find the matching closing tag by counting nested tags
+		depth := 1
+		pos := openLoc[1]
+		closeTagPattern := regexp.MustCompile(`(?i)<(/?)` + tag + `[^>]*>`)
+
+		for depth > 0 && pos < len(result) {
+			remaining := result[pos:]
+			match := closeTagPattern.FindStringSubmatchIndex(remaining)
+			if match == nil {
+				break
+			}
+
+			isClose := remaining[match[2]:match[3]] == "/"
+			if isClose {
+				depth--
+			} else {
+				depth++
+			}
+
+			if depth == 0 {
+				// Found matching close tag
+				closeEnd := pos + match[1]
+				result = result[:openLoc[0]] + result[closeEnd:]
+				break
+			}
+			pos += match[1]
+		}
+
+		// Safety check to avoid infinite loop
+		if depth > 0 {
+			// Couldn't find matching close tag, remove just the open tag
+			result = result[:openLoc[0]] + result[openLoc[1]:]
+		}
+	}
+
+	_ = tagLower // avoid unused variable warning
+	return result
+}
+
+// extractBalancedTag extracts content from a tag, handling nested tags properly
+func (c *Crawler) extractBalancedTag(html string, tag string, attrPattern string) string {
+	// Build pattern for opening tag
+	var openPatternStr string
+	if attrPattern != "" {
+		openPatternStr = `(?i)<` + tag + `[^>]*` + attrPattern + `[^>]*>`
+	} else {
+		openPatternStr = `(?i)<` + tag + `[^>]*>`
+	}
+
+	openPattern := regexp.MustCompile(openPatternStr)
+	openLoc := openPattern.FindStringIndex(html)
+	if openLoc == nil {
+		return ""
+	}
+
+	// Find the matching closing tag by counting nested tags
+	depth := 1
+	pos := openLoc[1]
+	closeTagPattern := regexp.MustCompile(`(?i)<(/?)` + tag + `[^>]*>`)
+
+	for depth > 0 && pos < len(html) {
+		remaining := html[pos:]
+		match := closeTagPattern.FindStringSubmatchIndex(remaining)
+		if match == nil {
+			break
+		}
+
+		isClose := remaining[match[2]:match[3]] == "/"
+		if isClose {
+			depth--
+		} else {
+			depth++
+		}
+
+		if depth == 0 {
+			// Found matching close tag - extract content between tags
+			contentStart := openLoc[1]
+			contentEnd := pos + match[0]
+			return html[contentStart:contentEnd]
+		}
+		pos += match[1]
+	}
+
+	return ""
+}
+
+// extractBricksContent extracts content from Bricks Builder elements
+func (c *Crawler) extractBricksContent(html string) string {
+	var parts []string
+
+	// Extract headings with their level
+	headingPattern := regexp.MustCompile(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-heading[^"']*["'][^>]*>(.+?)</[^>]+>`)
+	headingMatches := headingPattern.FindAllStringSubmatch(html, -1)
+	for _, match := range headingMatches {
+		if len(match) > 1 {
+			text := strings.TrimSpace(c.decodeHTMLEntities(match[1]))
+			// Strip any inner tags but keep the text
+			text = regexp.MustCompile(`<[^>]+>`).ReplaceAllString(text, "")
+			if text != "" {
+				parts = append(parts, "<h2>"+text+"</h2>")
 			}
 		}
-		if len(texts) > 0 {
-			return strings.Join(texts, "\n")
+	}
+
+	// Extract text elements
+	textPattern := regexp.MustCompile(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-text[^"']*["'][^>]*>(.+?)</[^>]+>`)
+	textMatches := textPattern.FindAllStringSubmatch(html, -1)
+	for _, match := range textMatches {
+		if len(match) > 1 {
+			text := strings.TrimSpace(match[1])
+			if text != "" {
+				parts = append(parts, text)
+			}
 		}
+	}
+
+	// Extract rich text elements (may contain HTML)
+	richTextPattern := regexp.MustCompile(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-rich-text[^"']*["'][^>]*>(.+?)</[^>]+>`)
+	richTextMatches := richTextPattern.FindAllStringSubmatch(html, -1)
+	for _, match := range richTextMatches {
+		if len(match) > 1 {
+			text := strings.TrimSpace(match[1])
+			if text != "" {
+				parts = append(parts, text)
+			}
+		}
+	}
+
+	if len(parts) > 0 {
+		return strings.Join(parts, "\n")
 	}
 
 	return ""

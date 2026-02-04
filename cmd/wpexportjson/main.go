@@ -19,6 +19,7 @@ import (
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/internal/export"
 	"github.com/tradik/wpexporter/internal/filter"
+	"github.com/tradik/wpexporter/internal/flathtml"
 	mediafilter "github.com/tradik/wpexporter/internal/media"
 	"github.com/tradik/wpexporter/internal/seo"
 	"github.com/tradik/wpexporter/pkg/models"
@@ -26,7 +27,7 @@ import (
 
 // Version information - set during build
 var (
-	Version   = "1.3.8"
+	Version   = "1.4.0"
 	BuildDate = "unknown"
 )
 
@@ -58,6 +59,8 @@ var (
 	timeout           int
 	crawlContent      bool
 	skipEmptyContent  bool
+	flatHTML          bool
+	noTags            bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -87,9 +90,11 @@ Content Filters:
       --no-pages              Skip pages
       --no-products           Skip WooCommerce products
       --no-users              Skip users
+      --no-tags               Skip tags
       --no-media              Skip media downloads
       --path-filter string    Filter by URL path (e.g., /fr/art/)
       --skip-empty-content    Skip posts/pages with empty content
+      --flat-html             Convert HTML to Markdown (Bricks Builder support)
 
 Advanced:
       --brute-force           Enable brute force ID discovery
@@ -148,6 +153,8 @@ func init() {
 	exportCmd.Flags().BoolVar(&assistedCrawl, "assisted-crawl", false, "crawl URLs for SEO metadata")
 	exportCmd.Flags().BoolVar(&crawlContent, "crawl-content", false, "crawl pages with empty content (Bricks, Elementor)")
 	exportCmd.Flags().BoolVar(&skipEmptyContent, "skip-empty-content", false, "skip posts/pages with empty content")
+	exportCmd.Flags().BoolVar(&flatHTML, "flat-html", false, "convert HTML to Markdown (Bricks Builder support)")
+	exportCmd.Flags().BoolVar(&noTags, "no-tags", false, "skip exporting tags")
 
 	// Mark required flags
 	if err := exportCmd.MarkFlagRequired("url"); err != nil {
@@ -295,6 +302,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 	if cmd.Flags().Changed("skip-empty-content") {
 		cfg.SkipEmptyContent = skipEmptyContent
+	}
+	if cmd.Flags().Changed("flat-html") {
+		cfg.FlatHTML = flatHTML
+	}
+	if cmd.Flags().Changed("no-tags") {
+		cfg.NoTags = noTags
 	}
 
 	// Validate --no-files requires --zip
@@ -470,6 +483,24 @@ func runExport(cmd *cobra.Command, args []string) error {
 			originalPosts-len(posts), originalPosts, originalPages-len(pages), originalPages)
 	}
 
+	// Convert HTML to Markdown if flat-html is enabled
+	if cfg.FlatHTML {
+		fmt.Println("\nConverting HTML to Markdown...")
+		var converter *flathtml.Converter
+		if len(cfg.FlatHTMLRules) > 0 {
+			converter = flathtml.NewConverterWithRules(cfg.FlatHTMLRules)
+		} else {
+			converter = flathtml.NewConverter()
+		}
+		if len(posts) > 0 {
+			posts = converter.ConvertPosts(posts)
+		}
+		if len(pages) > 0 {
+			pages = converter.ConvertPosts(pages)
+		}
+		fmt.Println("HTML to Markdown conversion complete")
+	}
+
 	var media []models.WordPressMedia
 	if cfg.DownloadMedia {
 		fmt.Println("Fetching media...")
@@ -501,12 +532,17 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("Found %d categories\n", len(categories))
 
-	fmt.Println("Fetching tags...")
-	tags, err := apiClient.GetTags()
-	if err != nil {
-		return fmt.Errorf("failed to get tags: %w", err)
+	var tags []models.WordPressTag
+	if !cfg.NoTags {
+		fmt.Println("Fetching tags...")
+		tags, err = apiClient.GetTags()
+		if err != nil {
+			return fmt.Errorf("failed to get tags: %w", err)
+		}
+		fmt.Printf("Found %d tags\n", len(tags))
+	} else {
+		fmt.Println("Skipping tags (--no-tags)")
 	}
-	fmt.Printf("Found %d tags\n", len(tags))
 
 	var users []models.WordPressUser
 	if !cfg.NoUsers {

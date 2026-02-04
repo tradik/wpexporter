@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-02-04
+
+### Added
+- **HTML to Markdown Conversion**: New `--flat-html` flag converts HTML content to clean Markdown format
+  - Built-in support for standard HTML elements (h1-h6, p, strong, em, a, img, ul, ol, blockquote, code, pre, hr)
+  - Built-in support for **Bricks Builder** CSS classes (brxe-heading, brxe-text, brxe-list, brxe-image)
+  - Custom conversion rules via `flat_html_rules` in config.yaml for site-specific HTML class mappings
+- **Skip Tags Export**: New `--no-tags` flag to skip exporting tags
+- **Page Builder Configuration Examples**: Added comprehensive config examples in documentation for:
+  - Bricks Builder
+  - Elementor
+  - Divi Builder
+  - Oxygen Builder
+  - GenerateBlocks
+  - Combined multi-builder configurations
+
+### Fixed
+- Fixed `--crawl-content` HTML extraction bug where closing tags were disappearing due to non-greedy regex matching. Implemented balanced tag extraction algorithm that properly handles nested HTML elements.
+
 ## [1.3.8] - 2026-02-04
 
 ### Added
