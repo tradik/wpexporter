@@ -304,7 +304,7 @@ func TestStrapiExporter_BuildStrapiData(t *testing.T) {
 	strapiData := exporter.buildStrapiData(data)
 
 	assert.Equal(t, "wpexporter", strapiData.Meta.Exporter)
-	assert.Equal(t, "1.3.7", strapiData.Version)
+	assert.Equal(t, "1.3.8", strapiData.Version)
 	assert.Equal(t, "https://example.com", strapiData.Meta.SourceSite)
 
 	assert.Len(t, strapiData.Articles, 1)

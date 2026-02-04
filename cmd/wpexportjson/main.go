@@ -24,6 +24,12 @@ import (
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
+// Version information - set during build
+var (
+	Version   = "1.3.8"
+	BuildDate = "unknown"
+)
+
 var (
 	cfgFile           string
 	url               string
@@ -50,52 +56,53 @@ var (
 	rateLimit         int
 	resume            bool
 	timeout           int
+	crawlContent      bool
+	skipEmptyContent  bool
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "wpexportjson",
-	Short: "WordPress content export tool",
-	Long: `A powerful WordPress content export tool that scans WordPress WP API 
-to download all content, images, and videos from a website. Features brute 
-force content discovery and exports to JSON, Markdown, Shopify CSV, or Magento CSV format.
+	Use:     "wpexportjson",
+	Short:   "WordPress content export tool",
+	Version: Version,
+	Long: `WordPress content export tool
 
-Examples:
-  # Export to JSON (default)
-  wpexportjson export --url https://example.com
+Usage: wpexportjson export --url <site-url> [flags]
 
-  # Export with Basic Auth
-  wpexportjson export --url https://example.com --auth-user user --auth-pass password
+Export Flags:
+  -u, --url string            WordPress site URL (required)
+  -o, --output string         Output directory (default: export/{domain}.{date})
+  -f, --format string         Format: json|markdown|shopify|magento|wordpress|drupal|
+                              wix|squarespace|webflow|weebly|prestashop|ghost|strapi|contentful
+  -c, --concurrent int        Concurrent downloads (default 5)
+      --timeout int           HTTP timeout in seconds (default 30)
 
-  # Export with Bearer Token
-  wpexportjson export --url https://example.com --auth-token "your-token"
+Authentication:
+      --auth-user string      Username for Basic Auth
+      --auth-pass string      Password for Basic Auth
+      --auth-token string     Bearer token
 
-  # Export to Markdown
-  wpexportjson export --url https://example.com -f markdown
+Content Filters:
+      --no-posts              Skip blog posts
+      --no-pages              Skip pages
+      --no-products           Skip WooCommerce products
+      --no-users              Skip users
+      --no-media              Skip media downloads
+      --path-filter string    Filter by URL path (e.g., /fr/art/)
+      --skip-empty-content    Skip posts/pages with empty content
 
-  # Export to Shopify-compatible CSV
-  wpexportjson export --url https://example.com -f shopify
+Advanced:
+      --brute-force           Enable brute force ID discovery
+      --max-id int            Max ID for brute force (default 10000)
+      --assisted-crawl        Crawl URLs for SEO metadata
+      --crawl-content         Crawl pages with empty content (Bricks, Elementor)
+      --relevant-media-only   Download only featured/content images
+      --resume                Resume from checkpoint
+      --rate-limit int        Delay between requests in ms
+      --zip                   Create ZIP archive
+      --no-files              Remove files after ZIP (requires --zip)
 
-  # Export to Magento-compatible CSV
-  wpexportjson export --url https://example.com -f magento
-
-  # Export with custom output directory
-  wpexportjson export --url https://example.com -o ./my-export
-
-  # Export with brute force content discovery
-  wpexportjson export --url https://example.com --brute-force
-
-  # Export without downloading media
-  wpexportjson export --url https://example.com --download-media=false
-
-  # Export and create a ZIP archive
-  wpexportjson export --url https://example.com --zip
-
-  # Export to ZIP only (remove files after creating ZIP)
-  wpexportjson export --url https://example.com --zip --no-files
-
-  # Export to Magento with ZIP archive
-  wpexportjson export --url https://example.com -f magento --zip`,
+Docs: https://github.com/tradik/wpexporter`,
 }
 
 // exportCmd represents the export command
@@ -138,7 +145,9 @@ func init() {
 	exportCmd.Flags().BoolVar(&resume, "resume", false, "resume from checkpoint if previous export was interrupted")
 	exportCmd.Flags().IntVar(&timeout, "timeout", 30, "HTTP request timeout in seconds")
 	exportCmd.Flags().StringVar(&pathFilter, "path-filter", "", "filter posts/pages by URL path pattern (e.g., /fr/arts/)")
-	exportCmd.Flags().BoolVar(&assistedCrawl, "assisted-crawl", false, "crawl actual URLs to extract SEO metadata (title, description, og tags)")
+	exportCmd.Flags().BoolVar(&assistedCrawl, "assisted-crawl", false, "crawl URLs for SEO metadata")
+	exportCmd.Flags().BoolVar(&crawlContent, "crawl-content", false, "crawl pages with empty content (Bricks, Elementor)")
+	exportCmd.Flags().BoolVar(&skipEmptyContent, "skip-empty-content", false, "skip posts/pages with empty content")
 
 	// Mark required flags
 	if err := exportCmd.MarkFlagRequired("url"); err != nil {
@@ -280,6 +289,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 	if cmd.Flags().Changed("timeout") {
 		cfg.Timeout = timeout
+	}
+	if cmd.Flags().Changed("crawl-content") {
+		cfg.CrawlContent = crawlContent
+	}
+	if cmd.Flags().Changed("skip-empty-content") {
+		cfg.SkipEmptyContent = skipEmptyContent
 	}
 
 	// Validate --no-files requires --zip
@@ -431,6 +446,28 @@ func runExport(cmd *cobra.Command, args []string) error {
 			pages = crawler.EnrichPostsWithSEO(pages)
 		}
 		fmt.Println("SEO metadata extraction complete")
+	}
+
+	// Crawl content for pages with empty content (page builders like Bricks, Elementor)
+	if cfg.CrawlContent {
+		fmt.Println("\nCrawling pages with empty content...")
+		crawler := seo.NewCrawler(cfg)
+		if len(posts) > 0 {
+			posts = crawler.EnrichPostsWithContent(posts)
+		}
+		if len(pages) > 0 {
+			pages = crawler.EnrichPostsWithContent(pages)
+		}
+	}
+
+	// Skip posts/pages with empty content if enabled
+	if cfg.SkipEmptyContent {
+		originalPosts := len(posts)
+		originalPages := len(pages)
+		posts = seo.FilterEmptyContent(posts)
+		pages = seo.FilterEmptyContent(pages)
+		fmt.Printf("Skipped empty content: %d/%d posts, %d/%d pages\n",
+			originalPosts-len(posts), originalPosts, originalPages-len(pages), originalPages)
 	}
 
 	var media []models.WordPressMedia

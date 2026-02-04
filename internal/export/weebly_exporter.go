@@ -176,7 +176,7 @@ func (e *WeeblyExporter) exportXML(data *models.ExportData, baseDir string) erro
 // exportJSON exports data in JSON format for alternative import
 func (e *WeeblyExporter) exportJSON(data *models.ExportData, baseDir string) error {
 	jsonExport := WeeblyJSONExport{
-		Version: "1.3.7",
+		Version: "1.3.8",
 		Meta: WeeblyMeta{
 			Exporter:   "wpexporter",
 			ExportedAt: time.Now(),

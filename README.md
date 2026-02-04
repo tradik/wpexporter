@@ -213,12 +213,15 @@ wpexportjson export --config config.yaml
 | `--no-users` | Skip exporting users | `false` |
 | `--path-filter` | Filter posts/pages by URL path pattern (e.g., /fr/arts/) | - |
 | `--assisted-crawl` | Crawl URLs to extract SEO metadata (title, description, og tags) | `false` |
+| `--crawl-content` | Crawl pages with empty content (Bricks, Elementor page builders) | `false` |
+| `--skip-empty-content` | Skip posts/pages with empty content from export | `false` |
 | `--auth-user` | Username for Basic Auth (prompts for password if `--auth-pass` not provided) | - |
 | `--auth-pass` | Password for Basic Auth | - |
 | `--auth-token` | Bearer token for authentication | - |
 | `--rate-limit` | Delay between API requests in milliseconds (prevents server rate limiting) | `0` |
 | `--resume` | Resume from checkpoint if previous export was interrupted | `false` |
 | `--timeout` | HTTP request timeout in seconds (increase for slow servers) | `30` |
+| `--verbose`, `-v` | Enable verbose output | `false` |
 | `--config` | Configuration file path | - |
 
 ## SEO Metadata Extraction

@@ -36,8 +36,10 @@ type Config struct {
 	AuthUser          string `mapstructure:"auth_user" json:"auth_user"`
 	AuthPass          string `mapstructure:"auth_pass" json:"auth_pass"`
 	AuthToken         string `mapstructure:"auth_token" json:"auth_token"`
-	RateLimit         int    `mapstructure:"rate_limit" json:"rate_limit"` // Milliseconds delay between API requests
-	Resume            bool   `mapstructure:"resume" json:"resume"`         // Resume from checkpoint if available
+	RateLimit         int    `mapstructure:"rate_limit" json:"rate_limit"`                 // Milliseconds delay between API requests
+	Resume            bool   `mapstructure:"resume" json:"resume"`                         // Resume from checkpoint if available
+	CrawlContent      bool   `mapstructure:"crawl_content" json:"crawl_content"`           // Crawl pages with empty content to extract HTML
+	SkipEmptyContent  bool   `mapstructure:"skip_empty_content" json:"skip_empty_content"` // Skip posts/pages with empty content
 }
 
 // DefaultConfig returns a configuration with default values
@@ -64,6 +66,8 @@ func DefaultConfig() *Config {
 		AssistedCrawl:     false,
 		RateLimit:         0,     // No rate limiting by default
 		Resume:            false, // Don't resume by default
+		CrawlContent:      false, // Don't crawl empty content by default
+		SkipEmptyContent:  false, // Don't skip empty content by default
 	}
 }
 
@@ -130,6 +134,12 @@ func LoadConfig(configFile string) (*Config, error) {
 	}
 	if err := viper.BindEnv("resume", "WPEXPORT_RESUME"); err != nil {
 		return nil, fmt.Errorf("failed to bind resume environment variable: %w", err)
+	}
+	if err := viper.BindEnv("crawl_content", "WPEXPORT_CRAWL_CONTENT"); err != nil {
+		return nil, fmt.Errorf("failed to bind crawl_content environment variable: %w", err)
+	}
+	if err := viper.BindEnv("skip_empty_content", "WPEXPORT_SKIP_EMPTY_CONTENT"); err != nil {
+		return nil, fmt.Errorf("failed to bind skip_empty_content environment variable: %w", err)
 	}
 
 	// Load config file if specified

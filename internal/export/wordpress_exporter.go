@@ -176,7 +176,7 @@ func (e *WordPressExporter) buildWXR(data *models.ExportData) WXRExport {
 			WXRVersion:  "1.2",
 			BaseSiteURL: data.Site.URL,
 			BaseBlogURL: data.Site.HomeURL,
-			Generator:   "wpexporter/1.3.7",
+			Generator:   "wpexporter/1.3.8",
 		},
 	}
 

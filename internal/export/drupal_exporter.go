@@ -198,7 +198,7 @@ func (e *DrupalExporter) buildDrupalData(data *models.ExportData) DrupalExportDa
 	drupal := DrupalExportData{
 		Meta: DrupalMeta{
 			Exporter:   "wpexporter",
-			Version:    "1.3.7",
+			Version:    "1.3.8",
 			ExportedAt: time.Now(),
 			SourceSite: data.Site.URL,
 			SourceName: data.Site.Name,

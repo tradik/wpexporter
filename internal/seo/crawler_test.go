@@ -460,3 +460,251 @@ func TestExtractSEO_OnlyAuthUserNoPass(t *testing.T) {
 	assert.Equal(t, "Test", seo.Title)
 	assert.False(t, hasBasicAuth, "Basic auth should not be set when password is empty")
 }
+
+// Tests for content crawling
+
+func TestIsContentEmpty(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		expected bool
+	}{
+		{"empty string", "", true},
+		{"only whitespace", "   \n\t   ", true},
+		{"only HTML tags", "<p></p>", true},
+		{"only nbsp", "&nbsp;&nbsp;", true},
+		{"empty paragraph", "\n<p></p>\n\n\n\n<p></p>\n", true},
+		{"small content", "Hi", true}, // Less than 10 chars after stripping
+		{"real content", "<p>This is some actual content for the page.</p>", false},
+		{"content with tags", "<div><p>Hello World</p></div>", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isContentEmpty(tt.content)
+			assert.Equal(t, tt.expected, result, "isContentEmpty(%q) = %v, want %v", tt.content, result, tt.expected)
+		})
+	}
+}
+
+func TestFilterEmptyContent(t *testing.T) {
+	posts := []models.WordPressPost{
+		{ID: 1, Content: models.RenderedContent{Rendered: "<p>Real content here</p>"}},
+		{ID: 2, Content: models.RenderedContent{Rendered: ""}},
+		{ID: 3, Content: models.RenderedContent{Rendered: "<p></p>"}},
+		{ID: 4, Content: models.RenderedContent{Rendered: "<p>Another post with content</p>"}},
+		{ID: 5, Content: models.RenderedContent{Rendered: "&nbsp;"}},
+	}
+
+	filtered := FilterEmptyContent(posts)
+
+	assert.Len(t, filtered, 2)
+	assert.Equal(t, 1, filtered[0].ID)
+	assert.Equal(t, 4, filtered[1].ID)
+}
+
+func TestFilterEmptyContent_AllEmpty(t *testing.T) {
+	posts := []models.WordPressPost{
+		{ID: 1, Content: models.RenderedContent{Rendered: ""}},
+		{ID: 2, Content: models.RenderedContent{Rendered: "<p></p>"}},
+	}
+
+	filtered := FilterEmptyContent(posts)
+	assert.Len(t, filtered, 0)
+}
+
+func TestFilterEmptyContent_NoneEmpty(t *testing.T) {
+	posts := []models.WordPressPost{
+		{ID: 1, Content: models.RenderedContent{Rendered: "<p>This is some longer content that should not be empty.</p>"}},
+		{ID: 2, Content: models.RenderedContent{Rendered: "<p>Another post with substantial content for testing purposes.</p>"}},
+	}
+
+	filtered := FilterEmptyContent(posts)
+	assert.Len(t, filtered, 2)
+}
+
+func TestExtractMainContent_Article(t *testing.T) {
+	html := `<!DOCTYPE html>
+<html>
+<head><title>Test</title></head>
+<body>
+<header>Navigation</header>
+<article class="post">
+<h1>Article Title</h1>
+<p>This is the article content.</p>
+</article>
+<footer>Footer</footer>
+</body>
+</html>`
+
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	content := c.extractMainContent(html)
+
+	assert.Contains(t, content, "Article Title")
+	assert.Contains(t, content, "article content")
+	assert.NotContains(t, content, "Navigation")
+	assert.NotContains(t, content, "Footer")
+}
+
+func TestExtractMainContent_BricksBuilder(t *testing.T) {
+	html := `<!DOCTYPE html>
+<html>
+<head><title>Bricks Page</title></head>
+<body>
+<header>Nav</header>
+<div class="brxe-text">First paragraph text</div>
+<div class="brxe-text">Second paragraph text</div>
+<div class="brxe-text">Third paragraph text</div>
+<footer>Footer</footer>
+</body>
+</html>`
+
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	content := c.extractMainContent(html)
+
+	assert.Contains(t, content, "First paragraph")
+	assert.Contains(t, content, "Second paragraph")
+	assert.Contains(t, content, "Third paragraph")
+}
+
+func TestExtractMainContent_Main(t *testing.T) {
+	html := `<!DOCTYPE html>
+<html>
+<body>
+<header>Header</header>
+<main id="content">
+<h1>Main Content</h1>
+<p>Page body text goes here.</p>
+</main>
+<footer>Footer</footer>
+</body>
+</html>`
+
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	content := c.extractMainContent(html)
+
+	assert.Contains(t, content, "Main Content")
+	assert.Contains(t, content, "body text")
+}
+
+func TestCleanHTMLContent(t *testing.T) {
+	html := `<div>
+<script>alert('bad');</script>
+<style>.foo { color: red; }</style>
+<!-- comment -->
+<noscript>No JS</noscript>
+<p>Actual content</p>
+<p></p>
+</div>`
+
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	cleaned := c.cleanHTMLContent(html)
+
+	assert.NotContains(t, cleaned, "alert")
+	assert.NotContains(t, cleaned, "color")
+	assert.NotContains(t, cleaned, "comment")
+	assert.NotContains(t, cleaned, "No JS")
+	assert.Contains(t, cleaned, "Actual content")
+}
+
+func TestExtractPageContent_EmptyURL(t *testing.T) {
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	content := c.extractPageContent("")
+	assert.Empty(t, content)
+}
+
+func TestExtractPageContent_ServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	content := c.extractPageContent(server.URL)
+	assert.Empty(t, content)
+}
+
+func TestExtractPageContent_WithAuth(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "user" || pass != "pass" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`<html><body><main><p>This is protected content that requires authentication to view. It should be longer than 50 characters to pass the content threshold check.</p></main></body></html>`))
+	}))
+	defer server.Close()
+
+	cfg := config.DefaultConfig()
+	cfg.AuthUser = "user"
+	cfg.AuthPass = "pass"
+	c := NewCrawler(cfg)
+
+	content := c.extractPageContent(server.URL)
+	assert.Contains(t, content, "protected content")
+}
+
+func TestEnrichPostsWithContent_NoneEmpty(t *testing.T) {
+	posts := []models.WordPressPost{
+		{ID: 1, Content: models.RenderedContent{Rendered: "<p>Has content</p>"}},
+		{ID: 2, Content: models.RenderedContent{Rendered: "<p>Also has content</p>"}},
+	}
+
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	enriched := c.EnrichPostsWithContent(posts)
+
+	// Should return unchanged since no posts have empty content
+	assert.Len(t, enriched, 2)
+	assert.Equal(t, "<p>Has content</p>", enriched[0].Content.Rendered)
+}
+
+func TestEnrichPostsWithContent_SomeEmpty(t *testing.T) {
+	html := `<!DOCTYPE html>
+<html>
+<body>
+<main>
+<h1>Crawled Title</h1>
+<p>This content was crawled from the actual page.</p>
+</main>
+</body>
+</html>`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(html))
+	}))
+	defer server.Close()
+
+	posts := []models.WordPressPost{
+		{ID: 1, Link: server.URL, Content: models.RenderedContent{Rendered: ""}},
+		{ID: 2, Link: "", Content: models.RenderedContent{Rendered: "<p>Has content</p>"}},
+	}
+
+	cfg := config.DefaultConfig()
+	cfg.Concurrent = 1
+	c := NewCrawler(cfg)
+
+	enriched := c.EnrichPostsWithContent(posts)
+
+	assert.Len(t, enriched, 2)
+	// First post should have crawled content
+	assert.Contains(t, enriched[0].Content.Rendered, "Crawled Title")
+	assert.Contains(t, enriched[0].Content.Rendered, "crawled from the actual page")
+	// Second post should be unchanged
+	assert.Equal(t, "<p>Has content</p>", enriched[1].Content.Rendered)
+}
