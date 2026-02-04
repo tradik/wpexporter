@@ -194,38 +194,47 @@ wpexportjson export --config config.yaml
 
 ## Command Line Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--url` | WordPress site URL | Required |
-| `--output` | Output directory or file | `./export` |
-| `--format` | Export format (json/markdown/shopify/magento/wordpress/drupal/wix/squarespace/webflow/weebly/prestashop/ghost/strapi/contentful) | `json` |
-| `--brute-force` | Enable brute force ID discovery | `false` |
-| `--max-id` | Maximum ID for brute force | `10000` |
-| `--download-media` | Download images and videos | `true` |
-| `--no-media` | Disable media downloads (alias for --download-media=false) | `false` |
-| `--relevant-media-only` | Download only featured images and content images | `false` |
-| `--concurrent` | Concurrent downloads | `5` |
-| `--zip` | Create ZIP archive of export | `false` |
-| `--no-files` | Remove export files after creating ZIP (requires --zip) | `false` |
-| `--no-posts` | Skip exporting blog posts | `false` |
-| `--no-pages` | Skip exporting pages | `false` |
-| `--no-products` | Skip exporting WooCommerce products | `false` |
-| `--no-users` | Skip exporting users | `false` |
-| `--no-tags` | Skip exporting tags | `false` |
-| `--path-filter` | Filter posts/pages by URL path pattern (e.g., /fr/arts/) | - |
-| `--flat-html` | Convert HTML to Markdown (Bricks Builder, Elementor support) | `false` |
-| `--assisted-crawl` | Crawl URLs to extract SEO metadata (title, description, og tags) | `false` |
-| `--crawl-content` | Crawl pages with empty content (Bricks, Elementor page builders) | `false` |
-| `--skip-empty-content` | Skip posts/pages with empty content from export | `false` |
-| `--auth-user` | Username for Basic Auth (prompts for password if `--auth-pass` not provided) | - |
-| `--auth-pass` | Password for Basic Auth | - |
-| `--auth-token` | Bearer token for authentication | - |
-| `--rate-limit` | Delay between API requests in milliseconds (prevents server rate limiting) | `0` |
-| `--resume` | Resume from checkpoint if previous export was interrupted | `false` |
-| `--timeout` | HTTP request timeout in seconds (increase for slow servers) | `30` |
-| `--verbose`, `-v` | Enable verbose output | `false` |
-| `--quiet`, `-q` | Suppress all output, only return exit code | `false` |
-| `--config` | Configuration file path | - |
+<table>
+<thead>
+<tr>
+<th style="white-space:nowrap">Option</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><code>--url</code></td><td>WordPress site URL</td><td>Required</td></tr>
+<tr><td><code>--output</code></td><td>Output directory or file</td><td><code>./export</code></td></tr>
+<tr><td><code>--format</code></td><td>Export format (json/markdown/shopify/magento/wordpress/drupal/wix/squarespace/webflow/weebly/prestashop/ghost/strapi/contentful)</td><td><code>json</code></td></tr>
+<tr><td><code>--brute-force</code></td><td>Enable brute force ID discovery</td><td><code>false</code></td></tr>
+<tr><td><code>--max-id</code></td><td>Maximum ID for brute force</td><td><code>10000</code></td></tr>
+<tr><td><code>--download-media</code></td><td>Download images and videos</td><td><code>true</code></td></tr>
+<tr><td><code>--no-media</code></td><td>Disable media downloads (alias for --download-media=false)</td><td><code>false</code></td></tr>
+<tr><td><code>--relevant-media-only</code></td><td>Download only featured images and content images</td><td><code>false</code></td></tr>
+<tr><td><code>--concurrent</code></td><td>Concurrent downloads</td><td><code>5</code></td></tr>
+<tr><td><code>--zip</code></td><td>Create ZIP archive of export</td><td><code>false</code></td></tr>
+<tr><td><code>--no-files</code></td><td>Remove export files after creating ZIP (requires --zip)</td><td><code>false</code></td></tr>
+<tr><td><code>--no-posts</code></td><td>Skip exporting blog posts</td><td><code>false</code></td></tr>
+<tr><td><code>--no-pages</code></td><td>Skip exporting pages</td><td><code>false</code></td></tr>
+<tr><td><code>--no-products</code></td><td>Skip exporting WooCommerce products</td><td><code>false</code></td></tr>
+<tr><td><code>--no-users</code></td><td>Skip exporting users</td><td><code>false</code></td></tr>
+<tr><td><code>--no-tags</code></td><td>Skip exporting tags</td><td><code>false</code></td></tr>
+<tr><td><code>--path-filter</code></td><td>Filter posts/pages by URL path pattern (e.g., /fr/arts/)</td><td>-</td></tr>
+<tr><td><code>--flat-html</code></td><td>Convert HTML to Markdown (Bricks Builder, Elementor support)</td><td><code>false</code></td></tr>
+<tr><td><code>--assisted-crawl</code></td><td>Crawl URLs to extract SEO metadata (title, description, og tags)</td><td><code>false</code></td></tr>
+<tr><td><code>--crawl-content</code></td><td>Crawl pages with empty content (Bricks, Elementor page builders)</td><td><code>false</code></td></tr>
+<tr><td><code>--skip-empty-content</code></td><td>Skip posts/pages with empty content from export</td><td><code>false</code></td></tr>
+<tr><td><code>--auth-user</code></td><td>Username for Basic Auth (prompts for password if --auth-pass not provided)</td><td>-</td></tr>
+<tr><td><code>--auth-pass</code></td><td>Password for Basic Auth</td><td>-</td></tr>
+<tr><td><code>--auth-token</code></td><td>Bearer token for authentication</td><td>-</td></tr>
+<tr><td><code>--rate-limit</code></td><td>Delay between API requests in milliseconds (prevents server rate limiting)</td><td><code>0</code></td></tr>
+<tr><td><code>--resume</code></td><td>Resume from checkpoint if previous export was interrupted</td><td><code>false</code></td></tr>
+<tr><td><code>--timeout</code></td><td>HTTP request timeout in seconds (increase for slow servers)</td><td><code>30</code></td></tr>
+<tr><td><code>--verbose</code>, <code>-v</code></td><td>Enable verbose output</td><td><code>false</code></td></tr>
+<tr><td><code>--quiet</code>, <code>-q</code></td><td>Suppress all output, only return exit code</td><td><code>false</code></td></tr>
+<tr><td><code>--config</code></td><td>Configuration file path</td><td>-</td></tr>
+</tbody>
+</table>
 
 ## SEO Metadata Extraction
 
