@@ -607,6 +607,152 @@ og_image: "https://example.com/social-image.jpg"
 ---
 ```
 
+## 📦 Gutenberg Blocks Support
+
+WordPress Gutenberg editor stores content as HTML with special comment markers. Here's how wpexporter handles Gutenberg blocks:
+
+### ✅ Standard Export Behavior
+
+Gutenberg blocks export automatically in all formats:
+
+| Content Type | Export Result |
+|--------------|---------------|
+| Standard blocks (paragraphs, headings, lists) | ✅ Exported as HTML content |
+| Core blocks (quote, code, image, gallery) | ✅ Embedded HTML preserved |
+| Custom blocks (plugins, themes) | ✅ Rendered HTML output |
+| Block patterns & reusable blocks | ✅ Resolved to final HTML |
+
+**No configuration needed** for JSON, WordPress WXR, or HTML-preserving formats.
+
+### 🔄 Markdown Conversion with `--flat-html`
+
+When exporting to Markdown format, use `--flat-html` to convert Gutenberg HTML to clean Markdown:
+
+```bash
+# Convert Gutenberg content to Markdown
+wpexportjson export --url https://example.com --flat-html -f markdown
+```
+
+Common Gutenberg CSS classes for custom rules in `config.yaml`:
+
+```yaml
+flat_html_rules:
+  # Core Gutenberg blocks
+  - class: "wp-block-heading"
+    markdown: "## {content}\n\n"
+  - class: "wp-block-paragraph"
+    markdown: "{content}\n\n"
+  - class: "wp-block-quote"
+    markdown: "> {content}\n\n"
+  - class: "wp-block-code"
+    markdown: "```\n{content}\n```\n\n"
+  - class: "wp-block-preformatted"
+    markdown: "```\n{content}\n```\n\n"
+  - class: "wp-block-list"
+    markdown: "{content}\n\n"
+  - class: "wp-block-image"
+    markdown: "{content}\n\n"
+
+  # Extended blocks
+  - class: "wp-block-pullquote"
+    markdown: "> **{content}**\n\n"
+  - class: "wp-block-verse"
+    markdown: "*{content}*\n\n"
+  - class: "wp-block-table"
+    markdown: "{content}\n\n"
+```
+
+### 📋 Block Detection
+
+The exporter preserves Gutenberg comment markers in HTML exports:
+```html
+<!-- wp:paragraph -->
+<p>Content here...</p>
+<!-- /wp:paragraph -->
+```
+
+These markers are stripped during Markdown conversion with `--flat-html`.
+
+## 🖼️ Media URL Mapping
+
+When downloading media with `--download-media`, the exporter rewrites URLs in exported content to point to local files.
+
+### 📁 File Organization
+
+Downloaded media files are stored in a structured format:
+
+```
+export/
+├── posts/
+│   └── my-post.md
+├── pages/
+│   └── about.md
+└── media/
+    ├── 123_featured-image.jpg
+    ├── 124_inline-photo.png
+    ├── 125_document.pdf
+    └── 126_video.mp4
+```
+
+**Naming pattern:** `{media_id}_{original_filename}{extension}`
+
+### 🔄 URL Rewriting
+
+Absolute WordPress URLs are converted to relative local paths:
+
+| Original URL | Rewritten Path |
+|--------------|----------------|
+| `https://example.com/wp-content/uploads/2025/01/photo.jpg` | `media/123_photo.jpg` |
+| `https://example.com/wp-content/uploads/2025/01/photo-300x200.jpg` | `media/123_photo.jpg` |
+| `https://example.com/wp-content/uploads/2025/01/photo-150x150.jpg` | `media/123_photo.jpg` |
+
+### 📷 Size Variants
+
+WordPress generates multiple image sizes (thumbnail, medium, large, full). The exporter:
+
+1. ✅ Downloads the **original full-size** image
+2. ✅ Rewrites **all size variant URLs** to point to the full-size local file
+3. ✅ Handles `-{width}x{height}` suffixed URLs automatically
+
+### 🎯 Selective Media with `--relevant-media-only`
+
+For sites with large media libraries, use `--relevant-media-only` to download only used images:
+
+```bash
+wpexportjson export --url https://example.com --relevant-media-only -f markdown
+```
+
+**What gets downloaded:**
+
+| Media Type | Downloaded | Condition |
+|------------|------------|-----------|
+| Featured images | ✅ Yes | Referenced by `featured_media` field |
+| Content images | ✅ Yes | Found in `<img>` tags within content |
+| Excerpt images | ✅ Yes | Found in `<img>` tags within excerpt |
+| Unused library items | ❌ No | Not referenced by any post/page |
+| PDFs, videos, documents | ❌ No | Only images are filtered |
+
+**Benefits:**
+- 📉 Significantly reduces export size
+- ⚡ Faster export for content-heavy sites
+- 🎯 Only relevant assets are included
+
+### 💡 Examples
+
+```bash
+# Download all media (default)
+wpexportjson export --url https://example.com -f markdown
+
+# Download only featured images and content images
+wpexportjson export --url https://example.com --relevant-media-only -f markdown
+
+# Skip media download entirely
+wpexportjson export --url https://example.com --no-media -f markdown
+
+# Combine with path filter for targeted export
+wpexportjson export --url https://example.com --path-filter=/blog/ --relevant-media-only -f markdown
+```
+
 ## Development
 
 ### Prerequisites
