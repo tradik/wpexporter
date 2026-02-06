@@ -12,10 +12,11 @@
 
 > **Repository:** [github.com/tradik/wpexporter](https://github.com/tradik/wpexporter)
 
-A comprehensive WordPress content export toolkit with two powerful applications:
+A comprehensive WordPress content export toolkit with three powerful applications:
 
 - **wpexportjson** - REST API based exporter with brute force content discovery
 - **wpxmlrpc** - XML-RPC based exporter for authenticated access
+- **wpmcp** - MCP (Model Context Protocol) server for AI assistant integration
 
 **Export to 14+ popular platforms** including e-commerce systems ([Shopify](https://www.shopify.com/), [Magento](https://business.adobe.com/products/magento/magento-commerce.html), [PrestaShop](https://www.prestashop.com/)), traditional CMS platforms ([WordPress](https://wordpress.org/), [Drupal](https://www.drupal.org/), [Wix](https://www.wix.com/), [Squarespace](https://www.squarespace.com/), [Webflow](https://webflow.com/), [Weebly](https://www.weebly.com/)), and headless CMS solutions ([Ghost](https://ghost.org/), [Strapi](https://strapi.io/), [Contentful](https://www.contentful.com/)), plus JSON and Markdown formats with full media download support.
 
@@ -43,6 +44,13 @@ A comprehensive WordPress content export toolkit with two powerful applications:
 - 📊 **Complete Export**: Posts, pages, media, categories, tags, and users
 - 📁 **Multiple Formats**: JSON and Markdown export support
 - 🛡️ **XML-RPC Protocol**: Direct WordPress XML-RPC API integration
+
+### wpmcp (MCP Server)
+- 🤖 **AI Integration**: Enables Claude and other AI assistants to interact with WordPress
+- 🔧 **8 Tools**: list_formats, get_site_info, list_posts, list_pages, export_site, get_post, list_categories, list_media
+- 📡 **JSON-RPC 2.0**: Standard MCP protocol over stdio
+- 🔐 **Authentication Support**: Basic Auth and Bearer token support
+- ⚡ **Fast Response**: Optimized for quick AI assistant interactions
 
 ## Installation
 
@@ -150,6 +158,47 @@ wpxmlrpc export --url https://example.com --username admin --password mypassword
 # Export to markdown format
 wpxmlrpc export --url https://example.com --username admin --password mypassword --format markdown --output ./markdown-export
 ```
+
+### MCP Server (wpmcp)
+
+The MCP server enables AI assistants like Claude to interact with WordPress sites.
+
+**Claude Desktop Configuration** (`claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "wpexporter": {
+      "command": "wpmcp",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+**Claude Code Configuration** (`.claude/mcp.json`):
+```json
+{
+  "mcpServers": {
+    "wpexporter": {
+      "type": "stdio",
+      "command": "wpmcp",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+**Available MCP Tools:**
+| Tool | Description |
+|------|-------------|
+| `list_formats` | List all 14 available export formats |
+| `get_site_info` | Get WordPress site information |
+| `list_posts` | List posts with optional path filtering |
+| `list_pages` | List pages from a site |
+| `export_site` | Full site export to any format |
+| `get_post` | Get a specific post by ID |
+| `list_categories` | List all categories |
+| `list_media` | List media files |
 
 ## Usage
 

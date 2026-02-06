@@ -41,6 +41,7 @@ GOMOD := $(GOCMD) mod
 GOENV := $(GOCMD) env
 BINARY_NAME := $(APP_NAME)
 XMLRPC_BINARY := wpxmlrpc
+MCP_BINARY := wpmcp
 
 # Build flags
 LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT) -s -w"
@@ -59,7 +60,7 @@ deps: ## Download dependencies
 	$(GOMOD) download
 	$(GOMOD) tidy
 
-build: deps ## Build both applications for development
+build: deps ## Build all applications for development
 	@echo "${BLUE}Building $(APP_NAME) $(VERSION)...${RESET}"
 	@mkdir -p $(BUILD_DIR)
 	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/wpexportjson
@@ -67,6 +68,9 @@ build: deps ## Build both applications for development
 	@echo "${BLUE}Building $(XMLRPC_BINARY) $(VERSION)...${RESET}"
 	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(XMLRPC_BINARY) ./cmd/wpxmlrpc
 	@echo "${GREEN}Build complete: $(BUILD_DIR)/$(XMLRPC_BINARY)${RESET}"
+	@echo "${BLUE}Building $(MCP_BINARY) $(VERSION)...${RESET}"
+	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(MCP_BINARY) ./cmd/wpmcp
+	@echo "${GREEN}Build complete: $(BUILD_DIR)/$(MCP_BINARY)${RESET}"
 
 clean: ## Clean build artifacts
 	@echo "${YELLOW}Cleaning build artifacts...${RESET}"
@@ -113,9 +117,14 @@ run: build ## Build and run the application
 	@echo "${BLUE}Running $(APP_NAME)...${RESET}"
 	./$(BUILD_DIR)/$(BINARY_NAME)
 
-install: ## Install the application globally
+install: ## Install all applications globally
 	@echo "${BLUE}Installing $(APP_NAME)...${RESET}"
 	$(GOCMD) install ./cmd/wpexportjson
+	@echo "${BLUE}Installing $(XMLRPC_BINARY)...${RESET}"
+	$(GOCMD) install ./cmd/wpxmlrpc
+	@echo "${BLUE}Installing $(MCP_BINARY)...${RESET}"
+	$(GOCMD) install ./cmd/wpmcp
+	@echo "${GREEN}All applications installed${RESET}"
 
 dev: ## Run in development mode with air
 	@echo "${BLUE}Starting development server...${RESET}"
@@ -133,6 +142,9 @@ build-prod: deps ## Build production binaries with optimizations
 	@echo "${BLUE}Building production $(XMLRPC_BINARY) $(VERSION)...${RESET}"
 	CGO_ENABLED=0 $(GOBUILD) $(PROD_LDFLAGS) -o $(BUILD_DIR)/$(XMLRPC_BINARY) ./cmd/wpxmlrpc
 	@echo "${GREEN}Production build complete: $(BUILD_DIR)/$(XMLRPC_BINARY)${RESET}"
+	@echo "${BLUE}Building production $(MCP_BINARY) $(VERSION)...${RESET}"
+	CGO_ENABLED=0 $(GOBUILD) $(PROD_LDFLAGS) -o $(BUILD_DIR)/$(MCP_BINARY) ./cmd/wpmcp
+	@echo "${GREEN}Production build complete: $(BUILD_DIR)/$(MCP_BINARY)${RESET}"
 
 release: deps ## Build release binaries for all platforms
 	@echo "${BLUE}Building release binaries $(VERSION)...${RESET}"
@@ -140,27 +152,35 @@ release: deps ## Build release binaries for all platforms
 	@echo "${YELLOW}Building Linux AMD64...${RESET}"
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) $(PROD_LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) $(PROD_LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-linux-amd64 ./cmd/wpxmlrpc
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) $(PROD_LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-linux-amd64 ./cmd/wpmcp
 	@echo "${YELLOW}Building Linux ARM64...${RESET}"
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) $(PROD_LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-linux-arm64 ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) $(PROD_LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-linux-arm64 ./cmd/wpxmlrpc
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) $(PROD_LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-linux-arm64 ./cmd/wpmcp
 	@echo "${YELLOW}Building FreeBSD AMD64...${RESET}"
 	CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-freebsd-amd64 ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-freebsd-amd64 ./cmd/wpxmlrpc
+	CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-freebsd-amd64 ./cmd/wpmcp
 	@echo "${YELLOW}Building FreeBSD ARM64...${RESET}"
 	CGO_ENABLED=0 GOOS=freebsd GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-freebsd-arm64 ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=freebsd GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-freebsd-arm64 ./cmd/wpxmlrpc
+	CGO_ENABLED=0 GOOS=freebsd GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-freebsd-arm64 ./cmd/wpmcp
 	@echo "${YELLOW}Building macOS AMD64...${RESET}"
 	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-darwin-amd64 ./cmd/wpxmlrpc
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-darwin-amd64 ./cmd/wpmcp
 	@echo "${YELLOW}Building macOS ARM64...${RESET}"
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-darwin-arm64 ./cmd/wpxmlrpc
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-darwin-arm64 ./cmd/wpmcp
 	@echo "${YELLOW}Building Windows AMD64...${RESET}"
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-windows-amd64.exe ./cmd/wpxmlrpc
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-windows-amd64.exe ./cmd/wpmcp
 	@echo "${YELLOW}Building Windows ARM64...${RESET}"
 	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-windows-arm64.exe ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-windows-arm64.exe ./cmd/wpxmlrpc
+	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-windows-arm64.exe ./cmd/wpmcp
 	@echo "${GREEN}Release binaries built in $(DIST_DIR)/${RESET}"
 	@ls -la $(DIST_DIR)/
 
@@ -173,7 +193,7 @@ package: release ## Create basic TAR.GZ distribution packages
 			if [ "$$os" = "windows" ]; then ext=".exe"; fi; \
 			if [ -f $(DIST_DIR)/$(BINARY_NAME)-$$os-$$arch$$ext ]; then \
 				tar -czf $(DIST_DIR)/packages/$(APP_NAME)-$(VERSION)-$$os-$$arch.tar.gz \
-					-C $(DIST_DIR) $(BINARY_NAME)-$$os-$$arch$$ext $(XMLRPC_BINARY)-$$os-$$arch$$ext \
+					-C $(DIST_DIR) $(BINARY_NAME)-$$os-$$arch$$ext $(XMLRPC_BINARY)-$$os-$$arch$$ext $(MCP_BINARY)-$$os-$$arch$$ext \
 					-C .. README.md CHANGELOG.md config.example.yaml; \
 			fi; \
 		done; \

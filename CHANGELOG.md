@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-02-05
+
+### Added
+- **MCP Server (wpmcp)**: New Model Context Protocol server for AI assistant integration
+  - Enables Claude and other MCP-compatible AI assistants to interact with WordPress sites
+  - 8 tools: `list_formats`, `get_site_info`, `list_posts`, `list_pages`, `export_site`, `get_post`, `list_categories`, `list_media`
+  - JSON-RPC 2.0 protocol over stdio
+  - Basic Auth and Bearer token authentication support
+  - Optimized timeouts and retries for fast AI interactions
+- **Makefile Updates**: Added `wpmcp` to build, install, and release targets
+- **Comprehensive MCP Tests**: 51 unit tests for protocol, server, and tools
+
 ## [1.4.0] - 2026-02-04
 
 ### Added
