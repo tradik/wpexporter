@@ -555,7 +555,14 @@ func TestShopifyExporter_ConvertPostToShopifyProduct(t *testing.T) {
 
 	assert.Equal(t, "test-post", product.Handle)
 	assert.Equal(t, "Test Post Title", product.Title)
-	assert.Equal(t, "<p>Test content</p>", product.BodyHTML)
+	// BodyHTML should contain metadata section + content
+	assert.Contains(t, product.BodyHTML, "<div class=\"post-metadata\"")
+	assert.Contains(t, product.BodyHTML, "<p><strong>ID:</strong> 1</p>")
+	assert.Contains(t, product.BodyHTML, "<p><strong>Slug:</strong> test-post</p>")
+	assert.Contains(t, product.BodyHTML, "<p><strong>Author:</strong> Test Author</p>")
+	assert.Contains(t, product.BodyHTML, "<p><strong>Categories:</strong> Technology</p>")
+	assert.Contains(t, product.BodyHTML, "<p><strong>Tags:</strong> Go, Programming</p>")
+	assert.Contains(t, product.BodyHTML, "<p>Test content</p>")
 	assert.Equal(t, "Test Author", product.Vendor)
 	assert.Equal(t, "Technology", product.Type)
 	assert.Equal(t, "Go, Programming", product.Tags)

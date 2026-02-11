@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-02-11
+
+### Added
+- **Shopify Export Metadata**: Shopify export now includes post metadata in the HTML body content
+  - Published date and last modified date
+  - Author name
+  - Categories and tags
+  - Original URL link
+  - Styled metadata section with consistent formatting
+
 ## [1.5.0] - 2026-02-05
 
 ### Added

@@ -409,14 +409,19 @@ func (s *ShopifyExporter) convertPostToShopifyProduct(post models.WordPressPost)
 	// Get tags as comma-separated string
 	tags := s.getTagsString(post.Tags)
 
+	// Get category names for metadata
+	categoryNames := s.getCategoryNames(post.Categories)
+
 	// Determine publish status
 	published := s.isPublished(post.Status)
 
 	// Get featured image
 	imageURL, imageAlt := s.getFeaturedImage(post.FeaturedMedia)
 
-	// Clean content for Shopify (keep HTML, just clean up)
-	bodyHTML := s.cleanHTMLForShopify(post.Content.Rendered)
+	// Build body HTML with metadata header and content
+	metadataHTML := s.generateMetadataHTML(post, vendor, categoryNames, tags)
+	contentHTML := s.cleanHTMLForShopify(post.Content.Rendered)
+	bodyHTML := metadataHTML + contentHTML
 
 	// Generate SEO fields
 	seoTitle := s.truncateString(post.Title.Rendered, 70)
@@ -600,6 +605,88 @@ func (s *ShopifyExporter) getTagsString(tagIDs []int) string {
 	}
 
 	return strings.Join(tags, ", ")
+}
+
+// getCategoryNames returns a comma-separated string of category names.
+func (s *ShopifyExporter) getCategoryNames(categoryIDs []int) string {
+	if len(categoryIDs) == 0 {
+		return ""
+	}
+
+	var categories []string
+	for _, catID := range categoryIDs {
+		if cat, exists := s.categoryMap[catID]; exists {
+			categories = append(categories, cat.Name)
+		}
+	}
+
+	return strings.Join(categories, ", ")
+}
+
+// generateMetadataHTML generates an HTML metadata section for the post content.
+// Fields match the Markdown frontmatter for consistency across export formats.
+func (s *ShopifyExporter) generateMetadataHTML(post models.WordPressPost, author, categories, tags string) string {
+	var builder strings.Builder
+
+	builder.WriteString("<div class=\"post-metadata\" style=\"margin-bottom: 20px; padding: 15px; ")
+	builder.WriteString("background-color: #f9f9f9; border-left: 4px solid #0073aa;\">\n")
+
+	// ID
+	builder.WriteString(fmt.Sprintf("<p><strong>ID:</strong> %d</p>\n", post.ID))
+
+	// Slug
+	if post.Slug != "" {
+		builder.WriteString(fmt.Sprintf("<p><strong>Slug:</strong> %s</p>\n", post.Slug))
+	}
+
+	// Date
+	if !post.Date.IsZero() {
+		builder.WriteString(fmt.Sprintf("<p><strong>Date:</strong> %s</p>\n", post.Date.Format("2006-01-02T15:04:05Z07:00")))
+	}
+
+	// Modified date
+	if !post.Modified.IsZero() {
+		builder.WriteString(fmt.Sprintf("<p><strong>Modified:</strong> %s</p>\n", post.Modified.Format("2006-01-02T15:04:05Z07:00")))
+	}
+
+	// Status
+	if post.Status != "" {
+		builder.WriteString(fmt.Sprintf("<p><strong>Status:</strong> %s</p>\n", post.Status))
+	}
+
+	// Type
+	if post.Type != "" {
+		builder.WriteString(fmt.Sprintf("<p><strong>Type:</strong> %s</p>\n", post.Type))
+	}
+
+	// Link
+	if post.Link != "" {
+		builder.WriteString(fmt.Sprintf("<p><strong>Link:</strong> <a href=\"%s\">%s</a></p>\n", post.Link, post.Link))
+	}
+
+	// Author
+	if author != "" && author != "WordPress" {
+		builder.WriteString(fmt.Sprintf("<p><strong>Author:</strong> %s</p>\n", author))
+	}
+
+	// Featured Media
+	if post.FeaturedMedia > 0 {
+		builder.WriteString(fmt.Sprintf("<p><strong>Featured Media:</strong> %d</p>\n", post.FeaturedMedia))
+	}
+
+	// Categories
+	if categories != "" {
+		builder.WriteString(fmt.Sprintf("<p><strong>Categories:</strong> %s</p>\n", categories))
+	}
+
+	// Tags
+	if tags != "" {
+		builder.WriteString(fmt.Sprintf("<p><strong>Tags:</strong> %s</p>\n", tags))
+	}
+
+	builder.WriteString("</div>\n\n")
+
+	return builder.String()
 }
 
 // isPublished returns "TRUE" or "FALSE" based on post status.
