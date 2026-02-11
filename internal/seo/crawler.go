@@ -248,47 +248,48 @@ func (c *Crawler) extractOGContent(html, property string) string {
 func (c *Crawler) extractHreflangs(html string) []models.HreflangLink {
 	var hreflangs []models.HreflangLink
 
-	// Pattern: <link rel="alternate" hreflang="..." href="...">
-	// Handles both attribute orders
-	pattern := regexp.MustCompile(
-		`(?i)<link[^>]+rel\s*=\s*["']alternate["'][^>]+hreflang\s*=\s*["']([^"']+)["'][^>]+href\s*=\s*["']([^"']+)["']`)
-	matches := pattern.FindAllStringSubmatch(html, -1)
-	for _, match := range matches {
-		if len(match) > 2 {
+	// Find all <link> tags that contain both rel="alternate" and hreflang
+	linkPattern := regexp.MustCompile(`(?i)<link\s+[^>]*rel\s*=\s*["']alternate["'][^>]*>`)
+	linkMatches := linkPattern.FindAllString(html, -1)
+
+	// Also try pattern where rel comes later in the tag
+	linkPattern2 := regexp.MustCompile(`(?i)<link\s+[^>]*hreflang\s*=\s*["'][^"']+["'][^>]*>`)
+	linkMatches2 := linkPattern2.FindAllString(html, -1)
+
+	// Combine and deduplicate link tags
+	allLinks := append(linkMatches, linkMatches2...)
+	seenLinks := make(map[string]bool)
+	var uniqueLinks []string
+	for _, link := range allLinks {
+		if !seenLinks[link] {
+			seenLinks[link] = true
+			uniqueLinks = append(uniqueLinks, link)
+		}
+	}
+
+	// Extract hreflang and href from each link tag
+	hreflangPattern := regexp.MustCompile(`(?i)hreflang\s*=\s*["']([^"']+)["']`)
+	hrefPattern := regexp.MustCompile(`(?i)href\s*=\s*["']([^"']+)["']`)
+	relAlternatePattern := regexp.MustCompile(`(?i)rel\s*=\s*["']alternate["']`)
+
+	for _, link := range uniqueLinks {
+		// Must have rel="alternate"
+		if !relAlternatePattern.MatchString(link) {
+			continue
+		}
+
+		hreflangMatch := hreflangPattern.FindStringSubmatch(link)
+		hrefMatch := hrefPattern.FindStringSubmatch(link)
+
+		if len(hreflangMatch) > 1 && len(hrefMatch) > 1 {
 			hreflangs = append(hreflangs, models.HreflangLink{
-				Lang: strings.TrimSpace(match[1]),
-				Href: strings.TrimSpace(match[2]),
+				Lang: strings.TrimSpace(hreflangMatch[1]),
+				Href: strings.TrimSpace(hrefMatch[1]),
 			})
 		}
 	}
 
-	// Try reverse order: hreflang before rel
-	pattern2 := regexp.MustCompile(
-		`(?i)<link[^>]+hreflang\s*=\s*["']([^"']+)["'][^>]+rel\s*=\s*["']alternate["'][^>]+href\s*=\s*["']([^"']+)["']`)
-	matches2 := pattern2.FindAllStringSubmatch(html, -1)
-	for _, match := range matches2 {
-		if len(match) > 2 {
-			hreflangs = append(hreflangs, models.HreflangLink{
-				Lang: strings.TrimSpace(match[1]),
-				Href: strings.TrimSpace(match[2]),
-			})
-		}
-	}
-
-	// Try href first: <link href="..." rel="alternate" hreflang="...">
-	pattern3 := regexp.MustCompile(
-		`(?i)<link[^>]+href\s*=\s*["']([^"']+)["'][^>]+rel\s*=\s*["']alternate["'][^>]+hreflang\s*=\s*["']([^"']+)["']`)
-	matches3 := pattern3.FindAllStringSubmatch(html, -1)
-	for _, match := range matches3 {
-		if len(match) > 2 {
-			hreflangs = append(hreflangs, models.HreflangLink{
-				Lang: strings.TrimSpace(match[2]),
-				Href: strings.TrimSpace(match[1]),
-			})
-		}
-	}
-
-	// Deduplicate
+	// Deduplicate results
 	seen := make(map[string]bool)
 	var unique []models.HreflangLink
 	for _, h := range hreflangs {

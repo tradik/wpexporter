@@ -797,3 +797,99 @@ func TestEnrichPostsWithSEOAndContent_EmptyPosts(t *testing.T) {
 	result := c.EnrichPostsWithSEOAndContent(posts)
 	assert.Len(t, result, 0)
 }
+
+func TestExtractHreflangs(t *testing.T) {
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	// Real-world example from hilo.com
+	html := `<!DOCTYPE html>
+<html>
+<head>
+<link rel="alternate" hreflang="de-de" href="https://hilo.com/de/art/schlaf-blutdruck-gesundheit-wohlbefinden/" />
+<link rel="alternate" hreflang="en-gb" href="https://hilo.com/uk/art/blood-pressure-at-night/" />
+<link rel="alternate" hreflang="de-ch" href="https://hilo.com/ch/art/schlaf-blutdruck-gesundheit-wohlbefinden/" />
+<link rel="alternate" hreflang="it-it" href="https://hilo.com/it/art/unisci-puntini-sonno-pressione-sanguigna/" />
+<link rel="alternate" hreflang="en-ca" href="https://hilo.com/ca/art/blood-pressure-at-night/" />
+<link rel="alternate" hreflang="es-es" href="https://hilo.com/es/art/sueno-presion-arterial-salud-bienestar/" />
+<link rel="alternate" hreflang="en-au" href="https://hilo.com/au/art/blood-pressure-at-night/" />
+<link rel="alternate" hreflang="fr-fr" href="https://hilo.com/fr/art/sommeil-tension-arterielle-sante/" />
+</head>
+<body></body>
+</html>`
+
+	hreflangs := c.extractHreflangs(html)
+
+	assert.Len(t, hreflangs, 8)
+
+	// Check specific entries
+	langMap := make(map[string]string)
+	for _, h := range hreflangs {
+		langMap[h.Lang] = h.Href
+	}
+
+	assert.Equal(t, "https://hilo.com/de/art/schlaf-blutdruck-gesundheit-wohlbefinden/", langMap["de-de"])
+	assert.Equal(t, "https://hilo.com/uk/art/blood-pressure-at-night/", langMap["en-gb"])
+	assert.Equal(t, "https://hilo.com/fr/art/sommeil-tension-arterielle-sante/", langMap["fr-fr"])
+}
+
+func TestExtractHreflangs_Empty(t *testing.T) {
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	html := `<html><head><link rel="canonical" href="https://example.com/" /></head></html>`
+
+	hreflangs := c.extractHreflangs(html)
+	assert.Len(t, hreflangs, 0)
+}
+
+func TestExtractHreflangs_DifferentAttributeOrder(t *testing.T) {
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	// Different attribute orders
+	html := `<html><head>
+<link href="https://example.com/de/" hreflang="de" rel="alternate" />
+<link hreflang="fr" rel="alternate" href="https://example.com/fr/" />
+<link rel="alternate" href="https://example.com/es/" hreflang="es" />
+</head></html>`
+
+	hreflangs := c.extractHreflangs(html)
+
+	assert.Len(t, hreflangs, 3)
+
+	langMap := make(map[string]string)
+	for _, h := range hreflangs {
+		langMap[h.Lang] = h.Href
+	}
+
+	assert.Equal(t, "https://example.com/de/", langMap["de"])
+	assert.Equal(t, "https://example.com/fr/", langMap["fr"])
+	assert.Equal(t, "https://example.com/es/", langMap["es"])
+}
+
+func TestExtractSEO_WithHreflangs(t *testing.T) {
+	html := `<!DOCTYPE html>
+<html>
+<head>
+<title>Test Page</title>
+<link rel="alternate" hreflang="en" href="https://example.com/en/" />
+<link rel="alternate" hreflang="de" href="https://example.com/de/" />
+</head>
+<body></body>
+</html>`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(html))
+	}))
+	defer server.Close()
+
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	seo := c.extractSEO(server.URL)
+
+	assert.Equal(t, "Test Page", seo.Title)
+	assert.Len(t, seo.Hreflangs, 2)
+}
