@@ -185,6 +185,9 @@ func (c *Crawler) extractSEO(pageURL string) models.SEOData {
 	// Extract canonical URL
 	seo.CanonicalURL = c.extractCanonical(html)
 
+	// Extract page language
+	seo.Lang = c.extractLang(html)
+
 	// Extract hreflang alternate links
 	seo.Hreflangs = c.extractHreflangs(html)
 
@@ -301,6 +304,26 @@ func (c *Crawler) extractHreflangs(html string) []models.HreflangLink {
 	}
 
 	return unique
+}
+
+// extractLang extracts the language from <html lang="..."> tag
+func (c *Crawler) extractLang(html string) string {
+	// Pattern: <html lang="en"> or <html lang="en-GB">
+	pattern := regexp.MustCompile(`(?i)<html[^>]+lang\s*=\s*["']([^"']+)["']`)
+	matches := pattern.FindStringSubmatch(html)
+	if len(matches) > 1 {
+		return strings.TrimSpace(matches[1])
+	}
+
+	// Also try Content-Language meta tag
+	metaPattern := regexp.MustCompile(
+		`(?i)<meta[^>]+http-equiv\s*=\s*["']Content-Language["'][^>]+content\s*=\s*["']([^"']+)["']`)
+	matches = metaPattern.FindStringSubmatch(html)
+	if len(matches) > 1 {
+		return strings.TrimSpace(matches[1])
+	}
+
+	return ""
 }
 
 // extractCanonical extracts the canonical URL from a link tag
@@ -485,6 +508,8 @@ func (c *Crawler) extractSEOAndContent(pageURL string, extractContent bool) Craw
 	result.SEO.OGDescription = c.extractOGContent(html, "og:description")
 	result.SEO.OGImage = c.extractOGContent(html, "og:image")
 	result.SEO.CanonicalURL = c.extractCanonical(html)
+	result.SEO.Lang = c.extractLang(html)
+	result.SEO.Hreflangs = c.extractHreflangs(html)
 
 	// Extract content only if needed
 	if extractContent {

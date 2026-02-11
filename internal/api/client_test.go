@@ -271,9 +271,7 @@ func TestGetPostByID(t *testing.T) {
 
 	if result == nil {
 		t.Fatal("GetPostByID() should return post for existing ID")
-	}
-
-	if result.ID != 123 {
+	} else if result.ID != 123 {
 		t.Errorf("GetPostByID() ID = %d, want %d", result.ID, 123)
 	}
 
@@ -717,14 +715,13 @@ func TestGetPageByID(t *testing.T) {
 
 	if result == nil {
 		t.Fatal("GetPageByID() should return page for existing ID")
-	}
-
-	if result.ID != 456 {
-		t.Errorf("GetPageByID() ID = %d, want %d", result.ID, 456)
-	}
-
-	if result.Type != "page" {
-		t.Errorf("GetPageByID() Type = %s, want %s", result.Type, "page")
+	} else {
+		if result.ID != 456 {
+			t.Errorf("GetPageByID() ID = %d, want %d", result.ID, 456)
+		}
+		if result.Type != "page" {
+			t.Errorf("GetPageByID() Type = %s, want %s", result.Type, "page")
+		}
 	}
 }
 
@@ -768,14 +765,13 @@ func TestGetMediaByID(t *testing.T) {
 
 	if result == nil {
 		t.Fatal("GetMediaByID() should return media for existing ID")
-	}
-
-	if result.ID != 789 {
-		t.Errorf("GetMediaByID() ID = %d, want %d", result.ID, 789)
-	}
-
-	if result.MimeType != "image/png" {
-		t.Errorf("GetMediaByID() MimeType = %s, want %s", result.MimeType, "image/png")
+	} else {
+		if result.ID != 789 {
+			t.Errorf("GetMediaByID() ID = %d, want %d", result.ID, 789)
+		}
+		if result.MimeType != "image/png" {
+			t.Errorf("GetMediaByID() MimeType = %s, want %s", result.MimeType, "image/png")
+		}
 	}
 }
 

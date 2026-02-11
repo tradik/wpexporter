@@ -684,6 +684,11 @@ func (s *ShopifyExporter) generateMetadataHTML(post models.WordPressPost, author
 		builder.WriteString(fmt.Sprintf("<p><strong>Tags:</strong> %s</p>\n", tags))
 	}
 
+	// Language
+	if post.SEO.Lang != "" {
+		builder.WriteString(fmt.Sprintf("<p><strong>Lang:</strong> %s</p>\n", post.SEO.Lang))
+	}
+
 	// Hreflangs
 	if len(post.SEO.Hreflangs) > 0 {
 		builder.WriteString("<p><strong>Hreflangs:</strong></p>\n<ul>\n")

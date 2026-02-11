@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.5.1] - 2026-02-11
+## [1.6.0] - 2026-02-11
 
 ### Added
 - **Shopify Export Metadata**: Shopify export now includes post metadata in the HTML body content
@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Hreflang Extraction**: `--assisted-crawl` now extracts hreflang alternate links
   - Captures language codes and URLs from `<link rel="alternate" hreflang="...">` tags
   - Included in both Markdown frontmatter and Shopify HTML metadata
+- **Language Extraction**: `--assisted-crawl` now extracts content language
+  - Captures language from `<html lang="...">` or `<meta http-equiv="Content-Language">`
+  - Included in both Markdown frontmatter (`lang: "en-gb"`) and Shopify HTML metadata
 
 ## [1.5.0] - 2026-02-05
 

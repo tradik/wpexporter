@@ -893,3 +893,138 @@ func TestExtractSEO_WithHreflangs(t *testing.T) {
 	assert.Equal(t, "Test Page", seo.Title)
 	assert.Len(t, seo.Hreflangs, 2)
 }
+
+func TestExtractSEOAndContent_WithHreflangs(t *testing.T) {
+	html := `<!DOCTYPE html>
+<html>
+<head>
+<title>Test Page With Content</title>
+<link rel="alternate" hreflang="en-gb" href="https://example.com/uk/" />
+<link rel="alternate" hreflang="de-de" href="https://example.com/de/" />
+<link rel="alternate" hreflang="fr-fr" href="https://example.com/fr/" />
+</head>
+<body>
+<main><p>This is the main content of the page that should be extracted along with hreflangs.</p></main>
+</body>
+</html>`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(html))
+	}))
+	defer server.Close()
+
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	// Test extractSEOAndContent (used when both --assisted-crawl and --crawl-content)
+	result := c.extractSEOAndContent(server.URL, true)
+
+	assert.Equal(t, "Test Page With Content", result.SEO.Title)
+	assert.Len(t, result.SEO.Hreflangs, 3)
+	assert.Contains(t, result.Content, "main content")
+
+	// Verify specific hreflang entries
+	langMap := make(map[string]string)
+	for _, h := range result.SEO.Hreflangs {
+		langMap[h.Lang] = h.Href
+	}
+	assert.Equal(t, "https://example.com/uk/", langMap["en-gb"])
+	assert.Equal(t, "https://example.com/de/", langMap["de-de"])
+	assert.Equal(t, "https://example.com/fr/", langMap["fr-fr"])
+}
+
+func TestExtractLang(t *testing.T) {
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	tests := []struct {
+		name     string
+		html     string
+		expected string
+	}{
+		{
+			name:     "html lang attribute",
+			html:     `<html lang="en-GB"><head></head></html>`,
+			expected: "en-GB",
+		},
+		{
+			name:     "html lang lowercase",
+			html:     `<html lang="de"><head></head></html>`,
+			expected: "de",
+		},
+		{
+			name:     "Content-Language meta",
+			html:     `<html><head><meta http-equiv="Content-Language" content="fr-FR"></head></html>`,
+			expected: "fr-FR",
+		},
+		{
+			name:     "no language",
+			html:     `<html><head></head></html>`,
+			expected: "",
+		},
+		{
+			name:     "html lang with other attributes",
+			html:     `<html class="no-js" lang="es-ES" dir="ltr"><head></head></html>`,
+			expected: "es-ES",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := c.extractLang(tt.html)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestExtractSEO_WithLang(t *testing.T) {
+	html := `<!DOCTYPE html>
+<html lang="de-DE">
+<head>
+<title>German Page</title>
+</head>
+<body></body>
+</html>`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(html))
+	}))
+	defer server.Close()
+
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	seo := c.extractSEO(server.URL)
+
+	assert.Equal(t, "German Page", seo.Title)
+	assert.Equal(t, "de-DE", seo.Lang)
+}
+
+func TestExtractSEOAndContent_WithLang(t *testing.T) {
+	html := `<!DOCTYPE html>
+<html lang="fr-FR">
+<head>
+<title>French Page</title>
+</head>
+<body>
+<main><p>Contenu en français qui doit être extrait correctement pour le test.</p></main>
+</body>
+</html>`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(html))
+	}))
+	defer server.Close()
+
+	cfg := config.DefaultConfig()
+	c := NewCrawler(cfg)
+
+	result := c.extractSEOAndContent(server.URL, true)
+
+	assert.Equal(t, "French Page", result.SEO.Title)
+	assert.Equal(t, "fr-FR", result.SEO.Lang)
+	assert.Contains(t, result.Content, "Contenu en français")
+}

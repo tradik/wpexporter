@@ -54,6 +54,7 @@ type SEOData struct {
 	OGDescription   string         `json:"og_description,omitempty"`
 	OGImage         string         `json:"og_image,omitempty"`
 	CanonicalURL    string         `json:"canonical_url,omitempty"`
+	Lang            string         `json:"lang,omitempty"`
 	Hreflangs       []HreflangLink `json:"hreflangs,omitempty"`
 }
 

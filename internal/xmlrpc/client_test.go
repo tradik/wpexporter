@@ -223,9 +223,7 @@ func TestGetSiteInfo(t *testing.T) {
 
 	if siteInfo == nil {
 		t.Fatal("GetSiteInfo() should return non-nil site info")
-	}
-
-	if siteInfo.URL != server.URL {
+	} else if siteInfo.URL != server.URL {
 		t.Errorf("GetSiteInfo() URL = %v, want %v", siteInfo.URL, server.URL)
 	}
 }
@@ -607,9 +605,7 @@ func TestMakeRequest(t *testing.T) {
 
 	if resp == nil {
 		t.Fatal("makeRequest() should return non-nil response")
-	}
-
-	if len(resp.Params) == 0 {
+	} else if len(resp.Params) == 0 {
 		t.Error("makeRequest() should return response with params")
 	}
 }
