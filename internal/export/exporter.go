@@ -492,6 +492,13 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 	if post.SEO.CanonicalURL != "" {
 		builder.WriteString(fmt.Sprintf("canonical_url: \"%s\"\n", e.escapeYAML(post.SEO.CanonicalURL)))
 	}
+	if len(post.SEO.Hreflangs) > 0 {
+		builder.WriteString("hreflangs:\n")
+		for _, h := range post.SEO.Hreflangs {
+			builder.WriteString(fmt.Sprintf("  - lang: \"%s\"\n", h.Lang))
+			builder.WriteString(fmt.Sprintf("    href: \"%s\"\n", e.escapeYAML(h.Href)))
+		}
+	}
 
 	builder.WriteString("---\n\n")
 

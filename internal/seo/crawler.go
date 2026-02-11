@@ -185,6 +185,9 @@ func (c *Crawler) extractSEO(pageURL string) models.SEOData {
 	// Extract canonical URL
 	seo.CanonicalURL = c.extractCanonical(html)
 
+	// Extract hreflang alternate links
+	seo.Hreflangs = c.extractHreflangs(html)
+
 	return seo
 }
 
@@ -239,6 +242,64 @@ func (c *Crawler) extractOGContent(html, property string) string {
 	}
 
 	return ""
+}
+
+// extractHreflangs extracts all hreflang alternate links from the HTML
+func (c *Crawler) extractHreflangs(html string) []models.HreflangLink {
+	var hreflangs []models.HreflangLink
+
+	// Pattern: <link rel="alternate" hreflang="..." href="...">
+	// Handles both attribute orders
+	pattern := regexp.MustCompile(
+		`(?i)<link[^>]+rel\s*=\s*["']alternate["'][^>]+hreflang\s*=\s*["']([^"']+)["'][^>]+href\s*=\s*["']([^"']+)["']`)
+	matches := pattern.FindAllStringSubmatch(html, -1)
+	for _, match := range matches {
+		if len(match) > 2 {
+			hreflangs = append(hreflangs, models.HreflangLink{
+				Lang: strings.TrimSpace(match[1]),
+				Href: strings.TrimSpace(match[2]),
+			})
+		}
+	}
+
+	// Try reverse order: hreflang before rel
+	pattern2 := regexp.MustCompile(
+		`(?i)<link[^>]+hreflang\s*=\s*["']([^"']+)["'][^>]+rel\s*=\s*["']alternate["'][^>]+href\s*=\s*["']([^"']+)["']`)
+	matches2 := pattern2.FindAllStringSubmatch(html, -1)
+	for _, match := range matches2 {
+		if len(match) > 2 {
+			hreflangs = append(hreflangs, models.HreflangLink{
+				Lang: strings.TrimSpace(match[1]),
+				Href: strings.TrimSpace(match[2]),
+			})
+		}
+	}
+
+	// Try href first: <link href="..." rel="alternate" hreflang="...">
+	pattern3 := regexp.MustCompile(
+		`(?i)<link[^>]+href\s*=\s*["']([^"']+)["'][^>]+rel\s*=\s*["']alternate["'][^>]+hreflang\s*=\s*["']([^"']+)["']`)
+	matches3 := pattern3.FindAllStringSubmatch(html, -1)
+	for _, match := range matches3 {
+		if len(match) > 2 {
+			hreflangs = append(hreflangs, models.HreflangLink{
+				Lang: strings.TrimSpace(match[2]),
+				Href: strings.TrimSpace(match[1]),
+			})
+		}
+	}
+
+	// Deduplicate
+	seen := make(map[string]bool)
+	var unique []models.HreflangLink
+	for _, h := range hreflangs {
+		key := h.Lang + "|" + h.Href
+		if !seen[key] {
+			seen[key] = true
+			unique = append(unique, h)
+		}
+	}
+
+	return unique
 }
 
 // extractCanonical extracts the canonical URL from a link tag

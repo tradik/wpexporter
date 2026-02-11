@@ -39,15 +39,22 @@ func (wt *WordPressTime) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// HreflangLink represents a single hreflang alternate link
+type HreflangLink struct {
+	Lang string `json:"lang"`
+	Href string `json:"href"`
+}
+
 // SEOData holds extracted SEO metadata from page crawling
 type SEOData struct {
-	Title           string `json:"seo_title,omitempty"`
-	MetaDescription string `json:"meta_description,omitempty"`
-	MetaKeywords    string `json:"meta_keywords,omitempty"`
-	OGTitle         string `json:"og_title,omitempty"`
-	OGDescription   string `json:"og_description,omitempty"`
-	OGImage         string `json:"og_image,omitempty"`
-	CanonicalURL    string `json:"canonical_url,omitempty"`
+	Title           string         `json:"seo_title,omitempty"`
+	MetaDescription string         `json:"meta_description,omitempty"`
+	MetaKeywords    string         `json:"meta_keywords,omitempty"`
+	OGTitle         string         `json:"og_title,omitempty"`
+	OGDescription   string         `json:"og_description,omitempty"`
+	OGImage         string         `json:"og_image,omitempty"`
+	CanonicalURL    string         `json:"canonical_url,omitempty"`
+	Hreflangs       []HreflangLink `json:"hreflangs,omitempty"`
 }
 
 // WordPressPost represents a WordPress post or page

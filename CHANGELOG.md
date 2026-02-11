@@ -9,11 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Shopify Export Metadata**: Shopify export now includes post metadata in the HTML body content
-  - Published date and last modified date
+  - ID, slug, date, modified, status, type
+  - Link to original URL
   - Author name
+  - Featured media ID
   - Categories and tags
-  - Original URL link
-  - Styled metadata section with consistent formatting
+  - Hreflang alternate links (when using `--assisted-crawl`)
+  - Styled metadata section matching Markdown frontmatter fields
+- **Hreflang Extraction**: `--assisted-crawl` now extracts hreflang alternate links
+  - Captures language codes and URLs from `<link rel="alternate" hreflang="...">` tags
+  - Included in both Markdown frontmatter and Shopify HTML metadata
 
 ## [1.5.0] - 2026-02-05
 
