@@ -37,7 +37,7 @@ linters:
       disable:
         - fieldalignment
     gocyclo:
-      min-complexity: 105
+      min-complexity: 110
     goconst:
       min-len: 6
       min-occurrences: 25

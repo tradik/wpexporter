@@ -188,6 +188,44 @@ func initConfig() {
 	// Configuration will be loaded in runExport
 }
 
+// getDirSize calculates the total size of a directory
+func getDirSize(path string) (int64, error) {
+	var size int64
+	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			size += info.Size()
+		}
+		return nil
+	})
+	return size, err
+}
+
+// getFileSize returns the size of a file
+func getFileSize(path string) (int64, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
+}
+
+// formatFileSize formats bytes into human-readable size
+func formatFileSize(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
 // promptPassword prompts the user to enter a password securely (hidden input)
 func promptPassword(prompt string) (string, error) {
 	fmt.Print(prompt)
@@ -662,7 +700,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// Print summary
 	duration := time.Since(startTime)
 	logf("\n=== Export Summary ===\n")
-	logf("Site: %s\n", siteInfo.Name)
+	logf("Site: %s (%s)\n", siteInfo.Name, siteInfo.URL)
 	logf("Posts: %d\n", len(posts))
 	logf("Pages: %d\n", len(pages))
 	logf("Products: %d\n", len(products))
@@ -681,7 +719,22 @@ func runExport(cmd *cobra.Command, args []string) error {
 
 	logf("Duration: %v\n", duration)
 
+	// Calculate and display file sizes
+	if !cfg.NoFiles {
+		if totalSize, err := getDirSize(cfg.Output); err == nil {
+			logf("Export size: %s\n", formatFileSize(totalSize))
+		}
+		// Calculate media folder size separately if it exists
+		mediaDir := filepath.Join(cfg.Output, "media")
+		if mediaSize, err := getDirSize(mediaDir); err == nil && mediaSize > 0 {
+			logf("Media size: %s\n", formatFileSize(mediaSize))
+		}
+	}
+
 	if cfg.CreateZip {
+		if zipSize, err := getFileSize(zipPath); err == nil {
+			logf("ZIP size: %s\n", formatFileSize(zipSize))
+		}
 		logf("ZIP: %s\n", zipPath)
 		if !cfg.NoFiles {
 			logf("Output: %s\n", cfg.Output)

@@ -304,6 +304,8 @@ The `--assisted-crawl` option enables extraction of SEO metadata by crawling act
 | `og_description` | `<meta property="og:description">` |
 | `og_image` | `<meta property="og:image">` |
 | `canonical_url` | `<link rel="canonical">` |
+| `lang` | `<html lang="...">` or `<meta http-equiv="Content-Language">` |
+| `hreflangs` | `<link rel="alternate" hreflang="...">` (all language variants) |
 
 ### Usage Example
 
@@ -652,6 +654,14 @@ seo_title: "SEO Optimized Title | Site Name"
 meta_description: "A compelling description for search engines..."
 og_title: "Title for Social Sharing"
 og_image: "https://example.com/social-image.jpg"
+lang: "en-US"
+hreflangs:
+  - lang: "en-US"
+    href: "https://example.com/post/"
+  - lang: "de-DE"
+    href: "https://example.com/de/post/"
+  - lang: "fr-FR"
+    href: "https://example.com/fr/post/"
 # ... other fields
 ---
 ```
@@ -925,6 +935,8 @@ WordPress content is mapped to Shopify product fields as follows:
 | Featured Image | Image Src |
 | Post Excerpt | SEO Description |
 | Post ID | Variant SKU (format: WP-{id}) |
+
+**Note:** The Body (HTML) field includes a styled metadata header with post details (ID, slug, dates, status, author, categories, tags, and hreflang links when available via `--assisted-crawl`).
 
 ### Usage Example
 

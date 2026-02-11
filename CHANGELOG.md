@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.6.0] - 2026-02-11
 
 ### Added
+- **Export Size Reporting**: Export summary now displays file sizes
+  - Total export directory size
+  - Media folder size (when media is downloaded)
+  - ZIP archive size (when using `--zip`)
+  - Human-readable format (B, KB, MB, GB)
 - **Shopify Export Metadata**: Shopify export now includes post metadata in the HTML body content
   - ID, slug, date, modified, status, type
   - Link to original URL
