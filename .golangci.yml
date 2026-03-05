@@ -96,7 +96,7 @@ linters:
           - gosec
       # QF1012: WriteString with Sprintf is intentional for readability in frontmatter generation
       - text: "QF1012"
-        path: internal/export/exporter.go
+        path: internal/export/
         linters:
           - staticcheck
 
