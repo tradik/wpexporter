@@ -70,7 +70,10 @@ jobs:
       - name: Run Gosec Security Scanner
         uses: securego/gosec@master
         with:
-          args: "./..."
+          # G703: Path traversal - expected as tool saves to user-specified paths
+          # G704: SSRF - expected as tool makes requests to user-provided WordPress URLs
+          # G117: Secret patterns - auth tokens are intentionally configurable
+          args: "-exclude=G703,G704,G117 ./..."
 
   build:
     runs-on: ubuntu-latest
