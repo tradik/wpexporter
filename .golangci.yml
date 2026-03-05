@@ -87,6 +87,17 @@ linters:
         path: internal/export/contentful_exporter.go
         linters:
           - unparam
+      # G703: Path traversal - expected as tool saves to user-specified paths
+      # G704: SSRF - expected as tool makes requests to user-provided WordPress URLs
+      # G117: Secret patterns - auth tokens are intentionally configurable
+      - text: "G703|G704|G117"
+        linters:
+          - gosec
+      # QF1012: WriteString with Sprintf is intentional for readability in frontmatter generation
+      - text: "QF1012"
+        path: internal/export/exporter.go
+        linters:
+          - staticcheck
 
 formatters:
   enable:
