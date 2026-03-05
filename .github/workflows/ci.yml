@@ -73,7 +73,8 @@ jobs:
           # G703: Path traversal - expected as tool saves to user-specified paths
           # G704: SSRF - expected as tool makes requests to user-provided WordPress URLs
           # G117: Secret patterns - auth tokens are intentionally configurable
-          args: "-exclude=G703,G704,G117 ./..."
+          # G122: filepath.Walk TOCTOU - acceptable for zip archive creation
+          args: "-exclude=G703,G704,G117,G122 ./..."
 
   build:
     runs-on: ubuntu-latest
