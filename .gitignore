@@ -44,6 +44,7 @@ downloads/
 *.log
 config.yaml
 config.json
+scripts/export-*.sh
 
 # Temporary files
 tmp/

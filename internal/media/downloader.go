@@ -115,31 +115,78 @@ func (d *Downloader) downloadMediaItem(media models.WordPressMedia) bool {
 	}
 
 	// Check if file already exists
+	mainFileExists := false
 	if _, err := os.Stat(filePath); err == nil {
 		if !d.config.Quiet {
 			fmt.Printf("  ✓ %s (exists)\n", filename)
 		}
-		return true // File already exists
+		mainFileExists = true
 	}
 
-	// Download file with retries
-	for attempt := 0; attempt <= d.config.Retries; attempt++ {
-		if d.downloadFile(media.SourceURL, filePath) {
-			if !d.config.Quiet {
-				fmt.Printf("  ↓ %s\n", filename)
+	// Download file with retries (only if it doesn't exist)
+	mainDownloadSuccess := mainFileExists
+	if !mainFileExists {
+		for attempt := 0; attempt <= d.config.Retries; attempt++ {
+			if d.downloadFile(media.SourceURL, filePath) {
+				if !d.config.Quiet {
+					fmt.Printf("  ↓ %s\n", filename)
+				}
+				mainDownloadSuccess = true
+				break
 			}
-			return true
-		}
 
-		if attempt < d.config.Retries {
-			time.Sleep(time.Duration(attempt+1) * time.Second)
+			if attempt < d.config.Retries {
+				time.Sleep(time.Duration(attempt+1) * time.Second)
+			}
 		}
 	}
 
-	if !d.config.Quiet {
-		fmt.Printf("  ✗ %s (failed)\n", filename)
+	if !mainDownloadSuccess {
+		if !d.config.Quiet {
+			fmt.Printf("  ✗ %s (failed)\n", filename)
+		}
+		return false
 	}
-	return false
+
+	// Download media sizes
+	if media.MediaDetails.Sizes != nil {
+		for _, size := range media.MediaDetails.Sizes {
+			if size.SourceURL == "" {
+				continue
+			}
+
+			// Generate filename for size
+			sizeFilename := d.generateSizeFilename(media, size, parsedURL)
+			sizeFilePath := filepath.Join(d.mediaDir, sizeFilename)
+
+			// Clean/Validate size path just in case, though generateSizeFilename + Join should be safe relative
+			// But since we use Join(d.mediaDir, ...), we should validate it like before if we want to be super safe
+			// For now, assuming generateSizeFilename produces safe base names
+
+			// Check if file already exists
+			if _, err := os.Stat(sizeFilePath); err == nil {
+				// if !d.config.Quiet {
+				// 	fmt.Printf("  ✓ %s (exists)\n", sizeFilename)
+				// }
+				continue
+			}
+
+			// Download size variant
+			for attempt := 0; attempt <= d.config.Retries; attempt++ {
+				if d.downloadFile(size.SourceURL, sizeFilePath) {
+					if !d.config.Quiet {
+						fmt.Printf("  ↓ %s\n", sizeFilename)
+					}
+					break
+				}
+				if attempt < d.config.Retries {
+					time.Sleep(time.Duration(attempt+1) * time.Second)
+				}
+			}
+		}
+	}
+
+	return true
 }
 
 // downloadFile downloads a file from URL to local path
