@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 
+	"github.com/tradik/wpexporter/internal/cache"
 	"github.com/tradik/wpexporter/internal/checkpoint"
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/pkg/models"
@@ -23,6 +24,7 @@ type Client struct {
 	config     *config.Config
 	httpClient *resty.Client
 	baseURL    string
+	cache      *cache.FileCache // Optional cache (nil if disabled)
 }
 
 // NewClient creates a new WordPress API client
@@ -69,7 +71,13 @@ func NewClient(cfg *config.Config) (*Client, error) {
 		config:     cfg,
 		httpClient: httpClient,
 		baseURL:    baseURL,
+		cache:      nil, // Set via SetCache()
 	}, nil
+}
+
+// SetCache sets the cache for the client
+func (c *Client) SetCache(cache *cache.FileCache) {
+	c.cache = cache
 }
 
 // applyRateLimit applies delay between API requests if rate limiting is configured
@@ -79,8 +87,48 @@ func (c *Client) applyRateLimit() {
 	}
 }
 
+// getFromCache tries to get data from cache
+func (c *Client) getFromCache(key string, target interface{}) bool {
+	if c.cache == nil {
+		return false
+	}
+
+	data, found, err := c.cache.Get(key)
+	if err != nil || !found {
+		return false
+	}
+
+	if err := json.Unmarshal(data, target); err != nil {
+		return false
+	}
+
+	return true
+}
+
+// saveToCache saves data to cache
+func (c *Client) saveToCache(key string, data interface{}) {
+	if c.cache == nil {
+		return
+	}
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return
+	}
+
+	_ = c.cache.Set(key, jsonData)
+}
+
 // GetSiteInfo retrieves WordPress site information
 func (c *Client) GetSiteInfo() (*models.SiteInfo, error) {
+	cacheKey := cache.GenerateAPIKey("site_info", 0)
+
+	// Try cache first
+	var cachedInfo models.SiteInfo
+	if c.getFromCache(cacheKey, &cachedInfo) {
+		return &cachedInfo, nil
+	}
+
 	settingsURL := strings.Replace(c.baseURL, "/wp/v2", "", 1) + "/wp/v2/settings"
 
 	resp, err := c.httpClient.R().Get(settingsURL)
@@ -105,21 +153,64 @@ func (c *Client) GetSiteInfo() (*models.SiteInfo, error) {
 		}
 	}
 
+	// Cache the result
+	c.saveToCache(cacheKey, &siteInfo)
+
 	return &siteInfo, nil
 }
 
 // GetPosts retrieves all posts with pagination
 func (c *Client) GetPosts() ([]models.WordPressPost, error) {
-	return c.getAllContent("posts")
+	cacheKey := cache.GenerateAPIKey("posts", 0)
+
+	// Try cache first
+	var cachedPosts []models.WordPressPost
+	if c.getFromCache(cacheKey, &cachedPosts) {
+		return cachedPosts, nil
+	}
+
+	posts, err := c.getAllContent("posts")
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the result
+	c.saveToCache(cacheKey, posts)
+
+	return posts, nil
 }
 
 // GetPages retrieves all pages with pagination
 func (c *Client) GetPages() ([]models.WordPressPost, error) {
-	return c.getAllContent("pages")
+	cacheKey := cache.GenerateAPIKey("pages", 0)
+
+	// Try cache first
+	var cachedPages []models.WordPressPost
+	if c.getFromCache(cacheKey, &cachedPages) {
+		return cachedPages, nil
+	}
+
+	pages, err := c.getAllContent("pages")
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the result
+	c.saveToCache(cacheKey, pages)
+
+	return pages, nil
 }
 
 // GetProducts retrieves all WooCommerce products with pagination
 func (c *Client) GetProducts() ([]models.WooCommerceProduct, error) {
+	cacheKey := cache.GenerateAPIKey("products", 0)
+
+	// Try cache first
+	var cachedProducts []models.WooCommerceProduct
+	if c.getFromCache(cacheKey, &cachedProducts) {
+		return cachedProducts, nil
+	}
+
 	var allProducts []models.WooCommerceProduct
 	page := 1
 	perPage := 100
@@ -179,11 +270,22 @@ func (c *Client) GetProducts() ([]models.WooCommerceProduct, error) {
 		page++
 	}
 
+	// Cache the result
+	c.saveToCache(cacheKey, allProducts)
+
 	return allProducts, nil
 }
 
 // GetMedia retrieves all media items with pagination
 func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
+	cacheKey := cache.GenerateAPIKey("media", 0)
+
+	// Try cache first
+	var cachedMedia []models.WordPressMedia
+	if c.getFromCache(cacheKey, &cachedMedia) {
+		return cachedMedia, nil
+	}
+
 	var allMedia []models.WordPressMedia
 	page := 1
 	perPage := 100
@@ -223,11 +325,22 @@ func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
 		page++
 	}
 
+	// Cache the result
+	c.saveToCache(cacheKey, allMedia)
+
 	return allMedia, nil
 }
 
 // GetCategories retrieves all categories
 func (c *Client) GetCategories() ([]models.WordPressCategory, error) {
+	cacheKey := cache.GenerateAPIKey("categories", 0)
+
+	// Try cache first
+	var cachedCategories []models.WordPressCategory
+	if c.getFromCache(cacheKey, &cachedCategories) {
+		return cachedCategories, nil
+	}
+
 	var allCategories []models.WordPressCategory
 	page := 1
 	perPage := 100
@@ -266,11 +379,22 @@ func (c *Client) GetCategories() ([]models.WordPressCategory, error) {
 		page++
 	}
 
+	// Cache the result
+	c.saveToCache(cacheKey, allCategories)
+
 	return allCategories, nil
 }
 
 // GetTags retrieves all tags
 func (c *Client) GetTags() ([]models.WordPressTag, error) {
+	cacheKey := cache.GenerateAPIKey("tags", 0)
+
+	// Try cache first
+	var cachedTags []models.WordPressTag
+	if c.getFromCache(cacheKey, &cachedTags) {
+		return cachedTags, nil
+	}
+
 	var allTags []models.WordPressTag
 	page := 1
 	perPage := 100
@@ -309,11 +433,22 @@ func (c *Client) GetTags() ([]models.WordPressTag, error) {
 		page++
 	}
 
+	// Cache the result
+	c.saveToCache(cacheKey, allTags)
+
 	return allTags, nil
 }
 
 // GetUsers retrieves all users
 func (c *Client) GetUsers() ([]models.WordPressUser, error) {
+	cacheKey := cache.GenerateAPIKey("users", 0)
+
+	// Try cache first
+	var cachedUsers []models.WordPressUser
+	if c.getFromCache(cacheKey, &cachedUsers) {
+		return cachedUsers, nil
+	}
+
 	var allUsers []models.WordPressUser
 	page := 1
 	perPage := 100
@@ -351,6 +486,9 @@ func (c *Client) GetUsers() ([]models.WordPressUser, error) {
 		allUsers = append(allUsers, users...)
 		page++
 	}
+
+	// Cache the result
+	c.saveToCache(cacheKey, allUsers)
 
 	return allUsers, nil
 }

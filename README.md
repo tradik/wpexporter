@@ -60,6 +60,10 @@ A comprehensive WordPress content export toolkit with three powerful application
 git clone https://github.com/tradik/wpexporter.git
 cd wpexporter
 make build
+
+# Optional: Install man pages (requires sudo)
+sudo make install-man
+man wpexportjson
 ```
 
 ### Using Go Install
@@ -259,7 +263,8 @@ wpexportjson export --config config.yaml
 <tr><td><code>--max-id</code></td><td>Maximum ID for brute force</td><td><code>10000</code></td></tr>
 <tr><td><code>--download-media</code></td><td>Download images and videos</td><td><code>true</code></td></tr>
 <tr><td><code>--no-media</code></td><td>Disable media downloads (alias for --download-media=false)</td><td><code>false</code></td></tr>
-<tr><td><code>--relevant-media-only</code></td><td>Download only featured images and content images</td><td><code>false</code></td></tr>
+<tr><td><code>--relevant-media-only</code></td><td>Download only featured images and media linked in content (images, PDFs, videos, etc.)</td><td><code>false</code></td></tr>
+<tr><td><code>--exclude-media-types</code></td><td>Media types to skip (comma-separated: images,videos,audio,documents,archives,pdf,gif)</td><td>-</td></tr>
 <tr><td><code>--concurrent</code></td><td>Concurrent downloads</td><td><code>5</code></td></tr>
 <tr><td><code>--zip</code></td><td>Create ZIP archive of export</td><td><code>false</code></td></tr>
 <tr><td><code>--no-files</code></td><td>Remove export files after creating ZIP (requires --zip)</td><td><code>false</code></td></tr>
@@ -270,7 +275,11 @@ wpexportjson export --config config.yaml
 <tr><td><code>--no-tags</code></td><td>Skip exporting tags</td><td><code>false</code></td></tr>
 <tr><td><code>--path-filter</code></td><td>Filter posts/pages by URL path pattern (e.g., /fr/arts/)</td><td>-</td></tr>
 <tr><td><code>--flat-html</code></td><td>Convert HTML to Markdown (Bricks Builder, Elementor support)</td><td><code>false</code></td></tr>
+<tr><td><code>--basic-html</code></td><td>Clean HTML to basic elements (tables, lists, links - for Shopify)</td><td><code>false</code></td></tr>
+<tr><td><code>--preserve-classes</code></td><td>CSS classes to preserve from HTML processing (comma-separated, supports wildcards like <code>klaviyo-form-*</code>)</td><td>-</td></tr>
+<tr><td><code>--preserve-ids</code></td><td>Element IDs to preserve from HTML processing (comma-separated, supports wildcards)</td><td>-</td></tr>
 <tr><td><code>--assisted-crawl</code></td><td>Crawl URLs to extract SEO metadata (title, description, og tags)</td><td><code>false</code></td></tr>
+<tr><td><code>--exclude-tags</code></td><td>SEO tags to exclude (comma-separated: title,meta:description,og:title,canonical,lang,hreflangs)</td><td>-</td></tr>
 <tr><td><code>--crawl-content</code></td><td>Crawl pages with empty content (Bricks, Elementor page builders)</td><td><code>false</code></td></tr>
 <tr><td><code>--skip-empty-content</code></td><td>Skip posts/pages with empty content from export</td><td><code>false</code></td></tr>
 <tr><td><code>--auth-user</code></td><td>Username for Basic Auth (prompts for password if --auth-pass not provided)</td><td>-</td></tr>
@@ -318,6 +327,9 @@ wpexportjson export --url https://example.com --path-filter=/blog/ --assisted-cr
 
 # With authentication for protected sites
 wpexportjson export --url https://example.com --auth-user admin --auth-pass secret --assisted-crawl
+
+# Exclude specific SEO tags from extraction
+wpexportjson export --url https://example.com --assisted-crawl --exclude-tags 'meta:description,og:title'
 
 # With rate limiting to prevent server overload (500ms delay between requests)
 wpexportjson export --url https://example.com --rate-limit 500 -f markdown
@@ -398,6 +410,42 @@ flat_html_rules:
 - `class` (required): CSS class to match
 - `tag` (optional): HTML tag to match (e.g., "div", "span")
 - `markdown`: Output template where `{content}` is replaced with the element's text
+
+### Preserving HTML Elements
+
+Use `--preserve-classes` and `--preserve-ids` to keep certain elements intact during HTML processing with `--flat-html` or `--basic-html`. This is useful for:
+
+- Newsletter signup forms (Klaviyo, Mailchimp)
+- Embedded widgets and third-party scripts
+- Custom interactive elements you don't want converted
+
+```bash
+# Preserve Klaviyo forms (with wildcard)
+wpexportjson export --url https://example.com --basic-html \
+  --preserve-classes "klaviyo-form-*"
+
+# Preserve specific elements by ID
+wpexportjson export --url https://example.com --flat-html \
+  --preserve-ids "newsletter-form,sidebar-widget"
+
+# Combine classes and IDs (comma-separated)
+wpexportjson export --url https://example.com --basic-html \
+  --preserve-classes "klaviyo-form-*,mailchimp-widget" \
+  --preserve-ids "contact-form"
+```
+
+**Wildcard support:**
+- `klaviyo-form-*` matches `klaviyo-form-XL7uTf`, `klaviyo-form-ABC123`, etc.
+- `brxe-*-section` matches `brxe-hero-section`, `brxe-footer-section`, etc.
+
+**Configuration file:**
+```yaml
+preserve_classes:
+  - "klaviyo-form-*"
+  - "mailchimp-widget"
+preserve_ids:
+  - "newsletter-form"
+```
 
 ### Page Builder Configuration Examples
 
@@ -662,8 +710,13 @@ hreflangs:
     href: "https://example.com/de/post/"
   - lang: "fr-FR"
     href: "https://example.com/fr/post/"
+excerpt: "A brief summary of the post content..."
 # ... other fields
 ---
+
+# Post Title
+
+The full post content follows directly after the frontmatter...
 ```
 
 ## 📦 Gutenberg Blocks Support
@@ -775,7 +828,7 @@ WordPress generates multiple image sizes (thumbnail, medium, large, full). The e
 
 ### 🎯 Selective Media with `--relevant-media-only`
 
-For sites with large media libraries, use `--relevant-media-only` to download only used images:
+For sites with large media libraries, use `--relevant-media-only` to download only used media:
 
 ```bash
 wpexportjson export --url https://example.com --relevant-media-only -f markdown
@@ -788,13 +841,15 @@ wpexportjson export --url https://example.com --relevant-media-only -f markdown
 | Featured images | ✅ Yes | Referenced by `featured_media` field |
 | Content images | ✅ Yes | Found in `<img>` tags within content |
 | Excerpt images | ✅ Yes | Found in `<img>` tags within excerpt |
+| Linked PDFs/documents | ✅ Yes | Found in `<a href>` tags (pdf, docx, xlsx, etc.) |
+| Linked videos | ✅ Yes | Found in `<a href>` tags (mp4, webm, avi, etc.) |
+| Linked archives | ✅ Yes | Found in `<a href>` tags (zip, rar, 7z, etc.) |
 | Unused library items | ❌ No | Not referenced by any post/page |
-| PDFs, videos, documents | ❌ No | Only images are filtered |
 
 **Benefits:**
 - 📉 Significantly reduces export size
 - ⚡ Faster export for content-heavy sites
-- 🎯 Only relevant assets are included
+- 🎯 Only relevant assets are included (images, documents, videos)
 
 ### 💡 Examples
 

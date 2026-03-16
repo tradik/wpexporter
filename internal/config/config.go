@@ -36,14 +36,25 @@ type Config struct {
 	AuthUser          string         `mapstructure:"auth_user" json:"auth_user"`
 	AuthPass          string         `mapstructure:"auth_pass" json:"auth_pass"`
 	AuthToken         string         `mapstructure:"auth_token" json:"auth_token"`
-	RateLimit         int            `mapstructure:"rate_limit" json:"rate_limit"`                 // Milliseconds delay between API requests
-	Resume            bool           `mapstructure:"resume" json:"resume"`                         // Resume from checkpoint if available
-	CrawlContent      bool           `mapstructure:"crawl_content" json:"crawl_content"`           // Crawl pages with empty content to extract HTML
-	SkipEmptyContent  bool           `mapstructure:"skip_empty_content" json:"skip_empty_content"` // Skip posts/pages with empty content
-	FlatHTML          bool           `mapstructure:"flat_html" json:"flat_html"`                   // Convert HTML to Markdown
-	NoTags            bool           `mapstructure:"no_tags" json:"no_tags"`                       // Skip exporting tags
-	Quiet             bool           `mapstructure:"quiet" json:"quiet"`                           // Suppress all output
+	RateLimit         int            `mapstructure:"rate_limit" json:"rate_limit"`                             // Milliseconds delay between API requests
+	Resume            bool           `mapstructure:"resume" json:"resume"`                                     // Resume from checkpoint if available
+	CrawlContent      bool           `mapstructure:"crawl_content" json:"crawl_content"`                       // Crawl empty content pages
+	SkipEmptyContent  bool           `mapstructure:"skip_empty_content" json:"skip_empty_content"`             // Skip posts/pages with empty content
+	FlatHTML          bool           `mapstructure:"flat_html" json:"flat_html"`                               // Convert HTML to Markdown
+	BasicHTML         bool           `mapstructure:"basic_html" json:"basic_html"`                             // Clean HTML to basic elements
+	KeepOriginalURLs  bool           `mapstructure:"keep_original_urls" json:"keep_original_urls"`             // Don't convert media URLs to local paths
+	NoTags            bool           `mapstructure:"no_tags" json:"no_tags"`                                   // Skip exporting tags
+	Quiet             bool           `mapstructure:"quiet" json:"quiet"`                                       // Suppress all output
+	NoIDs             bool           `mapstructure:"no_ids" json:"no_ids"`                                     // Exclude numeric IDs from frontmatter
+	ExcludeTags       []string       `mapstructure:"exclude_tags" json:"exclude_tags,omitempty"`               // SEO tags to exclude from extraction
+	ExcludeMediaTypes []string       `mapstructure:"exclude_media_types" json:"exclude_media_types,omitempty"` // Media types to exclude from download
+	PreserveClasses   []string       `mapstructure:"preserve_classes" json:"preserve_classes,omitempty"`       // Classes to preserve
+	PreserveIDs       []string       `mapstructure:"preserve_ids" json:"preserve_ids,omitempty"`               // IDs to preserve
 	FlatHTMLRules     []FlatHTMLRule `mapstructure:"flat_html_rules" json:"flat_html_rules,omitempty"`
+	Cache             bool           `mapstructure:"cache" json:"cache"`             // Enable caching of API responses and crawl data
+	CacheTTL          string         `mapstructure:"cache_ttl" json:"cache_ttl"`     // Cache TTL (e.g., "24h", "0" for unlimited)
+	CacheDir          string         `mapstructure:"cache_dir" json:"cache_dir"`     // Cache directory path
+	CacheClear        bool           `mapstructure:"cache_clear" json:"cache_clear"` // Clear cache before export
 }
 
 // FlatHTMLRule defines a custom HTML to Markdown conversion rule
@@ -91,6 +102,10 @@ func DefaultConfig() *Config {
 		SkipEmptyContent:  false, // Don't skip empty content by default
 		FlatHTML:          false, // Don't flatten HTML by default
 		NoTags:            false, // Don't skip tags by default
+		Cache:             false, // Caching disabled by default
+		CacheTTL:          "24h", // 24 hour cache TTL by default
+		CacheDir:          "",    // Will default to ~/.wpexporter/cache
+		CacheClear:        false, // Don't clear cache by default
 	}
 }
 
@@ -167,8 +182,41 @@ func LoadConfig(configFile string) (*Config, error) {
 	if err := viper.BindEnv("flat_html", "WPEXPORT_FLAT_HTML"); err != nil {
 		return nil, fmt.Errorf("failed to bind flat_html environment variable: %w", err)
 	}
+	if err := viper.BindEnv("basic_html", "WPEXPORT_BASIC_HTML"); err != nil {
+		return nil, fmt.Errorf("failed to bind basic_html environment variable: %w", err)
+	}
+	if err := viper.BindEnv("keep_original_urls", "WPEXPORT_KEEP_ORIGINAL_URLS"); err != nil {
+		return nil, fmt.Errorf("failed to bind keep_original_urls environment variable: %w", err)
+	}
 	if err := viper.BindEnv("no_tags", "WPEXPORT_NO_TAGS"); err != nil {
 		return nil, fmt.Errorf("failed to bind no_tags environment variable: %w", err)
+	}
+	if err := viper.BindEnv("no_ids", "WPEXPORT_NO_IDS"); err != nil {
+		return nil, fmt.Errorf("failed to bind no_ids environment variable: %w", err)
+	}
+	if err := viper.BindEnv("exclude_tags", "WPEXPORT_EXCLUDE_TAGS"); err != nil {
+		return nil, fmt.Errorf("failed to bind exclude_tags environment variable: %w", err)
+	}
+	if err := viper.BindEnv("exclude_media_types", "WPEXPORT_EXCLUDE_MEDIA_TYPES"); err != nil {
+		return nil, fmt.Errorf("failed to bind exclude_media_types environment variable: %w", err)
+	}
+	if err := viper.BindEnv("preserve_classes", "WPEXPORT_PRESERVE_CLASSES"); err != nil {
+		return nil, fmt.Errorf("failed to bind preserve_classes environment variable: %w", err)
+	}
+	if err := viper.BindEnv("preserve_ids", "WPEXPORT_PRESERVE_IDS"); err != nil {
+		return nil, fmt.Errorf("failed to bind preserve_ids environment variable: %w", err)
+	}
+	if err := viper.BindEnv("cache", "WPEXPORT_CACHE"); err != nil {
+		return nil, fmt.Errorf("failed to bind cache environment variable: %w", err)
+	}
+	if err := viper.BindEnv("cache_ttl", "WPEXPORT_CACHE_TTL"); err != nil {
+		return nil, fmt.Errorf("failed to bind cache_ttl environment variable: %w", err)
+	}
+	if err := viper.BindEnv("cache_dir", "WPEXPORT_CACHE_DIR"); err != nil {
+		return nil, fmt.Errorf("failed to bind cache_dir environment variable: %w", err)
+	}
+	if err := viper.BindEnv("cache_clear", "WPEXPORT_CACHE_CLEAR"); err != nil {
+		return nil, fmt.Errorf("failed to bind cache_clear environment variable: %w", err)
 	}
 
 	// Load config file if specified

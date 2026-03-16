@@ -96,6 +96,14 @@ func (d *Downloader) downloadMediaItem(media models.WordPressMedia) bool {
 		return false
 	}
 
+	// Check if media type should be excluded
+	if d.shouldExcludeMedia(media) {
+		if d.config.Verbose {
+			fmt.Printf("  ⊘ Skipping excluded type: %s (%s)\n", media.MimeType, media.SourceURL)
+		}
+		return false
+	}
+
 	// Parse URL to get filename
 	parsedURL, err := url.Parse(media.SourceURL)
 	if err != nil {
@@ -105,12 +113,21 @@ func (d *Downloader) downloadMediaItem(media models.WordPressMedia) bool {
 		return false
 	}
 
-	// Generate filename
+	// Generate filename (includes subfolder like images/123_file.jpg)
 	filename := d.generateFilename(media, parsedURL)
 	filePath := filepath.Join(d.mediaDir, filename)
 
 	// Validate file path
 	if !filepath.IsAbs(filePath) {
+		return false
+	}
+
+	// Ensure subfolder exists
+	fileDir := filepath.Dir(filePath)
+	if err := os.MkdirAll(fileDir, 0750); err != nil {
+		if d.config.Verbose {
+			fmt.Printf("Failed to create directory %s: %v\n", fileDir, err)
+		}
 		return false
 	}
 
@@ -155,19 +172,18 @@ func (d *Downloader) downloadMediaItem(media models.WordPressMedia) bool {
 				continue
 			}
 
-			// Generate filename for size
+			// Generate filename for size (includes subfolder)
 			sizeFilename := d.generateSizeFilename(media, size, parsedURL)
 			sizeFilePath := filepath.Join(d.mediaDir, sizeFilename)
 
-			// Clean/Validate size path just in case, though generateSizeFilename + Join should be safe relative
-			// But since we use Join(d.mediaDir, ...), we should validate it like before if we want to be super safe
-			// For now, assuming generateSizeFilename produces safe base names
+			// Ensure subfolder exists for size variant
+			sizeDir := filepath.Dir(sizeFilePath)
+			if err := os.MkdirAll(sizeDir, 0750); err != nil {
+				continue
+			}
 
 			// Check if file already exists
 			if _, err := os.Stat(sizeFilePath); err == nil {
-				// if !d.config.Quiet {
-				// 	fmt.Printf("  ✓ %s (exists)\n", sizeFilename)
-				// }
 				continue
 			}
 
@@ -280,7 +296,7 @@ func (d *Downloader) validateFilePath(filePath string) error {
 	return nil
 }
 
-// generateFilename generates a unique filename for a media item
+// generateFilename generates a unique filename for a media item with subfolder by type
 func (d *Downloader) generateFilename(media models.WordPressMedia, parsedURL *url.URL) string {
 	// Get original filename from URL
 	originalName := filepath.Base(parsedURL.Path)
@@ -299,7 +315,117 @@ func (d *Downloader) generateFilename(media models.WordPressMedia, parsedURL *ur
 	ext := filepath.Ext(name)
 	nameWithoutExt := strings.TrimSuffix(name, ext)
 
-	return fmt.Sprintf("%d_%s%s", media.ID, nameWithoutExt, ext)
+	// Get subfolder based on MIME type
+	subfolder := d.getSubfolderForMimeType(media.MimeType)
+
+	return filepath.Join(subfolder, fmt.Sprintf("%d_%s%s", media.ID, nameWithoutExt, ext))
+}
+
+// getSubfolderForMimeType returns the appropriate subfolder based on MIME type
+func (d *Downloader) getSubfolderForMimeType(mimeType string) string {
+	if strings.HasPrefix(mimeType, "image/") {
+		return "images"
+	}
+	if strings.HasPrefix(mimeType, "video/") {
+		return "videos"
+	}
+	if strings.HasPrefix(mimeType, "audio/") {
+		return "audio"
+	}
+
+	// Document types
+	documentTypes := []string{
+		"application/pdf",
+		"application/msword",
+		"application/vnd.openxmlformats-officedocument",
+		"application/vnd.ms-excel",
+		"application/vnd.ms-powerpoint",
+		"application/vnd.oasis.opendocument",
+		"text/plain",
+		"text/csv",
+		"text/markdown",
+		"application/epub",
+	}
+	for _, docType := range documentTypes {
+		if strings.HasPrefix(mimeType, docType) {
+			return "documents"
+		}
+	}
+
+	// Archive types
+	archiveTypes := []string{
+		"application/zip",
+		"application/x-zip",
+		"application/x-rar",
+		"application/vnd.rar",
+		"application/x-7z",
+		"application/x-tar",
+		"application/gzip",
+		"application/x-gzip",
+		"application/x-bzip",
+		"application/x-xz",
+		"application/x-compressed",
+	}
+	for _, archiveType := range archiveTypes {
+		if strings.HasPrefix(mimeType, archiveType) {
+			return "archives"
+		}
+	}
+
+	// Code/text types
+	codeTypes := []string{
+		"text/html",
+		"text/css",
+		"text/javascript",
+		"application/javascript",
+		"application/json",
+		"text/xml",
+		"application/xml",
+	}
+	for _, codeType := range codeTypes {
+		if mimeType == codeType {
+			return "code"
+		}
+	}
+
+	return "other"
+}
+
+// shouldExcludeMedia checks if a media item should be excluded based on config
+func (d *Downloader) shouldExcludeMedia(media models.WordPressMedia) bool {
+	if d.config == nil || len(d.config.ExcludeMediaTypes) == 0 {
+		return false
+	}
+
+	mimeType := media.MimeType
+	subfolder := d.getSubfolderForMimeType(mimeType)
+	ext := d.getExtensionFromMimeType(mimeType)
+
+	for _, exclude := range d.config.ExcludeMediaTypes {
+		exclude = strings.ToLower(exclude)
+
+		// Check by category (images, videos, audio, documents, archives, code, other)
+		if exclude == subfolder {
+			return true
+		}
+
+		// Check by extension (without dot)
+		if "."+exclude == ext {
+			return true
+		}
+
+		// Check by MIME type prefix (e.g., "image", "video", "audio")
+		if strings.HasPrefix(mimeType, exclude+"/") {
+			return true
+		}
+
+		// Check exact MIME type match
+		if mimeType == exclude {
+			return true
+		}
+	}
+
+	return false
 }
 
 // sanitizeFilename removes invalid characters from filename
@@ -325,26 +451,97 @@ func (d *Downloader) sanitizeFilename(filename string) string {
 // getExtensionFromMimeType returns file extension based on MIME type
 func (d *Downloader) getExtensionFromMimeType(mimeType string) string {
 	extensions := map[string]string{
-		"image/jpeg":      ".jpg",
-		"image/jpg":       ".jpg",
-		"image/png":       ".png",
-		"image/gif":       ".gif",
-		"image/webp":      ".webp",
-		"image/svg+xml":   ".svg",
-		"image/bmp":       ".bmp",
-		"image/tiff":      ".tiff",
-		"video/mp4":       ".mp4",
-		"video/avi":       ".avi",
-		"video/mov":       ".mov",
-		"video/wmv":       ".wmv",
-		"video/flv":       ".flv",
-		"video/webm":      ".webm",
-		"audio/mp3":       ".mp3",
-		"audio/wav":       ".wav",
-		"audio/ogg":       ".ogg",
+		// Images
+		"image/jpeg":    ".jpg",
+		"image/jpg":     ".jpg",
+		"image/png":     ".png",
+		"image/gif":     ".gif",
+		"image/webp":    ".webp",
+		"image/svg+xml": ".svg",
+		"image/bmp":     ".bmp",
+		"image/tiff":    ".tiff",
+		"image/x-icon":  ".ico",
+		"image/avif":    ".avif",
+		"image/heic":    ".heic",
+		"image/heif":    ".heif",
+
+		// Video
+		"video/mp4":        ".mp4",
+		"video/mpeg":       ".mpeg",
+		"video/avi":        ".avi",
+		"video/x-msvideo":  ".avi",
+		"video/quicktime":  ".mov",
+		"video/x-ms-wmv":   ".wmv",
+		"video/x-flv":      ".flv",
+		"video/webm":       ".webm",
+		"video/x-matroska": ".mkv",
+		"video/3gpp":       ".3gp",
+		"video/3gpp2":      ".3g2",
+		"video/ogg":        ".ogv",
+		"video/x-m4v":      ".m4v",
+
+		// Audio
+		"audio/mpeg":     ".mp3",
+		"audio/mp3":      ".mp3",
+		"audio/wav":      ".wav",
+		"audio/x-wav":    ".wav",
+		"audio/ogg":      ".ogg",
+		"audio/flac":     ".flac",
+		"audio/x-flac":   ".flac",
+		"audio/aac":      ".aac",
+		"audio/mp4":      ".m4a",
+		"audio/x-m4a":    ".m4a",
+		"audio/webm":     ".weba",
+		"audio/x-ms-wma": ".wma",
+		"audio/midi":     ".midi",
+		"audio/x-midi":   ".midi",
+		"audio/x-aiff":   ".aiff",
+
+		// Documents - PDF
 		"application/pdf": ".pdf",
-		"text/plain":      ".txt",
-		"application/zip": ".zip",
+
+		// Documents - Microsoft Office
+		"application/msword": ".doc",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+		"application/vnd.ms-excel": ".xls",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":         ".xlsx",
+		"application/vnd.ms-powerpoint":                                             ".ppt",
+		"application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+
+		// Documents - OpenDocument
+		"application/vnd.oasis.opendocument.text":         ".odt",
+		"application/vnd.oasis.opendocument.spreadsheet":  ".ods",
+		"application/vnd.oasis.opendocument.presentation": ".odp",
+
+		// Archives
+		"application/zip":              ".zip",
+		"application/x-zip-compressed": ".zip",
+		"application/x-rar-compressed": ".rar",
+		"application/vnd.rar":          ".rar",
+		"application/x-7z-compressed":  ".7z",
+		"application/x-tar":            ".tar",
+		"application/gzip":             ".gz",
+		"application/x-gzip":           ".gz",
+		"application/x-bzip2":          ".bz2",
+		"application/x-xz":             ".xz",
+		"application/x-compressed-tar": ".tar.gz",
+
+		// Text and code
+		"text/plain":             ".txt",
+		"text/html":              ".html",
+		"text/css":               ".css",
+		"text/javascript":        ".js",
+		"application/javascript": ".js",
+		"application/json":       ".json",
+		"text/xml":               ".xml",
+		"application/xml":        ".xml",
+		"text/csv":               ".csv",
+		"text/markdown":          ".md",
+
+		// Other
+		"application/octet-stream":      ".bin",
+		"application/x-shockwave-flash": ".swf",
+		"application/epub+zip":          ".epub",
 	}
 
 	if ext, exists := extensions[mimeType]; exists {
@@ -414,5 +611,8 @@ func (d *Downloader) generateSizeFilename(media models.WordPressMedia, size mode
 	ext := filepath.Ext(name)
 	nameWithoutExt := strings.TrimSuffix(name, ext)
 
-	return fmt.Sprintf("%d_%s%s", media.ID, nameWithoutExt, ext)
+	// Get subfolder based on MIME type (sizes are always images)
+	subfolder := d.getSubfolderForMimeType(media.MimeType)
+
+	return filepath.Join(subfolder, fmt.Sprintf("%d_%s%s", media.ID, nameWithoutExt, ext))
 }

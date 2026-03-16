@@ -436,3 +436,139 @@ func TestConvertOrderedList(t *testing.T) {
 	assert.Contains(t, result, "2. Second")
 	assert.Contains(t, result, "3. Third")
 }
+
+func TestNewConverterWithOptions(t *testing.T) {
+	preserveOpts := &PreserveOptions{
+		Classes: []string{"keep-me"},
+		IDs:     []string{"preserved-id"},
+	}
+
+	c := NewConverterWithOptions(nil, preserveOpts)
+	assert.NotNil(t, c)
+	assert.NotNil(t, c.preserveOptions)
+	assert.Equal(t, []string{"keep-me"}, c.preserveOptions.Classes)
+	assert.Equal(t, []string{"preserved-id"}, c.preserveOptions.IDs)
+}
+
+func TestConvert_PreserveClasses(t *testing.T) {
+	preserveOpts := &PreserveOptions{
+		Classes: []string{"klaviyo-form", "keep-intact"},
+	}
+	c := NewConverterWithOptions(nil, preserveOpts)
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "preserves element with exact class",
+			input:    `<div class="klaviyo-form">Subscribe form</div><p>Regular text</p>`,
+			expected: `<div class="klaviyo-form">Subscribe form</div>`,
+		},
+		{
+			name:     "preserves element with class among others",
+			input:    `<div class="wrapper klaviyo-form signup">Form content</div>`,
+			expected: `<div class="wrapper klaviyo-form signup">Form content</div>`,
+		},
+		{
+			name:     "preserves multiple matching elements",
+			input:    `<div class="keep-intact">First</div><p>Text</p><span class="keep-intact">Second</span>`,
+			expected: `<div class="keep-intact">First</div>`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := c.Convert(tt.input)
+			assert.Contains(t, result, tt.expected)
+		})
+	}
+}
+
+func TestConvert_PreserveIDs(t *testing.T) {
+	preserveOpts := &PreserveOptions{
+		IDs: []string{"newsletter-form", "sidebar-widget"},
+	}
+	c := NewConverterWithOptions(nil, preserveOpts)
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "preserves element with exact ID",
+			input:    `<div id="newsletter-form">Subscribe</div><p>Text</p>`,
+			expected: `<div id="newsletter-form">Subscribe</div>`,
+		},
+		{
+			name:     "preserves element with ID and other attributes",
+			input:    `<div id="sidebar-widget" class="widget">Widget content</div>`,
+			expected: `<div id="sidebar-widget" class="widget">Widget content</div>`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := c.Convert(tt.input)
+			assert.Contains(t, result, tt.expected)
+		})
+	}
+}
+
+func TestConvert_PreserveWildcard(t *testing.T) {
+	preserveOpts := &PreserveOptions{
+		Classes: []string{"klaviyo-form-*", "brxe-*-section"},
+	}
+	c := NewConverterWithOptions(nil, preserveOpts)
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "preserves element with wildcard suffix",
+			input:    `<div class="klaviyo-form-XL7uTf">Form</div><p>Text</p>`,
+			expected: `<div class="klaviyo-form-XL7uTf">Form</div>`,
+		},
+		{
+			name:     "preserves element with wildcard middle",
+			input:    `<div class="brxe-hero-section">Hero</div>`,
+			expected: `<div class="brxe-hero-section">Hero</div>`,
+		},
+		{
+			name:     "preserves various wildcard matches",
+			input:    `<div class="klaviyo-form-ABC123">First</div><div class="klaviyo-form-XYZ789">Second</div>`,
+			expected: `klaviyo-form-ABC123`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := c.Convert(tt.input)
+			assert.Contains(t, result, tt.expected)
+		})
+	}
+}
+
+func TestWildcardToRegex(t *testing.T) {
+	tests := []struct {
+		pattern  string
+		expected string
+	}{
+		{"exact-class", `exact-class`},
+		{"prefix-*", `prefix-[^"'\s]*`},
+		{"*-suffix", `[^"'\s]*-suffix`},
+		{"pre-*-suf", `pre-[^"'\s]*-suf`},
+		{"no-wildcard", `no-wildcard`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.pattern, func(t *testing.T) {
+			result := wildcardToRegex(tt.pattern)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

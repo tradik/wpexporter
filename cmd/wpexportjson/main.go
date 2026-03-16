@@ -14,7 +14,9 @@ import (
 	"golang.org/x/term"
 
 	"github.com/tradik/wpexporter/internal/api"
+	"github.com/tradik/wpexporter/internal/basichtml"
 	"github.com/tradik/wpexporter/internal/bruteforce"
+	"github.com/tradik/wpexporter/internal/cache"
 	"github.com/tradik/wpexporter/internal/checkpoint"
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/internal/export"
@@ -27,7 +29,7 @@ import (
 
 // Version information - set during build
 var (
-	Version   = "1.6.0"
+	Version   = "1.6.1"
 	BuildDate = "unknown"
 )
 
@@ -77,8 +79,19 @@ var (
 	crawlContent      bool
 	skipEmptyContent  bool
 	flatHTML          bool
+	basicHTML         bool
+	keepOriginalURLs  bool
 	noTags            bool
 	quiet             bool
+	noIDs             bool
+	excludeTags       string
+	excludeMediaTypes string
+	preserveClasses   string
+	preserveIDs       string
+	cacheEnabled      bool
+	cacheTTL          string
+	cacheDir          string
+	cacheClear        bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -114,6 +127,8 @@ Content Filters:
       --path-filter string    Filter by URL path (e.g., /fr/art/)
       --skip-empty-content    Skip posts/pages with empty content
       --flat-html             Convert HTML to Markdown (Bricks Builder support)
+      --basic-html            Clean HTML to basic elements (tables, lists - for Shopify)
+      --keep-original-urls    Preserve WordPress URLs (don't convert to local paths)
 
 Advanced:
       --brute-force           Enable brute force ID discovery
@@ -155,6 +170,8 @@ func init() {
 	exportCmd.Flags().BoolVar(&downloadMedia, "download-media", true, "download images and videos")
 	exportCmd.Flags().BoolVar(&noMedia, "no-media", false, "disable media downloads (alias for --download-media=false)")
 	exportCmd.Flags().BoolVar(&relevantMediaOnly, "relevant-media-only", false, "only download featured images and images embedded in content")
+	exportCmd.Flags().StringVar(&excludeMediaTypes, "exclude-media-types", "",
+		"media types to skip (comma-separated: images,videos,audio,documents,archives)")
 	exportCmd.Flags().IntVarP(&concurrent, "concurrent", "c", 5, "concurrent downloads")
 	exportCmd.Flags().BoolVar(&createZip, "zip", false, "create ZIP archive of export")
 	exportCmd.Flags().BoolVar(&noFiles, "no-files", false, "remove export files after creating ZIP (requires --zip)")
@@ -170,11 +187,26 @@ func init() {
 	exportCmd.Flags().IntVar(&timeout, "timeout", 30, "HTTP request timeout in seconds")
 	exportCmd.Flags().StringVar(&pathFilter, "path-filter", "", "filter posts/pages by URL path pattern (e.g., /fr/arts/)")
 	exportCmd.Flags().BoolVar(&assistedCrawl, "assisted-crawl", false, "crawl URLs for SEO metadata")
+	exportCmd.Flags().StringVar(&excludeTags, "exclude-tags", "", "SEO tags to exclude (comma-separated: title,meta:description,og:title)")
 	exportCmd.Flags().BoolVar(&crawlContent, "crawl-content", false, "crawl pages with empty content (Bricks, Elementor)")
 	exportCmd.Flags().BoolVar(&skipEmptyContent, "skip-empty-content", false, "skip posts/pages with empty content")
 	exportCmd.Flags().BoolVar(&flatHTML, "flat-html", false, "convert HTML to Markdown (Bricks Builder support)")
+	exportCmd.Flags().BoolVar(&basicHTML, "basic-html", false, "clean HTML to basic elements (tables, lists, links - for Shopify)")
+	exportCmd.Flags().StringVar(&preserveClasses, "preserve-classes", "",
+		"CSS classes to preserve from HTML processing (comma-separated, use with --flat-html or --basic-html)")
+	exportCmd.Flags().StringVar(&preserveIDs, "preserve-ids", "",
+		"element IDs to preserve from HTML processing (comma-separated, use with --flat-html or --basic-html)")
+	exportCmd.Flags().BoolVar(&keepOriginalURLs, "keep-original-urls", false,
+		"preserve original WordPress URLs in content (don't convert to local paths)")
 	exportCmd.Flags().BoolVar(&noTags, "no-tags", false, "skip exporting tags")
+	exportCmd.Flags().BoolVar(&noIDs, "no-ids", false, "exclude numeric IDs from frontmatter (keep only names)")
 	exportCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress all output, only return exit code")
+
+	// Cache flags
+	exportCmd.Flags().BoolVar(&cacheEnabled, "cache", false, "enable caching of API responses and crawl data")
+	exportCmd.Flags().StringVar(&cacheTTL, "cache-ttl", "24h", "cache TTL (e.g., 24h, 1h, 0 for unlimited)")
+	exportCmd.Flags().StringVar(&cacheDir, "cache-dir", "", "cache directory (default: ~/.wpexporter/cache)")
+	exportCmd.Flags().BoolVar(&cacheClear, "cache-clear", false, "clear cache before export")
 
 	// Mark required flags
 	if err := exportCmd.MarkFlagRequired("url"); err != nil {
@@ -256,20 +288,8 @@ func configFileExists() bool {
 	return false
 }
 
-func runExport(cmd *cobra.Command, args []string) error {
-	// Start with default configuration
-	cfg := config.DefaultConfig()
-
-	// Load configuration file if specified or found
-	if cfgFile != "" || configFileExists() {
-		loadedCfg, err := config.LoadConfig(cfgFile)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-		cfg = loadedCfg
-	}
-
-	// Override config with command line flags
+// applyFlagOverrides applies command line flag values to the configuration
+func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	if cmd.Flags().Changed("url") {
 		cfg.URL = url
 	}
@@ -336,15 +356,39 @@ func runExport(cmd *cobra.Command, args []string) error {
 		}
 		cfg.AuthPass = password
 	}
+
 	if cmd.Flags().Changed("path-filter") {
-		// Validate path filter doesn't look like a flag (common user error)
 		if strings.HasPrefix(pathFilter, "-") {
-			return fmt.Errorf("invalid --path-filter value '%s': looks like a flag. Use --path-filter=/path/ or omit if not filtering", pathFilter)
+			return fmt.Errorf("invalid --path-filter value '%s': looks like a flag", pathFilter)
 		}
 		cfg.PathFilter = pathFilter
 	}
 	if cmd.Flags().Changed("assisted-crawl") {
 		cfg.AssistedCrawl = assistedCrawl
+	}
+	if cmd.Flags().Changed("exclude-tags") && excludeTags != "" {
+		cfg.ExcludeTags = strings.Split(excludeTags, ",")
+		for i := range cfg.ExcludeTags {
+			cfg.ExcludeTags[i] = strings.TrimSpace(cfg.ExcludeTags[i])
+		}
+	}
+	if cmd.Flags().Changed("exclude-media-types") && excludeMediaTypes != "" {
+		cfg.ExcludeMediaTypes = strings.Split(excludeMediaTypes, ",")
+		for i := range cfg.ExcludeMediaTypes {
+			cfg.ExcludeMediaTypes[i] = strings.TrimSpace(cfg.ExcludeMediaTypes[i])
+		}
+	}
+	if cmd.Flags().Changed("preserve-classes") && preserveClasses != "" {
+		cfg.PreserveClasses = strings.Split(preserveClasses, ",")
+		for i := range cfg.PreserveClasses {
+			cfg.PreserveClasses[i] = strings.TrimSpace(cfg.PreserveClasses[i])
+		}
+	}
+	if cmd.Flags().Changed("preserve-ids") && preserveIDs != "" {
+		cfg.PreserveIDs = strings.Split(preserveIDs, ",")
+		for i := range cfg.PreserveIDs {
+			cfg.PreserveIDs[i] = strings.TrimSpace(cfg.PreserveIDs[i])
+		}
 	}
 	if cmd.Flags().Changed("rate-limit") {
 		cfg.RateLimit = rateLimit
@@ -364,11 +408,94 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if cmd.Flags().Changed("flat-html") {
 		cfg.FlatHTML = flatHTML
 	}
+	if cmd.Flags().Changed("basic-html") {
+		cfg.BasicHTML = basicHTML
+	}
+	if cmd.Flags().Changed("keep-original-urls") {
+		cfg.KeepOriginalURLs = keepOriginalURLs
+	}
 	if cmd.Flags().Changed("no-tags") {
 		cfg.NoTags = noTags
 	}
+	if cmd.Flags().Changed("no-ids") {
+		cfg.NoIDs = noIDs
+	}
 	if cmd.Flags().Changed("quiet") || cmd.Flags().Changed("q") {
 		cfg.Quiet = quiet
+	}
+	if cmd.Flags().Changed("cache") {
+		cfg.Cache = cacheEnabled
+	}
+	if cmd.Flags().Changed("cache-ttl") {
+		cfg.CacheTTL = cacheTTL
+	}
+	if cmd.Flags().Changed("cache-dir") {
+		cfg.CacheDir = cacheDir
+	}
+	if cmd.Flags().Changed("cache-clear") {
+		cfg.CacheClear = cacheClear
+	}
+
+	return nil
+}
+
+// initializeCache creates and configures the file cache if enabled
+func initializeCache(cfg *config.Config, apiClient *api.Client) (*cache.FileCache, error) {
+	if !cfg.Cache {
+		return nil, nil
+	}
+
+	// Determine cache directory
+	cacheDirectory := cfg.CacheDir
+	if cacheDirectory == "" {
+		cacheDirectory = cache.DefaultCacheDir()
+	}
+
+	// Parse TTL
+	ttl, err := cache.ParseTTL(cfg.CacheTTL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cache TTL: %w", err)
+	}
+
+	// Create cache
+	fileCache, err := cache.NewFileCache(cacheDirectory, ttl, cfg.URL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cache: %w", err)
+	}
+
+	// Clear cache if requested
+	if cfg.CacheClear {
+		if err := fileCache.Clear(); err != nil {
+			_ = fileCache.Close()
+			return nil, fmt.Errorf("failed to clear cache: %w", err)
+		}
+		logln("Cache cleared")
+	}
+
+	// Set cache on API client
+	apiClient.SetCache(fileCache)
+
+	logf("Cache enabled (TTL: %s, dir: %s)\n", cfg.CacheTTL, fileCache.GetCacheDir())
+
+	return fileCache, nil
+}
+
+func runExport(cmd *cobra.Command, args []string) error {
+	// Start with default configuration
+	cfg := config.DefaultConfig()
+
+	// Load configuration file if specified or found
+	if cfgFile != "" || configFileExists() {
+		loadedCfg, err := config.LoadConfig(cfgFile)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+		cfg = loadedCfg
+	}
+
+	// Override config with command line flags
+	if err := applyFlagOverrides(cmd, cfg); err != nil {
+		return err
 	}
 
 	// Set global quiet mode for log functions
@@ -377,6 +504,11 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// Validate --no-files requires --zip
 	if cfg.NoFiles && !cfg.CreateZip {
 		return fmt.Errorf("--no-files requires --zip flag")
+	}
+
+	// Validate --flat-html and --basic-html are mutually exclusive
+	if cfg.FlatHTML && cfg.BasicHTML {
+		return fmt.Errorf("--flat-html and --basic-html are mutually exclusive")
 	}
 
 	// Generate default output path if not specified
@@ -398,6 +530,15 @@ func runExport(cmd *cobra.Command, args []string) error {
 	apiClient, err := api.NewClient(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create API client: %w", err)
+	}
+
+	// Initialize cache if enabled
+	fileCache, err := initializeCache(cfg, apiClient)
+	if err != nil {
+		return err
+	}
+	if fileCache != nil {
+		defer func() { _ = fileCache.Close() }()
 	}
 
 	// Create exporter
@@ -517,6 +658,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		// Combined crawl - fetch each page once for both SEO and content
 		logln("\nCrawling URLs for SEO metadata and content (combined)...")
 		crawler := seo.NewCrawler(cfg)
+		crawler.SetCache(fileCache)
 		if len(posts) > 0 {
 			posts = crawler.EnrichPostsWithSEOAndContent(posts)
 		}
@@ -528,6 +670,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		// SEO only
 		logln("\nCrawling URLs for SEO metadata...")
 		crawler := seo.NewCrawler(cfg)
+		crawler.SetCache(fileCache)
 		if len(posts) > 0 {
 			posts = crawler.EnrichPostsWithSEO(posts)
 		}
@@ -539,6 +682,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		// Content only
 		logln("\nCrawling pages with empty content...")
 		crawler := seo.NewCrawler(cfg)
+		crawler.SetCache(fileCache)
 		if len(posts) > 0 {
 			posts = crawler.EnrichPostsWithContent(posts)
 		}
@@ -557,24 +701,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 			originalPosts-len(posts), originalPosts, originalPages-len(pages), originalPages)
 	}
 
-	// Convert HTML to Markdown if flat-html is enabled
-	if cfg.FlatHTML {
-		logln("\nConverting HTML to Markdown...")
-		var converter *flathtml.Converter
-		if len(cfg.FlatHTMLRules) > 0 {
-			converter = flathtml.NewConverterWithRules(cfg.FlatHTMLRules)
-		} else {
-			converter = flathtml.NewConverter()
-		}
-		if len(posts) > 0 {
-			posts = converter.ConvertPosts(posts)
-		}
-		if len(pages) > 0 {
-			pages = converter.ConvertPosts(pages)
-		}
-		logln("HTML to Markdown conversion complete")
-	}
-
+	// Fetch and filter media BEFORE FlatHTML conversion (filter needs HTML tags)
 	var media []models.WordPressMedia
 	if cfg.DownloadMedia {
 		logln("Fetching media...")
@@ -588,7 +715,16 @@ func runExport(cmd *cobra.Command, args []string) error {
 		}
 		logf("Found %d media items\n", len(media))
 
+		// Fetch missing featured images that weren't returned by paginated API
+		// WordPress API may not return all media items (WPML, different post types, etc.)
+		missingMedia := fetchMissingFeaturedMedia(apiClient, posts, pages, media, cfg.Verbose)
+		if len(missingMedia) > 0 {
+			media = append(media, missingMedia...)
+			logf("Fetched %d additional featured images by ID\n", len(missingMedia))
+		}
+
 		// Filter to relevant media only if enabled
+		// Must happen BEFORE FlatHTML conversion because filter needs HTML <a href> and <img src> tags
 		if cfg.RelevantMediaOnly {
 			mf := mediafilter.NewFilter()
 			originalMedia := len(media)
@@ -597,6 +733,48 @@ func runExport(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		logln("Skipping media (--no-media)")
+	}
+
+	// Convert HTML to Markdown if flat-html is enabled
+	// Must happen AFTER media filtering (filter needs HTML tags)
+	if cfg.FlatHTML {
+		logln("\nConverting HTML to Markdown...")
+		var preserveOpts *flathtml.PreserveOptions
+		if len(cfg.PreserveClasses) > 0 || len(cfg.PreserveIDs) > 0 {
+			preserveOpts = &flathtml.PreserveOptions{
+				Classes: cfg.PreserveClasses,
+				IDs:     cfg.PreserveIDs,
+			}
+		}
+		converter := flathtml.NewConverterWithOptions(cfg.FlatHTMLRules, preserveOpts)
+		if len(posts) > 0 {
+			posts = converter.ConvertPosts(posts)
+		}
+		if len(pages) > 0 {
+			pages = converter.ConvertPosts(pages)
+		}
+		logln("HTML to Markdown conversion complete")
+	}
+
+	// Sanitize HTML to basic elements if basic-html is enabled
+	// Must happen AFTER media filtering (filter needs HTML tags)
+	if cfg.BasicHTML {
+		logln("\nSanitizing HTML to basic elements...")
+		var preserveOpts *basichtml.PreserveOptions
+		if len(cfg.PreserveClasses) > 0 || len(cfg.PreserveIDs) > 0 {
+			preserveOpts = &basichtml.PreserveOptions{
+				Classes: cfg.PreserveClasses,
+				IDs:     cfg.PreserveIDs,
+			}
+		}
+		sanitizer := basichtml.NewSanitizerWithOptions(preserveOpts)
+		if len(posts) > 0 {
+			posts = sanitizer.SanitizePosts(posts)
+		}
+		if len(pages) > 0 {
+			pages = sanitizer.SanitizePosts(pages)
+		}
+		logln("HTML sanitization complete")
 	}
 
 	logln("Fetching categories...")
@@ -882,6 +1060,56 @@ func createZipArchive(sourceDir, targetZip string) error {
 	})
 
 	return err
+}
+
+// fetchMissingFeaturedMedia fetches featured images that weren't returned by the paginated media API
+// WordPress REST API may not return all media items (WPML language contexts, different post types, etc.)
+func fetchMissingFeaturedMedia(
+	apiClient *api.Client,
+	posts []models.WordPressPost,
+	pages []models.WordPressPost,
+	existingMedia []models.WordPressMedia,
+	verbose bool,
+) []models.WordPressMedia {
+	// Build set of existing media IDs
+	existingIDs := make(map[int]bool)
+	for _, m := range existingMedia {
+		existingIDs[m.ID] = true
+	}
+
+	// Collect all featured image IDs from posts and pages
+	missingIDs := make(map[int]bool)
+	for _, post := range posts {
+		if post.FeaturedMedia > 0 && !existingIDs[post.FeaturedMedia] {
+			missingIDs[post.FeaturedMedia] = true
+		}
+	}
+	for _, page := range pages {
+		if page.FeaturedMedia > 0 && !existingIDs[page.FeaturedMedia] {
+			missingIDs[page.FeaturedMedia] = true
+		}
+	}
+
+	if len(missingIDs) == 0 {
+		return nil
+	}
+
+	// Fetch missing media by ID
+	var fetchedMedia []models.WordPressMedia
+	for id := range missingIDs {
+		media, err := apiClient.GetMediaByID(id)
+		if err != nil {
+			if verbose {
+				logf("Warning: could not fetch featured image %d: %v\n", id, err)
+			}
+			continue
+		}
+		if media != nil {
+			fetchedMedia = append(fetchedMedia, *media)
+		}
+	}
+
+	return fetchedMedia
 }
 
 func main() {
