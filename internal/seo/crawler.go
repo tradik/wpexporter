@@ -2,6 +2,7 @@ package seo
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/schollz/progressbar/v3"
 
+	"github.com/tradik/wpexporter/internal/cache"
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/pkg/models"
 )
@@ -20,6 +22,7 @@ import (
 type Crawler struct {
 	config     *config.Config
 	httpClient *http.Client
+	cache      *cache.FileCache // Optional cache (nil if disabled)
 }
 
 // NewCrawler creates a new SEO crawler
@@ -29,7 +32,54 @@ func NewCrawler(cfg *config.Config) *Crawler {
 		httpClient: &http.Client{
 			Timeout: time.Duration(cfg.Timeout) * time.Second,
 		},
+		cache: nil,
 	}
+}
+
+// SetCache sets the cache for the crawler
+func (c *Crawler) SetCache(cache *cache.FileCache) {
+	c.cache = cache
+}
+
+// CrawlResult holds both SEO data and content from a crawl
+type CrawlResultCache struct {
+	SEO     models.SEOData `json:"seo"`
+	Content string         `json:"content"`
+}
+
+// getFromCache tries to get data from cache
+func (c *Crawler) getFromCache(pageURL string) (*CrawlResultCache, bool) {
+	if c.cache == nil {
+		return nil, false
+	}
+
+	key := cache.GenerateSEOKey(pageURL)
+	data, found, err := c.cache.Get(key)
+	if err != nil || !found {
+		return nil, false
+	}
+
+	var result CrawlResultCache
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, false
+	}
+
+	return &result, true
+}
+
+// saveToCache saves crawl result to cache
+func (c *Crawler) saveToCache(pageURL string, result *CrawlResultCache) {
+	if c.cache == nil {
+		return
+	}
+
+	key := cache.GenerateSEOKey(pageURL)
+	jsonData, err := json.Marshal(result)
+	if err != nil {
+		return
+	}
+
+	_ = c.cache.Set(key, jsonData)
 }
 
 // createProgressBar creates a progress bar that respects quiet mode
@@ -130,6 +180,11 @@ func (c *Crawler) extractSEO(pageURL string) models.SEOData {
 		return seo
 	}
 
+	// Try cache first
+	if cached, found := c.getFromCache(pageURL); found {
+		return cached.SEO
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.config.Timeout)*time.Second)
 	defer cancel()
 
@@ -168,30 +223,106 @@ func (c *Crawler) extractSEO(pageURL string) models.SEOData {
 
 	html := string(body)
 
+	// Track duplicate tags
+	duplicates := c.detectDuplicateTags(html)
+	if len(duplicates) > 0 {
+		c.logf("Detected duplicate tags on %s: %s\n", pageURL, strings.Join(duplicates, ", "))
+	}
+
+	// Build exclusion map
+	excluded := c.buildExclusionMap()
+
 	// Extract <title> tag
-	seo.Title = c.extractTitle(html)
+	if !excluded["title"] {
+		seo.Title = c.extractTitle(html)
+	}
 
 	// Extract meta description
-	seo.MetaDescription = c.extractMetaContent(html, "description")
+	if !excluded["meta:description"] {
+		seo.MetaDescription = c.extractMetaContent(html, "description")
+	}
 
 	// Extract meta keywords
-	seo.MetaKeywords = c.extractMetaContent(html, "keywords")
+	if !excluded["meta:keywords"] {
+		seo.MetaKeywords = c.extractMetaContent(html, "keywords")
+	}
 
 	// Extract Open Graph tags
-	seo.OGTitle = c.extractOGContent(html, "og:title")
-	seo.OGDescription = c.extractOGContent(html, "og:description")
-	seo.OGImage = c.extractOGContent(html, "og:image")
+	if !excluded["og:title"] {
+		seo.OGTitle = c.extractOGContent(html, "og:title")
+	}
+	if !excluded["og:description"] {
+		seo.OGDescription = c.extractOGContent(html, "og:description")
+	}
+	if !excluded["og:image"] {
+		seo.OGImage = c.extractOGContent(html, "og:image")
+	}
 
 	// Extract canonical URL
-	seo.CanonicalURL = c.extractCanonical(html)
+	if !excluded["canonical"] {
+		seo.CanonicalURL = c.extractCanonical(html)
+	}
 
 	// Extract page language
-	seo.Lang = c.extractLang(html)
+	if !excluded["lang"] {
+		seo.Lang = c.extractLang(html)
+	}
 
 	// Extract hreflang alternate links
-	seo.Hreflangs = c.extractHreflangs(html)
+	if !excluded["hreflangs"] {
+		seo.Hreflangs = c.extractHreflangs(html)
+	}
+
+	// Cache the result
+	c.saveToCache(pageURL, &CrawlResultCache{SEO: seo})
 
 	return seo
+}
+
+// buildExclusionMap creates a map of excluded tags for quick lookup
+func (c *Crawler) buildExclusionMap() map[string]bool {
+	excluded := make(map[string]bool)
+	for _, tag := range c.config.ExcludeTags {
+		excluded[tag] = true
+	}
+	return excluded
+}
+
+// detectDuplicateTags checks for duplicate meta tags and returns list of duplicated tag names
+func (c *Crawler) detectDuplicateTags(html string) []string {
+	var duplicates []string
+
+	// Check for duplicate title tags
+	titlePattern := regexp.MustCompile(`(?i)<title[^>]*>`)
+	if len(titlePattern.FindAllString(html, -1)) > 1 {
+		duplicates = append(duplicates, "title")
+	}
+
+	// Check for duplicate meta name tags
+	metaNames := []string{"description", "keywords"}
+	for _, name := range metaNames {
+		pattern := regexp.MustCompile(fmt.Sprintf(`(?i)<meta[^>]+name\s*=\s*["']%s["']`, regexp.QuoteMeta(name)))
+		if len(pattern.FindAllString(html, -1)) > 1 {
+			duplicates = append(duplicates, "meta:"+name)
+		}
+	}
+
+	// Check for duplicate OG tags
+	ogProperties := []string{"og:title", "og:description", "og:image"}
+	for _, prop := range ogProperties {
+		pattern := regexp.MustCompile(fmt.Sprintf(`(?i)<meta[^>]+property\s*=\s*["']%s["']`, regexp.QuoteMeta(prop)))
+		if len(pattern.FindAllString(html, -1)) > 1 {
+			duplicates = append(duplicates, prop)
+		}
+	}
+
+	// Check for duplicate canonical
+	canonicalPattern := regexp.MustCompile(`(?i)<link[^>]+rel\s*=\s*["']canonical["']`)
+	if len(canonicalPattern.FindAllString(html, -1)) > 1 {
+		duplicates = append(duplicates, "canonical")
+	}
+
+	return duplicates
 }
 
 // extractTitle extracts the content of the <title> tag
@@ -462,6 +593,11 @@ func (c *Crawler) extractSEOAndContent(pageURL string, extractContent bool) Craw
 		return result
 	}
 
+	// Try cache first
+	if cached, found := c.getFromCache(pageURL); found {
+		return CrawlResult{SEO: cached.SEO, Content: cached.Content}
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.config.Timeout)*time.Second)
 	defer cancel()
 
@@ -500,21 +636,51 @@ func (c *Crawler) extractSEOAndContent(pageURL string, extractContent bool) Craw
 
 	html := string(body)
 
-	// Extract SEO data
-	result.SEO.Title = c.extractTitle(html)
-	result.SEO.MetaDescription = c.extractMetaContent(html, "description")
-	result.SEO.MetaKeywords = c.extractMetaContent(html, "keywords")
-	result.SEO.OGTitle = c.extractOGContent(html, "og:title")
-	result.SEO.OGDescription = c.extractOGContent(html, "og:description")
-	result.SEO.OGImage = c.extractOGContent(html, "og:image")
-	result.SEO.CanonicalURL = c.extractCanonical(html)
-	result.SEO.Lang = c.extractLang(html)
-	result.SEO.Hreflangs = c.extractHreflangs(html)
+	// Track duplicate tags
+	duplicates := c.detectDuplicateTags(html)
+	if len(duplicates) > 0 {
+		c.logf("Detected duplicate tags on %s: %s\n", pageURL, strings.Join(duplicates, ", "))
+	}
+
+	// Build exclusion map
+	excluded := c.buildExclusionMap()
+
+	// Extract SEO data with exclusion support
+	if !excluded["title"] {
+		result.SEO.Title = c.extractTitle(html)
+	}
+	if !excluded["meta:description"] {
+		result.SEO.MetaDescription = c.extractMetaContent(html, "description")
+	}
+	if !excluded["meta:keywords"] {
+		result.SEO.MetaKeywords = c.extractMetaContent(html, "keywords")
+	}
+	if !excluded["og:title"] {
+		result.SEO.OGTitle = c.extractOGContent(html, "og:title")
+	}
+	if !excluded["og:description"] {
+		result.SEO.OGDescription = c.extractOGContent(html, "og:description")
+	}
+	if !excluded["og:image"] {
+		result.SEO.OGImage = c.extractOGContent(html, "og:image")
+	}
+	if !excluded["canonical"] {
+		result.SEO.CanonicalURL = c.extractCanonical(html)
+	}
+	if !excluded["lang"] {
+		result.SEO.Lang = c.extractLang(html)
+	}
+	if !excluded["hreflangs"] {
+		result.SEO.Hreflangs = c.extractHreflangs(html)
+	}
 
 	// Extract content only if needed
 	if extractContent {
 		result.Content = c.extractMainContent(html)
 	}
+
+	// Cache the result
+	c.saveToCache(pageURL, &CrawlResultCache{SEO: result.SEO, Content: result.Content})
 
 	return result
 }

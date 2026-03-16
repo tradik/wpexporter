@@ -619,18 +619,21 @@ func TestGenerateMarkdownContentWithoutOptionalFields(t *testing.T) {
 
 	result := e.generateMarkdownContent(post, "post")
 
-	// Should not contain author or featured_media
-	if containsStr(result, "author:") {
-		t.Error("generateMarkdownContent() should not contain author when not set")
+	// Should not contain author or featured_image
+	if containsStr(result, "author_id:") {
+		t.Error("generateMarkdownContent() should not contain author_id when not set")
 	}
-	if containsStr(result, "featured_media:") {
-		t.Error("generateMarkdownContent() should not contain featured_media when not set")
+	if containsStr(result, "featured_image:") {
+		t.Error("generateMarkdownContent() should not contain featured_image when not set")
 	}
-	if containsStr(result, "categories:") {
-		t.Error("generateMarkdownContent() should not contain categories when empty")
+	if containsStr(result, "featured_image_id:") {
+		t.Error("generateMarkdownContent() should not contain featured_image_id when not set")
 	}
-	if containsStr(result, "tags:") {
-		t.Error("generateMarkdownContent() should not contain tags when empty")
+	if containsStr(result, "category_ids:") {
+		t.Error("generateMarkdownContent() should not contain category_ids when empty")
+	}
+	if containsStr(result, "tag_ids:") {
+		t.Error("generateMarkdownContent() should not contain tag_ids when empty")
 	}
 }
 

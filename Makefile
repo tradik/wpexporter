@@ -126,6 +126,13 @@ install: ## Install all applications globally
 	$(GOCMD) install ./cmd/wpmcp
 	@echo "${GREEN}All applications installed${RESET}"
 
+install-man: ## Install man pages
+	@echo "${BLUE}Installing man pages...${RESET}"
+	@mkdir -p /usr/local/share/man/man1
+	@cp man/wpexportjson.1 /usr/local/share/man/man1/
+	@mandb -q 2>/dev/null || true
+	@echo "${GREEN}Man pages installed. Use: man wpexportjson${RESET}"
+
 dev: ## Run in development mode with air
 	@echo "${BLUE}Starting development server...${RESET}"
 	air

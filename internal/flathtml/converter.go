@@ -9,10 +9,17 @@ import (
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
+// PreserveOptions defines elements to preserve from HTML processing
+type PreserveOptions struct {
+	Classes []string // CSS classes to preserve
+	IDs     []string // Element IDs to preserve
+}
+
 // Converter converts HTML content to Markdown format
 type Converter struct {
-	rules       []ConversionRule
-	customRules []config.FlatHTMLRule
+	rules           []ConversionRule
+	customRules     []config.FlatHTMLRule
+	preserveOptions *PreserveOptions
 }
 
 // ConversionRule defines a conversion pattern (internal)
@@ -37,6 +44,18 @@ func NewConverterWithRules(customRules []config.FlatHTMLRule) *Converter {
 	c := &Converter{
 		rules:       make([]ConversionRule, 0),
 		customRules: customRules,
+	}
+	c.initCustomRules()
+	c.initDefaultRules()
+	return c
+}
+
+// NewConverterWithOptions creates a converter with custom rules and preserve options
+func NewConverterWithOptions(customRules []config.FlatHTMLRule, preserveOpts *PreserveOptions) *Converter {
+	c := &Converter{
+		rules:           make([]ConversionRule, 0),
+		customRules:     customRules,
+		preserveOptions: preserveOpts,
 	}
 	c.initCustomRules()
 	c.initDefaultRules()
@@ -309,6 +328,10 @@ func (c *Converter) initDefaultRules() {
 func (c *Converter) Convert(html string) string {
 	result := html
 
+	// Extract and preserve elements with specific classes/IDs
+	var preserved []string
+	result, preserved = c.extractPreservedElements(result)
+
 	// First, remove unwanted elements
 	result = c.cleanHTML(result)
 
@@ -327,6 +350,9 @@ func (c *Converter) Convert(html string) string {
 	// Clean up remaining HTML tags
 	result = c.stripRemainingTags(result)
 
+	// Restore preserved elements
+	result = c.restorePreservedElements(result, preserved)
+
 	// Clean up whitespace
 	result = c.normalizeWhitespace(result)
 
@@ -334,6 +360,80 @@ func (c *Converter) Convert(html string) string {
 	result = decodeHTMLEntities(result)
 
 	return strings.TrimSpace(result)
+}
+
+// extractPreservedElements extracts elements with preserved classes/IDs and replaces them with placeholders
+func (c *Converter) extractPreservedElements(html string) (string, []string) {
+	if c.preserveOptions == nil || (len(c.preserveOptions.Classes) == 0 && len(c.preserveOptions.IDs) == 0) {
+		return html, nil
+	}
+
+	var preserved []string
+	result := html
+
+	// Extract elements by class
+	for _, class := range c.preserveOptions.Classes {
+		if class == "" {
+			continue
+		}
+		// Convert wildcard pattern to regex (e.g., klaviyo-form-* -> klaviyo-form-[^"'\s]*)
+		classPattern := wildcardToRegex(class)
+		// Match elements with the specified class (handles class being anywhere in the class attribute)
+		pattern := regexp.MustCompile(`(?is)(<[^>]*\bclass\s*=\s*["'][^"']*\b` +
+			classPattern + `\b[^"']*["'][^>]*>[\s\S]*?</[^>]+>)`)
+		result = pattern.ReplaceAllStringFunc(result, func(match string) string {
+			idx := len(preserved)
+			preserved = append(preserved, match)
+			return fmt.Sprintf("___PRESERVE_%d___", idx)
+		})
+	}
+
+	// Extract elements by ID
+	for _, id := range c.preserveOptions.IDs {
+		if id == "" {
+			continue
+		}
+		// Convert wildcard pattern to regex
+		idPattern := wildcardToRegex(id)
+		// Match elements with the specified ID
+		pattern := regexp.MustCompile(`(?is)(<[^>]*\bid\s*=\s*["']` +
+			idPattern + `["'][^>]*>[\s\S]*?</[^>]+>)`)
+		result = pattern.ReplaceAllStringFunc(result, func(match string) string {
+			idx := len(preserved)
+			preserved = append(preserved, match)
+			return fmt.Sprintf("___PRESERVE_%d___", idx)
+		})
+	}
+
+	return result, preserved
+}
+
+// wildcardToRegex converts a wildcard pattern (with *) to a regex pattern
+func wildcardToRegex(pattern string) string {
+	if !strings.Contains(pattern, "*") {
+		return regexp.QuoteMeta(pattern)
+	}
+	// Split by *, quote each part, join with regex wildcard
+	parts := strings.Split(pattern, "*")
+	for i, part := range parts {
+		parts[i] = regexp.QuoteMeta(part)
+	}
+	return strings.Join(parts, `[^"'\s]*`)
+}
+
+// restorePreservedElements restores the preserved elements from placeholders
+func (c *Converter) restorePreservedElements(html string, preserved []string) string {
+	if len(preserved) == 0 {
+		return html
+	}
+
+	result := html
+	for i, elem := range preserved {
+		placeholder := fmt.Sprintf("___PRESERVE_%d___", i)
+		result = strings.ReplaceAll(result, placeholder, elem)
+	}
+
+	return result
 }
 
 // ConvertPosts converts HTML content in posts to Markdown

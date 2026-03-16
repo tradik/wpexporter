@@ -220,13 +220,14 @@ func TestDownloadMediaFileExists(t *testing.T) {
 	tempDir := t.TempDir()
 	mediaDir := filepath.Join(tempDir, "output_media") // This is what GetMediaDir() returns for output.json
 
-	// Create media directory and a file
-	err := os.MkdirAll(mediaDir, 0750)
+	// Create media directory with images subfolder and a file
+	imagesDir := filepath.Join(mediaDir, "images")
+	err := os.MkdirAll(imagesDir, 0750)
 	if err != nil {
 		t.Fatalf("Failed to create media directory: %v", err)
 	}
 
-	existingFile := filepath.Join(mediaDir, "1_image.jpg")
+	existingFile := filepath.Join(imagesDir, "1_image.jpg")
 	err = os.WriteFile(existingFile, []byte("existing data"), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create existing file: %v", err)
@@ -288,7 +289,7 @@ func TestGenerateFilename(t *testing.T) {
 			parsedURL: &url.URL{
 				Path: "/wp-content/uploads/2024/01/test-image.jpg",
 			},
-			expected: "123_test-image.jpg",
+			expected: "images/123_test-image.jpg",
 		},
 		{
 			name: "URL with special characters",
@@ -299,7 +300,7 @@ func TestGenerateFilename(t *testing.T) {
 			parsedURL: &url.URL{
 				Path: "/wp-content/uploads/my image (1).png",
 			},
-			expected: "456_my image (1).png", // Spaces are preserved by current implementation
+			expected: "images/456_my image (1).png", // Spaces are preserved by current implementation
 		},
 		{
 			name: "Empty URL path",
@@ -310,7 +311,7 @@ func TestGenerateFilename(t *testing.T) {
 			parsedURL: &url.URL{
 				Path: "",
 			},
-			expected: "789_media_789.gif",
+			expected: "images/789_media_789.gif",
 		},
 		{
 			name: "No filename in URL",
@@ -321,7 +322,7 @@ func TestGenerateFilename(t *testing.T) {
 			parsedURL: &url.URL{
 				Path: "/",
 			},
-			expected: "101_media_101.pdf",
+			expected: "documents/101_media_101.pdf",
 		},
 	}
 
@@ -478,7 +479,7 @@ func TestUpdateMediaPaths(t *testing.T) {
 
 	updated := downloader.UpdateMediaPaths(content, mediaItems)
 
-	expected := `<p>This is a post with images: <img src="media/1_image1.jpg" alt="Image 1"> and <img src="media/2_image2.png" alt="Image 2"></p>`
+	expected := `<p>This is a post with images: <img src="media/images/1_image1.jpg" alt="Image 1"> and <img src="media/images/2_image2.png" alt="Image 2"></p>`
 
 	if updated != expected {
 		t.Errorf("UpdateMediaPaths() = %s, want %s", updated, expected)
@@ -527,7 +528,7 @@ func TestGenerateSizeFilename(t *testing.T) {
 
 	result := downloader.generateSizeFilename(media, size, originalURL)
 
-	expected := "123_image-150x150.jpg"
+	expected := "images/123_image-150x150.jpg"
 
 	if result != expected {
 		t.Errorf("generateSizeFilename() = %s, want %s", result, expected)
@@ -660,12 +661,12 @@ func TestUpdateMediaPathsWithMediaSizes(t *testing.T) {
 		t.Errorf("UpdateMediaPaths() should replace all media URLs, got: %s", updated)
 	}
 
-	// Check that local paths are used
-	if !strings.Contains(updated, "media/1_image.jpg") {
+	// Check that local paths are used (now with subfolders)
+	if !strings.Contains(updated, "media/images/1_image.jpg") {
 		t.Errorf("UpdateMediaPaths() should include local path for original, got: %s", updated)
 	}
 
-	if !strings.Contains(updated, "media/1_image-150x150.jpg") {
+	if !strings.Contains(updated, "media/images/1_image-150x150.jpg") {
 		t.Errorf("UpdateMediaPaths() should include local path for thumbnail, got: %s", updated)
 	}
 }
@@ -737,8 +738,8 @@ func TestGenerateSizeFilenameInvalidURL(t *testing.T) {
 
 	result := downloader.generateSizeFilename(media, size, originalURL)
 
-	// Should fall back to original filename generation
-	expected := "123_image.jpg"
+	// Should fall back to original filename generation (now with subfolder)
+	expected := "images/123_image.jpg"
 	if result != expected {
 		t.Errorf("generateSizeFilename() with invalid URL = %s, want %s", result, expected)
 	}
@@ -898,8 +899,8 @@ func TestUpdateMediaPathsWithEmptySizeURL(t *testing.T) {
 
 	updated := downloader.UpdateMediaPaths(content, mediaItems)
 
-	// Only main URL should be replaced
-	if !strings.Contains(updated, "media/1_image.jpg") {
+	// Only main URL should be replaced (now in images subfolder)
+	if !strings.Contains(updated, "media/images/1_image.jpg") {
 		t.Errorf("UpdateMediaPaths() should replace main URL, got: %s", updated)
 	}
 }
@@ -979,8 +980,8 @@ func TestGenerateFilenameURLWithDot(t *testing.T) {
 
 	result := downloader.generateFilename(media, parsedURL)
 
-	// Should generate filename from ID when path is "."
-	expected := "789_media_789.gif"
+	// Should generate filename from ID when path is "." (now in images subfolder)
+	expected := "images/789_media_789.gif"
 	if result != expected {
 		t.Errorf("generateFilename() = %s, want %s", result, expected)
 	}
@@ -1004,8 +1005,8 @@ func TestGenerateSizeFilename_ValidURL(t *testing.T) {
 
 	result := downloader.generateSizeFilename(media, size, originalURL)
 
-	// Should use the size URL filename
-	expected := "123_test-150x150.jpg"
+	// Should use the size URL filename (now in images subfolder)
+	expected := "images/123_test-150x150.jpg"
 	if result != expected {
 		t.Errorf("generateSizeFilename() = %s, want %s", result, expected)
 	}
@@ -1029,8 +1030,8 @@ func TestGenerateSizeFilename_InvalidURL(t *testing.T) {
 
 	result := downloader.generateSizeFilename(media, size, originalURL)
 
-	// Should fallback to generateFilename when URL parsing fails
-	expected := "456_original.png"
+	// Should fallback to generateFilename when URL parsing fails (now in images subfolder)
+	expected := "images/456_original.png"
 	if result != expected {
 		t.Errorf("generateSizeFilename() = %s, want %s", result, expected)
 	}
@@ -1087,8 +1088,8 @@ func TestGenerateFilename_SlashPath(t *testing.T) {
 
 	result := downloader.generateFilename(media, parsedURL)
 
-	// Should generate filename from ID when path is just "/"
-	expected := "999_media_999.webp"
+	// Should generate filename from ID when path is just "/" (now in images subfolder)
+	expected := "images/999_media_999.webp"
 	if result != expected {
 		t.Errorf("generateFilename() = %s, want %s", result, expected)
 	}

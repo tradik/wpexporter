@@ -5,9 +5,93 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.6.0] - 2026-02-11
+## [1.7.0] - 2026-03-16
 
 ### Added
+- **Persistent Cache System**: New file-based caching to speed up repeated exports
+  - `--cache` flag to enable caching of API responses and SEO crawl results
+  - `--cache-ttl` to set cache expiration (default: 24h, use 0 for unlimited)
+  - `--cache-dir` to specify custom cache directory (default: ~/.wpexporter/cache)
+  - `--cache-clear` to clear cache before export
+  - Caches all WordPress REST API calls: posts, pages, media, categories, tags, users
+  - Caches SEO crawl results (assisted-crawl, crawl-content)
+  - Site-isolated caching using URL hash (different sites don't share cache)
+  - Significant performance improvement for repeated exports (media list from ~30-60s to <1s)
+  - Environment variables: WPEXPORT_CACHE, WPEXPORT_CACHE_TTL, WPEXPORT_CACHE_DIR, WPEXPORT_CACHE_CLEAR
+- **Preserve HTML Elements**: New flags to keep specific elements intact during HTML processing
+  - `--preserve-classes` - preserve elements by CSS class (comma-separated)
+  - `--preserve-ids` - preserve elements by ID (comma-separated)
+  - Wildcard support: `klaviyo-form-*` matches `klaviyo-form-XL7uTf`
+  - Works with both `--flat-html` and `--basic-html` options
+  - Useful for newsletter forms (Klaviyo, Mailchimp), embedded widgets, custom elements
+  - Environment variables: WPEXPORT_PRESERVE_CLASSES, WPEXPORT_PRESERVE_IDS
+  - Configurable via config file: `preserve_classes`, `preserve_ids`
+
+## [1.6.1] - 2026-03-11
+
+### Added
+- **Basic HTML Sanitization**: New `--basic-html` flag to clean HTML to basic elements for Shopify/ecommerce
+  - Preserves: tables, lists, links, images, headers, paragraphs, basic formatting
+  - Removes: Bricks Builder divs, Elementor widgets, custom classes, style/script tags
+  - Strips dangerous attributes (onclick, style, data-*) while keeping safe ones (href, src, alt)
+  - Mutually exclusive with `--flat-html` (use one or the other)
+- **Keep Original URLs**: New `--keep-original-urls` flag to preserve WordPress URLs in content
+  - Prevents conversion of media URLs to local paths (e.g., `media/images/...`)
+  - Useful when exporting markdown for import to Shopify or other cloud platforms
+  - Works with all formats but most useful with `--format markdown`
+
+### Fixed
+- **Missing Featured Images**: Featured images are now properly fetched even when not returned by paginated media API
+  - WordPress REST API `/media` endpoint may not return all media items (WPML language contexts, restricted access)
+  - Featured image IDs from posts/pages are now fetched individually using `GetMediaByID()` when missing
+  - Ensures `featured_image` URL is populated in frontmatter for all posts with featured images
+- **Relevant Media Over-Matching**: Fixed `--relevant-media-only` downloading too many files
+  - Changed from filename-only matching to path-suffix matching (e.g., `2024/01/document.pdf`)
+  - Prevents false positives when multiple files have the same name in different directories
+- **Shopify Media URLs**: Fixed images not displaying in Shopify export
+  - Media paths are now preserved as original WordPress URLs for Shopify format
+  - Only json and markdown formats convert URLs to local paths
+  - Shopify/Magento/other cloud platforms need full URLs, not relative paths
+
+## [1.6.0] - 2026-02-11
+
+### Changed
+- **Markdown Excerpt Handling**: Excerpt moved from body section to frontmatter metadata field
+  - Excerpt is now included as `excerpt: "..."` in YAML frontmatter
+  - Removed separate `## Excerpt` section from content body
+  - Content follows directly after frontmatter without section headers
+  - Improves parser compatibility for posts with or without content sections
+
+### Added
+- **Media Subfolder Organization**: Downloaded media now organized into type-based subfolders
+  - `media/images/` - All image files (jpg, png, gif, webp, svg, etc.)
+  - `media/videos/` - Video files (mp4, avi, webm, mkv, mov, etc.)
+  - `media/audio/` - Audio files (mp3, wav, ogg, flac, aac, etc.)
+  - `media/documents/` - Documents (pdf, docx, xlsx, pptx, odt, etc.)
+  - `media/archives/` - Archives (zip, rar, 7z, tar, gz, etc.)
+  - `media/code/` - Code files (html, css, js, json, xml)
+  - `media/other/` - Unrecognized file types
+  - Content paths automatically updated to reference subfolder locations
+- **Exclude Media Types Option**: New `--exclude-media-types` flag to skip specific media types from download
+  - By category: `--exclude-media-types 'documents,videos,archives'`
+  - By extension: `--exclude-media-types 'pdf,gif,html'`
+  - By MIME type: `--exclude-media-types 'image,video'`
+  - Configurable via config file: `exclude_media_types: ["documents", "pdf"]`
+- **Extended Media MIME Type Support**: Added support for 80+ file types in media downloads
+  - Documents: docx, doc, xlsx, xls, pptx, ppt, odt, ods, odp, epub
+  - Archives: rar, 7z, tar, gz, bz2, xz
+  - Video: mkv, m4v, 3gp, 3g2, ogv, mpeg
+  - Audio: flac, aac, m4a, weba, wma, midi, aiff
+  - Images: ico, avif, heic, heif
+  - Code: html, css, js, json, xml, csv, md
+- **Exclude SEO Tags Option**: New `--exclude-tags` flag to skip specific meta tags during extraction
+  - Usage: `--exclude-tags 'meta:description,og:title'`
+  - Supported tags: title, meta:description, meta:keywords, og:title, og:description, og:image, canonical, lang, hreflangs
+  - Configurable via config file: `exclude_tags: ["meta:description", "og:title"]`
+- **Duplicate Meta Tag Detection**: SEO crawler now detects and reports duplicate meta tags
+  - Logs warning when duplicate tags found: `Detected duplicate tags on URL: tag1, tag2`
+  - Uses first occurrence value (standard SEO behavior)
+  - Detects duplicates for: title, meta:description, meta:keywords, og:title, og:description, og:image, canonical
 - **Export Size Reporting**: Export summary now displays file sizes
   - Total export directory size
   - Media folder size (when media is downloaded)
@@ -27,6 +111,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Language Extraction**: `--assisted-crawl` now extracts content language
   - Captures language from `<html lang="...">` or `<meta http-equiv="Content-Language">`
   - Included in both Markdown frontmatter (`lang: "en-gb"`) and Shopify HTML metadata
+- **Human-Readable Names in Frontmatter**: Markdown export now includes human-readable names
+  - `categories: ["Category Name", "Another"]` with `category_ids: [152, 156]` as fallback
+  - `tags: ["Tag Name"]` with `tag_ids: [42]` as fallback
+  - `author: "Author Name"` with `author_id: 5` as fallback
+  - Names resolved from WordPress categories, tags, and users data
+  - Use `--no-ids` to exclude numeric ID fields (keep only human-readable names)
+- **Featured Image in Frontmatter**: Markdown export now includes featured image URL
+  - `featured_image: "https://example.com/image.jpg"` with URL from Media Library
+  - `featured_image_id: 100` for numeric ID (unless `--no-ids` is used)
+  - Previously only exported `featured_media: 100` (numeric ID only)
+  - Consistent with author/author_id and categories/category_ids pattern
+- **Relevant Media Link Extraction**: `--relevant-media-only` now extracts linked documents and videos
+  - Scans `<a href>` links in content for media files (PDF, DOCX, MP4, ZIP, etc.)
+  - Previously only extracted `<img src>` images from content
+  - Supported file types: documents (pdf, docx, xlsx, pptx, odt, epub), videos (mp4, webm, avi, mkv), audio (mp3, wav, flac), archives (zip, rar, 7z), and images
+  - Path-based matching: handles CDN URLs by comparing path suffix after `uploads/` (e.g., `2024/01/file.pdf`)
+  - More precise than filename-only matching - avoids downloading unrelated files with same filename
+  - Query string tolerance: `file.pdf?v=1.0` matches `file.pdf` in Media Library
+  - Ensures all referenced media files are downloaded when using `--relevant-media-only`
+
+### Fixed
+- **Relevant Media Filter with FlatHTML**: Fixed `--relevant-media-only` not finding linked documents when used with `--flat-html` and `--crawl-content`
+  - Media filtering now happens BEFORE HTML to Markdown conversion
+  - Previously, FlatHTML converted `<a href="file.pdf">` to `[link](file.pdf)` before the filter could extract URLs
+  - Now correctly finds PDFs, videos, and other linked media in crawled Bricks/Elementor content
+- **Relevant Media Over-Matching**: Fixed `--relevant-media-only` downloading too many files
+  - Previously matched by filename only (e.g., `document.pdf` would match ALL files named `document.pdf`)
+  - Now matches by path suffix after `uploads/` (e.g., `2024/01/document.pdf`)
+  - Significantly reduces ZIP file sizes by avoiding false positive matches
 
 ## [1.5.0] - 2026-02-05
 

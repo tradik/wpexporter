@@ -257,6 +257,10 @@ func TestConvertHTMLToMarkdown(t *testing.T) {
 
 func TestGenerateMarkdownContent(t *testing.T) {
 	e := NewExporter(&config.Config{})
+	// Initialize mediaMap for featured image URL lookup
+	e.mediaMap = map[int]string{
+		100: "https://example.com/featured.jpg",
+	}
 
 	post := models.WordPressPost{
 		ID:   123,
@@ -299,17 +303,20 @@ func TestGenerateMarkdownContent(t *testing.T) {
 	if !containsString(result, `type: "post"`) {
 		t.Error("generateMarkdownContent() should contain content type")
 	}
-	if !containsString(result, "author: 1") {
+	if !containsString(result, "author_id: 1") {
 		t.Error("generateMarkdownContent() should contain author ID")
 	}
-	if !containsString(result, "featured_media: 100") {
-		t.Error("generateMarkdownContent() should contain featured media ID")
+	if !containsString(result, `featured_image: "https://example.com/featured.jpg"`) {
+		t.Error("generateMarkdownContent() should contain featured image URL")
 	}
-	if !containsString(result, "categories:") {
-		t.Error("generateMarkdownContent() should contain categories")
+	if !containsString(result, "featured_image_id: 100") {
+		t.Error("generateMarkdownContent() should contain featured image ID")
 	}
-	if !containsString(result, "tags:") {
-		t.Error("generateMarkdownContent() should contain tags")
+	if !containsString(result, "category_ids:") {
+		t.Error("generateMarkdownContent() should contain category IDs")
+	}
+	if !containsString(result, "tag_ids:") {
+		t.Error("generateMarkdownContent() should contain tag IDs")
 	}
 
 	// Check content

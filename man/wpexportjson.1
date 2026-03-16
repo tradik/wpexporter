@@ -1,0 +1,232 @@
+.TH WPEXPORTJSON 1 "March 2026" "wpexportjson 1.7.0" "User Commands"
+.SH NAME
+wpexportjson \- WordPress content export tool
+.SH SYNOPSIS
+.B wpexportjson export
+.RB [ \-u | \-\-url ]
+.I URL
+.RB [ options ]
+.SH DESCRIPTION
+.B wpexportjson
+exports content from WordPress sites via the REST API. Supports multiple output formats including JSON, Markdown, and platform-specific formats for Shopify, Magento, and others.
+.SH OPTIONS
+.SS "Required Options"
+.TP
+.BR \-u ", " \-\-url " " \fIURL\fR
+WordPress site URL (required)
+.SS "Output Options"
+.TP
+.BR \-o ", " \-\-output " " \fIPATH\fR
+Output directory (default: export/{domain}.{date})
+.TP
+.BR \-f ", " \-\-format " " \fIFORMAT\fR
+Output format: json, markdown, shopify, magento, wordpress, drupal, wix, squarespace, webflow, weebly, prestashop, ghost, strapi, contentful (default: json)
+.TP
+.BR \-\-zip
+Create ZIP archive of export
+.TP
+.BR \-\-no\-files
+Remove export files after creating ZIP (requires --zip)
+.SS "Content Filters"
+.TP
+.BR \-\-no\-posts
+Skip exporting blog posts
+.TP
+.BR \-\-no\-pages
+Skip exporting pages
+.TP
+.BR \-\-no\-products
+Skip exporting WooCommerce products
+.TP
+.BR \-\-no\-users
+Skip exporting users
+.TP
+.BR \-\-no\-tags
+Skip exporting tags
+.TP
+.BR \-\-path\-filter " " \fIPATTERN\fR
+Filter posts/pages by URL path pattern (e.g., /fr/arts/)
+.SS "Media Options"
+.TP
+.BR \-\-download\-media
+Download images and videos (default: true)
+.TP
+.BR \-\-no\-media
+Disable media downloads
+.TP
+.BR \-\-relevant\-media\-only
+Only download featured images and images embedded in content
+.TP
+.BR \-\-exclude\-media\-types " " \fITYPES\fR
+Media types to skip (comma-separated: images,videos,audio,documents,archives)
+.SS "HTML Processing"
+.TP
+.BR \-\-flat\-html
+Convert HTML to Markdown (Bricks Builder, Elementor support)
+.TP
+.BR \-\-basic\-html
+Clean HTML to basic elements (tables, lists, links - for Shopify)
+.TP
+.BR \-\-preserve\-classes " " \fICLASSES\fR
+CSS classes to preserve from HTML processing (comma-separated, supports wildcards like klaviyo-form-*)
+.TP
+.BR \-\-preserve\-ids " " \fIIDS\fR
+Element IDs to preserve from HTML processing (comma-separated, supports wildcards)
+.TP
+.BR \-\-keep\-original\-urls
+Preserve original WordPress URLs in content (don't convert to local paths)
+.SS "SEO Options"
+.TP
+.BR \-\-assisted\-crawl
+Crawl URLs to extract SEO metadata (title, description, og tags)
+.TP
+.BR \-\-crawl\-content
+Crawl pages with empty content (Bricks, Elementor page builders)
+.TP
+.BR \-\-exclude\-tags " " \fITAGS\fR
+SEO tags to exclude (comma-separated: title,meta:description,og:title,canonical,lang,hreflangs)
+.TP
+.BR \-\-skip\-empty\-content
+Skip posts/pages with empty content from export
+.SS "Cache Options"
+.TP
+.BR \-\-cache
+Enable caching of API responses and crawl data
+.TP
+.BR \-\-cache\-ttl " " \fIDURATION\fR
+Cache TTL (e.g., 24h, 1h, 0 for unlimited) (default: 24h)
+.TP
+.BR \-\-cache\-dir " " \fIPATH\fR
+Cache directory (default: ~/.wpexporter/cache)
+.TP
+.BR \-\-cache\-clear
+Clear cache before export
+.SS "Authentication"
+.TP
+.BR \-\-auth\-user " " \fIUSERNAME\fR
+Username for Basic Auth (prompts for password if --auth-pass not provided)
+.TP
+.BR \-\-auth\-pass " " \fIPASSWORD\fR
+Password for Basic Auth
+.TP
+.BR \-\-auth\-token " " \fITOKEN\fR
+Bearer token for authentication
+.SS "Performance Options"
+.TP
+.BR \-c ", " \-\-concurrent " " \fINUM\fR
+Concurrent downloads (default: 5)
+.TP
+.BR \-\-rate\-limit " " \fIMS\fR
+Delay between API requests in milliseconds (prevents server rate limiting)
+.TP
+.BR \-\-timeout " " \fISECONDS\fR
+HTTP request timeout in seconds (default: 30)
+.TP
+.BR \-\-resume
+Resume from checkpoint if previous export was interrupted
+.SS "Other Options"
+.TP
+.BR \-\-brute\-force
+Enable brute force ID discovery
+.TP
+.BR \-\-max\-id " " \fINUM\fR
+Maximum ID for brute force (default: 10000)
+.TP
+.BR \-\-no\-ids
+Exclude numeric IDs from frontmatter
+.TP
+.BR \-v ", " \-\-verbose
+Enable verbose output
+.TP
+.BR \-q ", " \-\-quiet
+Suppress all output, only return exit code
+.TP
+.BR \-\-config " " \fIFILE\fR
+Configuration file path
+.SH EXAMPLES
+.SS "Basic Export"
+Export a WordPress site to JSON:
+.PP
+.RS
+wpexportjson export --url https://example.com
+.RE
+.SS "Markdown Export with SEO"
+Export to Markdown with SEO metadata:
+.PP
+.RS
+wpexportjson export --url https://example.com -f markdown --assisted-crawl
+.RE
+.SS "Shopify Export with Preserve"
+Export for Shopify, preserving Klaviyo forms:
+.PP
+.RS
+wpexportjson export --url https://example.com -f shopify --basic-html \\
+  --preserve-classes "klaviyo-form-*"
+.RE
+.SS "Cached Export"
+Use caching for faster repeated exports:
+.PP
+.RS
+wpexportjson export --url https://example.com --cache --cache-ttl 24h
+.RE
+.SS "Filtered Export"
+Export only French art pages:
+.PP
+.RS
+wpexportjson export --url https://example.com --path-filter "/fr/arts/"
+.RE
+.SH ENVIRONMENT
+.TP
+.B WPEXPORT_URL
+WordPress site URL
+.TP
+.B WPEXPORT_OUTPUT
+Output directory
+.TP
+.B WPEXPORT_FORMAT
+Output format
+.TP
+.B WPEXPORT_CACHE
+Enable caching (true/false)
+.TP
+.B WPEXPORT_CACHE_TTL
+Cache TTL
+.TP
+.B WPEXPORT_CACHE_DIR
+Cache directory
+.TP
+.B WPEXPORT_PRESERVE_CLASSES
+CSS classes to preserve (comma-separated)
+.TP
+.B WPEXPORT_PRESERVE_IDS
+Element IDs to preserve (comma-separated)
+.SH FILES
+.TP
+.I ./config.yaml
+Local configuration file
+.TP
+.I ~/.wpexportjson/config.yaml
+User configuration file
+.TP
+.I /etc/wpexportjson/config.yaml
+System configuration file
+.TP
+.I ~/.wpexporter/cache/
+Default cache directory
+.TP
+.I .wpexport_checkpoint.json
+Checkpoint file for resume functionality
+.SH EXIT STATUS
+.TP
+.B 0
+Success
+.TP
+.B 1
+Error occurred
+.SH BUGS
+Report bugs at https://github.com/tradik/wpexporter/issues
+.SH SEE ALSO
+.BR curl (1),
+.BR jq (1)
+.SH AUTHOR
+Written by Tradik.

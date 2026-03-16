@@ -16,8 +16,12 @@ import (
 
 // Exporter handles data export functionality
 type Exporter struct {
-	config     *config.Config
-	downloader *media.Downloader
+	config      *config.Config
+	downloader  *media.Downloader
+	categoryMap map[int]string // ID -> Name lookup
+	tagMap      map[int]string // ID -> Name lookup
+	userMap     map[int]string // ID -> Name lookup
+	mediaMap    map[int]string // ID -> SourceURL lookup
 }
 
 // NewExporter creates a new exporter instance
@@ -44,8 +48,12 @@ func (e *Exporter) Export(data *models.ExportData) error {
 		data.Stats.MediaDownloaded = downloaded
 	}
 
-	// Update media paths in content
-	e.updateMediaPaths(data)
+	// Update media paths in content only for local formats (json, markdown)
+	// unless --keep-original-urls is set (for importing markdown to Shopify etc.)
+	// Other formats (shopify, magento, etc.) need original URLs
+	if (e.config.Format == "json" || e.config.Format == "markdown") && !e.config.KeepOriginalURLs {
+		e.updateMediaPaths(data)
+	}
 
 	// Export based on format
 	switch e.config.Format {
@@ -112,6 +120,24 @@ func (e *Exporter) exportJSON(data *models.ExportData) error {
 
 // exportMarkdown exports data as Markdown files
 func (e *Exporter) exportMarkdown(data *models.ExportData) error {
+	// Build lookup maps for human-readable names in frontmatter
+	e.categoryMap = make(map[int]string)
+	for _, cat := range data.Categories {
+		e.categoryMap[cat.ID] = cat.Name
+	}
+	e.tagMap = make(map[int]string)
+	for _, tag := range data.Tags {
+		e.tagMap[tag.ID] = tag.Name
+	}
+	e.userMap = make(map[int]string)
+	for _, user := range data.Users {
+		e.userMap[user.ID] = user.Name
+	}
+	e.mediaMap = make(map[int]string)
+	for _, m := range data.Media {
+		e.mediaMap[m.ID] = m.SourceURL
+	}
+
 	// Create base directory structure
 	pagesDir := filepath.Join(e.config.Output, "pages")
 
@@ -449,24 +475,68 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 	builder.WriteString(fmt.Sprintf("link: \"%s\"\n", post.Link))
 
 	if post.Author > 0 {
-		builder.WriteString(fmt.Sprintf("author: %d\n", post.Author))
+		if name, ok := e.userMap[post.Author]; ok && name != "" {
+			builder.WriteString(fmt.Sprintf("author: \"%s\"\n", e.escapeYAML(name)))
+		}
+		if !e.config.NoIDs {
+			builder.WriteString(fmt.Sprintf("author_id: %d\n", post.Author))
+		}
 	}
 
 	if post.FeaturedMedia > 0 {
-		builder.WriteString(fmt.Sprintf("featured_media: %d\n", post.FeaturedMedia))
+		if url, ok := e.mediaMap[post.FeaturedMedia]; ok && url != "" {
+			builder.WriteString(fmt.Sprintf("featured_image: \"%s\"\n", e.escapeYAML(url)))
+		}
+		if !e.config.NoIDs {
+			builder.WriteString(fmt.Sprintf("featured_image_id: %d\n", post.FeaturedMedia))
+		}
 	}
 
 	if len(post.Categories) > 0 {
-		builder.WriteString("categories:\n")
-		for _, cat := range post.Categories {
-			builder.WriteString(fmt.Sprintf("  - %d\n", cat))
+		// Collect category names
+		var categoryNames []string
+		for _, catID := range post.Categories {
+			if name, ok := e.categoryMap[catID]; ok && name != "" {
+				categoryNames = append(categoryNames, name)
+			}
+		}
+		// Output names only if we have any
+		if len(categoryNames) > 0 {
+			builder.WriteString("categories:\n")
+			for _, name := range categoryNames {
+				builder.WriteString(fmt.Sprintf("  - \"%s\"\n", e.escapeYAML(name)))
+			}
+		}
+		// Output IDs unless --no-ids
+		if !e.config.NoIDs {
+			builder.WriteString("category_ids:\n")
+			for _, catID := range post.Categories {
+				builder.WriteString(fmt.Sprintf("  - %d\n", catID))
+			}
 		}
 	}
 
 	if len(post.Tags) > 0 {
-		builder.WriteString("tags:\n")
-		for _, tag := range post.Tags {
-			builder.WriteString(fmt.Sprintf("  - %d\n", tag))
+		// Collect tag names
+		var tagNames []string
+		for _, tagID := range post.Tags {
+			if name, ok := e.tagMap[tagID]; ok && name != "" {
+				tagNames = append(tagNames, name)
+			}
+		}
+		// Output names only if we have any
+		if len(tagNames) > 0 {
+			builder.WriteString("tags:\n")
+			for _, name := range tagNames {
+				builder.WriteString(fmt.Sprintf("  - \"%s\"\n", e.escapeYAML(name)))
+			}
+		}
+		// Output IDs unless --no-ids
+		if !e.config.NoIDs {
+			builder.WriteString("tag_ids:\n")
+			for _, tagID := range post.Tags {
+				builder.WriteString(fmt.Sprintf("  - %d\n", tagID))
+			}
 		}
 	}
 
@@ -503,20 +573,21 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 		}
 	}
 
+	// Excerpt in frontmatter (cleaned from HTML)
+	if post.Excerpt.Rendered != "" {
+		excerptText := e.convertHTMLToMarkdown(post.Excerpt.Rendered)
+		excerptText = strings.TrimSpace(excerptText)
+		if excerptText != "" {
+			builder.WriteString(fmt.Sprintf("excerpt: \"%s\"\n", e.escapeYAML(excerptText)))
+		}
+	}
+
 	builder.WriteString("---\n\n")
 
 	// Title
 	builder.WriteString(fmt.Sprintf("# %s\n\n", post.Title.Rendered))
 
-	// Excerpt if available
-	if post.Excerpt.Rendered != "" {
-		builder.WriteString("## Excerpt\n\n")
-		builder.WriteString(e.convertHTMLToMarkdown(post.Excerpt.Rendered))
-		builder.WriteString("\n\n")
-	}
-
 	// Content
-	builder.WriteString("## Content\n\n")
 	builder.WriteString(e.convertHTMLToMarkdown(post.Content.Rendered))
 
 	return builder.String()
