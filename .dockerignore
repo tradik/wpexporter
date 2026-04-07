@@ -54,3 +54,10 @@ air.toml
 
 # Dependencies
 vendor/
+
+# Snap build artifacts
+*.snap
+snap/
+parts/
+stage/
+prime/

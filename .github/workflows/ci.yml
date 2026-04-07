@@ -167,15 +167,18 @@ jobs:
                 # Create package directory
                 PKG_DIR="dist/pkg-${os}-${arch}"
                 mkdir -p "$PKG_DIR"
-                
+
                 # Copy binaries
                 cp "dist/wpexportjson-${os}-${arch}${ext}" "$PKG_DIR/wpexportjson${ext}"
                 cp "dist/wpxmlrpc-${os}-${arch}${ext}" "$PKG_DIR/wpxmlrpc${ext}"
-                
-                # Copy docs
+                cp "dist/wpmcp-${os}-${arch}${ext}" "$PKG_DIR/wpmcp${ext}" 2>/dev/null || true
+
+                # Copy docs and man pages
                 cp README.md "$PKG_DIR/" 2>/dev/null || true
                 cp CHANGELOG.md "$PKG_DIR/" 2>/dev/null || true
                 cp config.example.yaml "$PKG_DIR/" 2>/dev/null || true
+                mkdir -p "$PKG_DIR/man"
+                cp man/*.1 "$PKG_DIR/man/" 2>/dev/null || true
                 
                 # Create archive
                 if [ "$os" = "windows" ]; then
@@ -220,13 +223,19 @@ jobs:
             | FreeBSD | ARM64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-freebsd-arm64.tar.gz` |
             
             ### Installation
-            
+
             ```bash
-            # Linux/macOS
+            # Homebrew (macOS / Linux)
+            brew install tradik/tap/wpexporter
+
+            # Snap (Linux)
+            sudo snap install wpexporter
+
+            # Manual (Linux/macOS)
             tar -xzf wpexportjson-${{ steps.next_version.outputs.new_version }}-<os>-<arch>.tar.gz
-            chmod +x wpexportjson wpxmlrpc
-            sudo mv wpexportjson wpxmlrpc /usr/local/bin/
-            
+            chmod +x wpexportjson wpxmlrpc wpmcp
+            sudo mv wpexportjson wpxmlrpc wpmcp /usr/local/bin/
+
             # Windows
             # Extract the zip and add to PATH
             ```
@@ -273,3 +282,147 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  homebrew:
+    runs-on: ubuntu-latest
+    needs: [release]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Get release version
+        id: version
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_num=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Download release tarballs and compute SHA256
+        id: sha
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          BASE="https://github.com/tradik/wpexporter/releases/download/${VERSION}"
+
+          for pair in "darwin-amd64:DARWIN_AMD64" "darwin-arm64:DARWIN_ARM64" \
+                      "linux-amd64:LINUX_AMD64" "linux-arm64:LINUX_ARM64"; do
+            PLATFORM="${pair%%:*}"
+            VAR="${pair##*:}"
+            URL="${BASE}/wpexportjson-${VERSION}-${PLATFORM}.tar.gz"
+            echo "Downloading ${URL}..."
+            SHA=$(curl -sL "${URL}" | sha256sum | awk '{print $1}')
+            echo "sha_${VAR}=${SHA}" >> $GITHUB_OUTPUT
+            echo "${VAR}: ${SHA}"
+          done
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v6
+        with:
+          repository: tradik/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          VERSION_NUM="${{ steps.version.outputs.version_num }}"
+
+          cat > homebrew-tap/Formula/wpexporter.rb << 'FORMULA_EOF'
+          # Homebrew formula for wpexporter - WordPress Export Tools
+          # Install: brew install tradik/tap/wpexporter
+          # Or: brew tap tradik/tap && brew install wpexporter
+
+          class Wpexporter < Formula
+            desc "Export WordPress content to JSON, Markdown, Shopify, and 14+ formats"
+            homepage "https://github.com/tradik/wpexporter"
+            version "VERSION_PLACEHOLDER"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "URL_DARWIN_ARM64"
+                sha256 "SHA_DARWIN_ARM64"
+              end
+              on_intel do
+                url "URL_DARWIN_AMD64"
+                sha256 "SHA_DARWIN_AMD64"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "URL_LINUX_ARM64"
+                sha256 "SHA_LINUX_ARM64"
+              end
+              on_intel do
+                url "URL_LINUX_AMD64"
+                sha256 "SHA_LINUX_AMD64"
+              end
+            end
+
+            def install
+              bin.install "wpexportjson"
+              bin.install "wpxmlrpc"
+              bin.install "wpmcp"
+              man1.install "man/wpexportjson.1" if File.exist? "man/wpexportjson.1"
+            end
+
+            test do
+              system "#{bin}/wpexportjson", "--help"
+              system "#{bin}/wpxmlrpc", "--help"
+            end
+          end
+          FORMULA_EOF
+
+          BASE_URL="https://github.com/tradik/wpexporter/releases/download/${VERSION}"
+
+          sed -i "s|VERSION_PLACEHOLDER|${VERSION_NUM}|g" homebrew-tap/Formula/wpexporter.rb
+          sed -i "s|URL_DARWIN_ARM64|${BASE_URL}/wpexportjson-${VERSION}-darwin-arm64.tar.gz|g" homebrew-tap/Formula/wpexporter.rb
+          sed -i "s|URL_DARWIN_AMD64|${BASE_URL}/wpexportjson-${VERSION}-darwin-amd64.tar.gz|g" homebrew-tap/Formula/wpexporter.rb
+          sed -i "s|URL_LINUX_ARM64|${BASE_URL}/wpexportjson-${VERSION}-linux-arm64.tar.gz|g" homebrew-tap/Formula/wpexporter.rb
+          sed -i "s|URL_LINUX_AMD64|${BASE_URL}/wpexportjson-${VERSION}-linux-amd64.tar.gz|g" homebrew-tap/Formula/wpexporter.rb
+          sed -i "s|SHA_DARWIN_ARM64|${{ steps.sha.outputs.sha_DARWIN_ARM64 }}|g" homebrew-tap/Formula/wpexporter.rb
+          sed -i "s|SHA_DARWIN_AMD64|${{ steps.sha.outputs.sha_DARWIN_AMD64 }}|g" homebrew-tap/Formula/wpexporter.rb
+          sed -i "s|SHA_LINUX_ARM64|${{ steps.sha.outputs.sha_LINUX_ARM64 }}|g" homebrew-tap/Formula/wpexporter.rb
+          sed -i "s|SHA_LINUX_AMD64|${{ steps.sha.outputs.sha_LINUX_AMD64 }}|g" homebrew-tap/Formula/wpexporter.rb
+
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' homebrew-tap/Formula/wpexporter.rb
+
+      - name: Push updated formula
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/wpexporter.rb
+          git diff --cached --quiet && exit 0
+          git commit -m "feat: Update wpexporter to ${{ steps.version.outputs.version }}"
+          git push
+
+  snap:
+    runs-on: ubuntu-latest
+    needs: [release]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Update snap version
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+          VERSION_NUM="${VERSION#v}"
+          sed -i "s/^version:.*/version: \"${VERSION_NUM}\"/" snap/snapcraft.yaml
+
+      - name: Build snap
+        uses: snapcore/action-build@v1
+        id: snapcraft
+
+      - name: Publish to Snap Store
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAP_STORE_TOKEN }}
+        with:
+          snap: ${{ steps.snapcraft.outputs.snap }}
+          release: stable

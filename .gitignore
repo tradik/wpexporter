@@ -46,6 +46,12 @@ config.yaml
 config.json
 scripts/export-*.sh
 
+# Snap build artifacts
+*.snap
+parts/
+stage/
+prime/
+
 # Temporary files
 tmp/
 temp/

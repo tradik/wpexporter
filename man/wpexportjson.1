@@ -1,4 +1,4 @@
-.TH WPEXPORTJSON 1 "March 2026" "wpexportjson 1.7.0" "User Commands"
+.TH WPEXPORTJSON 1 "April 2026" "wpexportjson 1.7.1" "User Commands"
 .SH NAME
 wpexportjson \- WordPress content export tool
 .SH SYNOPSIS
@@ -223,6 +223,21 @@ Success
 .TP
 .B 1
 Error occurred
+.SH INSTALLATION
+.SS "Homebrew (macOS / Linux)"
+.nf
+brew install tradik/tap/wpexporter
+.fi
+.SS "Snap (Linux)"
+.nf
+sudo snap install wpexporter
+.fi
+.SS "From Source"
+.nf
+git clone https://github.com/tradik/wpexporter.git
+cd wpexporter
+make build
+.fi
 .SH BUGS
 Report bugs at https://github.com/tradik/wpexporter/issues
 .SH SEE ALSO
