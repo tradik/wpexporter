@@ -401,9 +401,19 @@ jobs:
           git push
 
   snap:
-    runs-on: ubuntu-latest
+    name: Snap (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     needs: [release]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v6
         with:
@@ -415,13 +425,21 @@ jobs:
           VERSION_NUM="${VERSION#v}"
           sed -i "s/^version:.*/version: \"${VERSION_NUM}\"/" snap/snapcraft.yaml
 
-      - name: Install snapcraft
-        run: sudo snap install snapcraft --classic
-
       - name: Build snap
-        run: snapcraft --verbose
+        uses: snapcore/action-build@v1
+        id: build
+
+      - name: Upload snap artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: snap-package-${{ matrix.arch }}
+          path: ${{ steps.build.outputs.snap }}
+          retention-days: 7
 
       - name: Publish to Snap Store
+        uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAP_STORE_TOKEN }}
-        run: snapcraft upload --release=stable *.snap
+        with:
+          snap: ${{ steps.build.outputs.snap }}
+          release: stable
