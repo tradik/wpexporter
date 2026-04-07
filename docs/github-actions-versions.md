@@ -18,8 +18,7 @@ Updated: 2026-04-07
 | `docker/setup-buildx-action` | v4 | 24 | |
 | `docker/login-action` | v4 | 24 | |
 | `docker/metadata-action` | v6 | 24 | |
-| `snapcore/action-build` | v1 | - | |
-| `snapcore/action-publish` | v1 | - | |
+| `snapcraft` (direct CLI) | latest | - | Replaced unmaintained snapcore actions |
 
 ## Update Commands
 
