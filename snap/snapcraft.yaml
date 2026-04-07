@@ -1,6 +1,7 @@
 name: wpexporter
 base: core22
 version: "1.7.1"
+title: wpexporter
 summary: Export WordPress content to JSON, Markdown, Shopify, and 14+ formats
 description: |
   wpexporter is a suite of CLI tools for exporting WordPress content:
@@ -14,6 +15,10 @@ description: |
 
   Features: persistent caching, SEO metadata extraction, media download,
   HTML preservation, rate limiting, and resume/checkpoint support.
+contact: https://github.com/tradik/wpexporter/issues
+issues: https://github.com/tradik/wpexporter/issues
+source-code: https://github.com/tradik/wpexporter
+website: https://github.com/tradik/wpexporter
 
 grade: stable
 confinement: strict
