@@ -47,7 +47,7 @@ MCP_BINARY := wpmcp
 LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT) -s -w"
 PROD_LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT) -s -w -extldflags '-static'"
 
-.PHONY: help build clean test test-coverage deps run install dev lint vet sec check format build-prod release package packages docker-build docker-push version tag
+.PHONY: help build clean test test-coverage deps run install dev lint vet sec check format build-prod release package packages docker-build docker-push version tag snap
 
 help: ## Show this help message
 	@grep -h -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-40s\033[0m %s\n", $$1, $$2}'
@@ -230,6 +230,14 @@ tag: ## Create and push a new version tag
 		echo "${GREEN}Tag $$NEW_VERSION created and pushed${RESET}"; \
 	else \
 		echo "${RED}No version specified${RESET}"; \
+	fi
+
+snap: ## Build snap package locally
+	@echo "${BLUE}Building snap package...${RESET}"
+	@if command -v snapcraft >/dev/null 2>&1; then \
+		snapcraft; \
+	else \
+		echo "${YELLOW}snapcraft not installed. Install with: sudo snap install snapcraft --classic${RESET}"; \
 	fi
 
 docker-build: ## Build Docker image

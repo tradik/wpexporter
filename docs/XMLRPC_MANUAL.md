@@ -12,10 +12,20 @@ The `wpxmlrpc` tool provides an alternative method for exporting WordPress conte
 
 ## Installation
 
+### Homebrew (macOS / Linux)
+```bash
+brew install tradik/tap/wpexporter
+```
+
+### Snap (Linux)
+```bash
+sudo snap install wpexporter
+```
+
 ### From Source
 ```bash
-git clone https://github.com/tradik/wpexportjson.git
-cd wpexportjson
+git clone https://github.com/tradik/wpexporter.git
+cd wpexporter
 make build
 ```
 
@@ -23,7 +33,7 @@ The XML-RPC client will be built as `build/wpxmlrpc`.
 
 ### Using Go Install
 ```bash
-go install github.com/tradik/wpexportjson/cmd/wpxmlrpc@latest
+go install github.com/tradik/wpexporter/cmd/wpxmlrpc@latest
 ```
 
 ## Basic Usage

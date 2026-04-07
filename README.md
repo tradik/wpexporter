@@ -9,6 +9,8 @@
 [![GitHub Stars](https://img.shields.io/github/stars/tradik/wpexporter?style=social)](https://github.com/tradik/wpexporter/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/tradik/wpexporter?style=social)](https://github.com/tradik/wpexporter/network/members)
 [![GitHub Issues](https://img.shields.io/github/issues/tradik/wpexporter)](https://github.com/tradik/wpexporter/issues)
+[![Homebrew](https://img.shields.io/badge/Homebrew-tradik%2Ftap-FBB040?style=flat&logo=homebrew)](https://github.com/tradik/homebrew-tap)
+[![Snap](https://img.shields.io/badge/Snap_Store-wpexporter-82BEA0?style=flat&logo=snapcraft)](https://snapcraft.io/wpexporter)
 
 > **Repository:** [github.com/tradik/wpexporter](https://github.com/tradik/wpexporter)
 
@@ -54,6 +56,22 @@ A comprehensive WordPress content export toolkit with three powerful application
 
 ## Installation
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew install tradik/tap/wpexporter
+```
+
+This installs `wpexportjson`, `wpxmlrpc`, and `wpmcp` binaries plus man pages.
+
+### Snap (Linux)
+
+```bash
+sudo snap install wpexporter
+```
+
+Provides `wpexporter.wpexportjson`, `wpexporter.wpxmlrpc`, and `wpexporter.wpmcp` commands.
+
 ### From Source
 
 ```bash
@@ -69,7 +87,9 @@ man wpexportjson
 ### Using Go Install
 
 ```bash
-go install github.com/tradik/wpexporter/cmd/wpexporter@latest
+go install github.com/tradik/wpexporter/cmd/wpexportjson@latest
+go install github.com/tradik/wpexporter/cmd/wpxmlrpc@latest
+go install github.com/tradik/wpexporter/cmd/wpmcp@latest
 ```
 
 ### Using Docker

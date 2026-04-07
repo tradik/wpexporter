@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-04-07
+
+### Added
+- **Homebrew Support**: Install via `brew install tradik/tap/wpexporter`
+  - Auto-updated formula in `tradik/homebrew-tap` on each release
+  - Installs `wpexportjson`, `wpxmlrpc`, `wpmcp` binaries and man pages
+- **Snap Support**: Install via `sudo snap install wpexporter`
+  - Snap package with strict confinement (network, home, removable-media)
+  - Auto-published to Snap Store on release
+- **CI/CD Pipeline Improvements**
+  - Added `homebrew` job: auto-updates Homebrew formula with SHA256 hashes
+  - Added `snap` job: auto-builds and publishes snap package
+  - Release tarballs now include `wpmcp` binary and man pages
+
 ## [1.7.0] - 2026-03-16
 
 ### Added
