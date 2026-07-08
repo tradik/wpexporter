@@ -126,8 +126,10 @@ jobs:
       - name: Get latest tag
         id: get_tag
         run: |
-          # Get the latest tag, default to v0.0.0 if none exists
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          # Highest semver tag (git describe picks an arbitrary tag when several
+          # tags share a commit, which stalled version bumps; sort by version).
+          LATEST_TAG=$(git tag --sort=-v:refname | head -n1)
+          LATEST_TAG=${LATEST_TAG:-v0.0.0}
           echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
           echo "Latest tag: $LATEST_TAG"
 
@@ -304,7 +306,8 @@ jobs:
       - name: Get release version
         id: version
         run: |
-          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+          VERSION=$(git tag --sort=-v:refname | head -n1)
+          VERSION=${VERSION:-v1.0.0}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "version_num=${VERSION#v}" >> $GITHUB_OUTPUT
 
@@ -430,7 +433,8 @@ jobs:
 
       - name: Update snap version
         run: |
-          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+          VERSION=$(git tag --sort=-v:refname | head -n1)
+          VERSION=${VERSION:-v1.0.0}
           VERSION_NUM="${VERSION#v}"
           sed -i "s/^version:.*/version: \"${VERSION_NUM}\"/" snap/snapcraft.yaml
 
