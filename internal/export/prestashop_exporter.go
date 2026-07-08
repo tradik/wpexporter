@@ -363,7 +363,7 @@ func (e *PrestaShopExporter) convertPostToProduct(
 
 	// Determine active status
 	active := 0
-	if post.Status == "publish" {
+	if post.Status == statusPublish {
 		active = 1
 	}
 

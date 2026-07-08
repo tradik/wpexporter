@@ -217,11 +217,11 @@ func (e *WeeblyExporter) exportJSON(data *models.ExportData, baseDir string) err
 			Content:   post.Content.Rendered,
 			Excerpt:   stripHTMLTags(post.Excerpt.Rendered),
 			Author:    userMap[post.Author],
-			Published: post.Status == "publish",
+			Published: post.Status == statusPublish,
 			UpdatedAt: post.Modified.Time,
 		}
 
-		if post.Status == "publish" {
+		if post.Status == statusPublish {
 			weeblyPost.PublishedAt = post.Date.Time
 		}
 
@@ -251,7 +251,7 @@ func (e *WeeblyExporter) exportJSON(data *models.ExportData, baseDir string) err
 			Title:     page.Title.Rendered,
 			Slug:      page.Slug,
 			Content:   page.Content.Rendered,
-			Published: page.Status == "publish",
+			Published: page.Status == statusPublish,
 			UpdatedAt: page.Modified.Time,
 		}
 		jsonExport.Pages = append(jsonExport.Pages, weeblyPage)

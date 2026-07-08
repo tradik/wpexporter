@@ -212,7 +212,7 @@ func (s *ShopifyExporter) convertWooProductToShopifyProduct(product models.WooCo
 	// Determine publish status
 	published := "FALSE"
 	status := "draft"
-	if product.Status == "publish" {
+	if product.Status == statusPublish {
 		published = "TRUE"
 		status = "active"
 	}
@@ -725,7 +725,7 @@ func (s *ShopifyExporter) generateMetadataHTML(post models.WordPressPost, author
 
 // isPublished returns "TRUE" or "FALSE" based on post status.
 func (s *ShopifyExporter) isPublished(status string) string {
-	if status == "publish" {
+	if status == statusPublish {
 		return "TRUE"
 	}
 	return "FALSE"
@@ -734,7 +734,7 @@ func (s *ShopifyExporter) isPublished(status string) string {
 // getStatus returns the Shopify status from WordPress status.
 func (s *ShopifyExporter) getStatus(wpStatus string) string {
 	switch wpStatus {
-	case "publish":
+	case statusPublish:
 		return "active"
 	case "draft":
 		return "draft"

@@ -203,13 +203,13 @@ func (e *WixExporter) convertPost(post models.WordPressPost, tagMap, categoryMap
 		Content:         post.Content.Rendered,
 		Excerpt:         stripHTMLTags(post.Excerpt.Rendered),
 		Featured:        post.Sticky,
-		Published:       post.Status == "publish",
+		Published:       post.Status == statusPublish,
 		LastUpdatedDate: post.Modified.Time,
 		SEOTitle:        post.SEO.Title,
 		SEODescription:  post.SEO.MetaDescription,
 	}
 
-	if post.Status == "publish" {
+	if post.Status == statusPublish {
 		wixPost.PublishedDate = post.Date.Time
 	}
 
@@ -247,7 +247,7 @@ func (e *WixExporter) convertPage(page models.WordPressPost) WixPage {
 		Title:           page.Title.Rendered,
 		Slug:            page.Slug,
 		Content:         page.Content.Rendered,
-		Published:       page.Status == "publish",
+		Published:       page.Status == statusPublish,
 		LastUpdatedDate: page.Modified.Time,
 		SEOTitle:        page.SEO.Title,
 		SEODescription:  page.SEO.MetaDescription,

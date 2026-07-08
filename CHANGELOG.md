@@ -30,8 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and untyped values).
 
 ### Changed
+- **Go 1.26.4**: bumped the toolchain across `go.mod`, `Dockerfile`, CI (`setup-go`),
+  the snap build channel and the README badge (was 1.25).
 - Version constants in `wpexportjson` and `wpmcp` and the snap package version aligned to
   the current release (were stale at 1.6.x/1.7.1).
+- Extracted repeated string literals into constants (`statusPublish`, `schemaTypeString`)
+  to satisfy `goconst` and DRY.
+- CI `security` job now installs `gosec` from a pinned module version (`go install
+  ...@v2.22.0`) and runs it with the repo toolchain, replacing the mutable `@master`
+  Docker action (fixes supply-chain pin and Go-compatibility; OPS-001).
 
 ## [1.7.1] - 2026-04-07
 

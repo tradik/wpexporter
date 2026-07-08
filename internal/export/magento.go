@@ -208,7 +208,7 @@ func (m *MagentoExporter) convertWooProductToMagentoProduct(product models.WooCo
 
 	// Determine product status
 	productOnline := "0"
-	if product.Status == "publish" {
+	if product.Status == statusPublish {
 		productOnline = "1"
 	}
 
@@ -694,7 +694,7 @@ func (m *MagentoExporter) getMetaKeywords(tagIDs []int) string {
 
 // isOnline returns "1" or "0" based on post status.
 func (m *MagentoExporter) isOnline(status string) string {
-	if status == "publish" {
+	if status == statusPublish {
 		return "1"
 	}
 	return "0"

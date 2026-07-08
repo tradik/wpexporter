@@ -32,19 +32,19 @@ func GetTools() []Tool {
 				Type: "object",
 				Properties: map[string]Property{
 					"url": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "WordPress site URL (e.g., https://example.com)",
 					},
 					"authUser": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Username for Basic Auth (optional)",
 					},
 					"authPass": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Password for Basic Auth (optional)",
 					},
 					"authToken": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Bearer token for authentication (optional)",
 					},
 				},
@@ -58,19 +58,19 @@ func GetTools() []Tool {
 				Type: "object",
 				Properties: map[string]Property{
 					"url": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "WordPress site URL",
 					},
 					"authUser": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Username for Basic Auth (optional)",
 					},
 					"authPass": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Password for Basic Auth (optional)",
 					},
 					"authToken": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Bearer token for authentication (optional)",
 					},
 					"limit": {
@@ -79,7 +79,7 @@ func GetTools() []Tool {
 						Default:     10,
 					},
 					"pathFilter": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Filter posts by URL path pattern (e.g., /blog/)",
 					},
 				},
@@ -93,19 +93,19 @@ func GetTools() []Tool {
 				Type: "object",
 				Properties: map[string]Property{
 					"url": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "WordPress site URL",
 					},
 					"authUser": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Username for Basic Auth (optional)",
 					},
 					"authPass": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Password for Basic Auth (optional)",
 					},
 					"authToken": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Bearer token for authentication (optional)",
 					},
 					"limit": {
@@ -124,11 +124,11 @@ func GetTools() []Tool {
 				Type: "object",
 				Properties: map[string]Property{
 					"url": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "WordPress site URL",
 					},
 					"format": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Export format",
 						Enum: []string{
 							"json", "markdown", "shopify", "magento", "wordpress",
@@ -138,19 +138,19 @@ func GetTools() []Tool {
 						Default: "json",
 					},
 					"output": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Output directory path (optional, defaults to export/{domain}.{date})",
 					},
 					"authUser": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Username for Basic Auth (optional)",
 					},
 					"authPass": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Password for Basic Auth (optional)",
 					},
 					"authToken": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Bearer token for authentication (optional)",
 					},
 					"downloadMedia": {
@@ -174,7 +174,7 @@ func GetTools() []Tool {
 						Default:     false,
 					},
 					"pathFilter": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Filter content by URL path pattern",
 					},
 					"assistedCrawl": {
@@ -198,7 +198,7 @@ func GetTools() []Tool {
 				Type: "object",
 				Properties: map[string]Property{
 					"url": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "WordPress site URL",
 					},
 					"postId": {
@@ -206,15 +206,15 @@ func GetTools() []Tool {
 						Description: "Post ID to retrieve",
 					},
 					"authUser": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Username for Basic Auth (optional)",
 					},
 					"authPass": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Password for Basic Auth (optional)",
 					},
 					"authToken": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Bearer token for authentication (optional)",
 					},
 				},
@@ -228,19 +228,19 @@ func GetTools() []Tool {
 				Type: "object",
 				Properties: map[string]Property{
 					"url": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "WordPress site URL",
 					},
 					"authUser": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Username for Basic Auth (optional)",
 					},
 					"authPass": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Password for Basic Auth (optional)",
 					},
 					"authToken": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Bearer token for authentication (optional)",
 					},
 				},
@@ -254,19 +254,19 @@ func GetTools() []Tool {
 				Type: "object",
 				Properties: map[string]Property{
 					"url": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "WordPress site URL",
 					},
 					"authUser": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Username for Basic Auth (optional)",
 					},
 					"authPass": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Password for Basic Auth (optional)",
 					},
 					"authToken": {
-						Type:        "string",
+						Type:        schemaTypeString,
 						Description: "Bearer token for authentication (optional)",
 					},
 					"limit": {

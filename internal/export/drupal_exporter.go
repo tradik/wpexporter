@@ -470,7 +470,7 @@ func generateUUID(id int, prefix string) string {
 
 // statusToInt converts WordPress status string to Drupal status int
 func statusToInt(status string) int {
-	if status == "publish" {
+	if status == statusPublish {
 		return 1
 	}
 	return 0
