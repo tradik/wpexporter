@@ -40,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ...@v2.22.0`) and runs it with the repo toolchain, replacing the mutable `@master`
   Docker action (fixes supply-chain pin and Go-compatibility; OPS-001).
 
+### Fixed (CI)
+- Release/homebrew/snap version calculation now selects the highest semver tag via
+  `git tag --sort=-v:refname` instead of `git describe --tags --abbrev=0`, which
+  returned an arbitrary tag when several tags shared a commit (v1.7.3 and v1.7.4
+  pointed at the same commit) and stalled automatic version bumps.
+
 ## [1.7.1] - 2026-04-07
 
 ### Added
