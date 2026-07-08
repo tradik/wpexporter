@@ -465,6 +465,20 @@ func structToMap(s *Struct) map[string]*Value {
 	return m
 }
 
+// mapStructs applies fn to every struct element of the response array and returns
+// the collected results. It centralizes the array/struct iteration boilerplate so
+// each parser only declares its own field mapping.
+func mapStructs[T any](resp *XMLRPCResponse, fn func(m map[string]*Value) T) []T {
+	out := make([]T, 0)
+	for _, item := range responseArray(resp) {
+		if item.Struct == nil {
+			continue
+		}
+		out = append(out, fn(structToMap(item.Struct)))
+	}
+	return out
+}
+
 // valStr returns the string value of a named struct member (empty if absent).
 func valStr(m map[string]*Value, key string) string {
 	if v, ok := m[key]; ok {
@@ -502,40 +516,28 @@ func parseXMLRPCTime(s string) time.Time {
 
 // parsePostsResponse maps a wp.getPosts/wp.getPages struct array into posts.
 func (c *Client) parsePostsResponse(resp *XMLRPCResponse) []models.WordPressPost {
-	posts := make([]models.WordPressPost, 0)
-	for _, item := range responseArray(resp) {
-		if item.Struct == nil {
-			continue
+	return mapStructs(resp, func(m map[string]*Value) models.WordPressPost {
+		return models.WordPressPost{
+			ID:       valInt(m, "post_id"),
+			Slug:     valStr(m, "post_name"),
+			Status:   valStr(m, "post_status"),
+			Type:     valStr(m, "post_type"),
+			Link:     valStr(m, "link"),
+			Author:   valInt(m, "post_author"),
+			Title:    models.RenderedContent{Rendered: valStr(m, "post_title")},
+			Content:  models.RenderedContent{Rendered: valStr(m, "post_content")},
+			Excerpt:  models.RenderedContent{Rendered: valStr(m, "post_excerpt")},
+			Date:     models.WordPressTime{Time: parseXMLRPCTime(valStr(m, "post_date"))},
+			Modified: models.WordPressTime{Time: parseXMLRPCTime(valStr(m, "post_modified"))},
 		}
-		m := structToMap(item.Struct)
-		post := models.WordPressPost{
-			ID:      valInt(m, "post_id"),
-			Slug:    valStr(m, "post_name"),
-			Status:  valStr(m, "post_status"),
-			Type:    valStr(m, "post_type"),
-			Link:    valStr(m, "link"),
-			Author:  valInt(m, "post_author"),
-			Title:   models.RenderedContent{Rendered: valStr(m, "post_title")},
-			Content: models.RenderedContent{Rendered: valStr(m, "post_content")},
-			Excerpt: models.RenderedContent{Rendered: valStr(m, "post_excerpt")},
-		}
-		post.Date = models.WordPressTime{Time: parseXMLRPCTime(valStr(m, "post_date"))}
-		post.Modified = models.WordPressTime{Time: parseXMLRPCTime(valStr(m, "post_modified"))}
-		posts = append(posts, post)
-	}
-	return posts
+	})
 }
 
 // parseMediaResponse maps a wp.getMediaLibrary struct array into media items.
 func (c *Client) parseMediaResponse(resp *XMLRPCResponse) []models.WordPressMedia {
-	media := make([]models.WordPressMedia, 0)
-	for _, item := range responseArray(resp) {
-		if item.Struct == nil {
-			continue
-		}
-		m := structToMap(item.Struct)
+	return mapStructs(resp, func(m map[string]*Value) models.WordPressMedia {
 		link := valStr(m, "link")
-		media = append(media, models.WordPressMedia{
+		return models.WordPressMedia{
 			ID:          valInt(m, "attachment_id"),
 			Link:        link,
 			SourceURL:   link,
@@ -544,20 +546,14 @@ func (c *Client) parseMediaResponse(resp *XMLRPCResponse) []models.WordPressMedi
 			Caption:     models.RenderedContent{Rendered: valStr(m, "caption")},
 			Description: models.RenderedContent{Rendered: valStr(m, "description")},
 			Date:        models.WordPressTime{Time: parseXMLRPCTime(valStr(m, "date_created_gmt"))},
-		})
-	}
-	return media
+		}
+	})
 }
 
-// parseTermsResponse maps a wp.getTerms struct array into (id, name, slug, ...).
+// parseCategoriesResponse maps a wp.getTerms struct array into categories.
 func (c *Client) parseCategoriesResponse(resp *XMLRPCResponse) []models.WordPressCategory {
-	categories := make([]models.WordPressCategory, 0)
-	for _, item := range responseArray(resp) {
-		if item.Struct == nil {
-			continue
-		}
-		m := structToMap(item.Struct)
-		categories = append(categories, models.WordPressCategory{
+	return mapStructs(resp, func(m map[string]*Value) models.WordPressCategory {
+		return models.WordPressCategory{
 			ID:          valInt(m, "term_id"),
 			Name:        valStr(m, "name"),
 			Slug:        valStr(m, "slug"),
@@ -565,47 +561,35 @@ func (c *Client) parseCategoriesResponse(resp *XMLRPCResponse) []models.WordPres
 			Taxonomy:    valStr(m, "taxonomy"),
 			Parent:      valInt(m, "parent"),
 			Count:       valInt(m, "count"),
-		})
-	}
-	return categories
+		}
+	})
 }
 
+// parseTagsResponse maps a wp.getTerms struct array into tags.
 func (c *Client) parseTagsResponse(resp *XMLRPCResponse) []models.WordPressTag {
-	tags := make([]models.WordPressTag, 0)
-	for _, item := range responseArray(resp) {
-		if item.Struct == nil {
-			continue
-		}
-		m := structToMap(item.Struct)
-		tags = append(tags, models.WordPressTag{
+	return mapStructs(resp, func(m map[string]*Value) models.WordPressTag {
+		return models.WordPressTag{
 			ID:          valInt(m, "term_id"),
 			Name:        valStr(m, "name"),
 			Slug:        valStr(m, "slug"),
 			Description: valStr(m, "description"),
 			Taxonomy:    valStr(m, "taxonomy"),
 			Count:       valInt(m, "count"),
-		})
-	}
-	return tags
+		}
+	})
 }
 
 // parseUsersResponse maps a wp.getUsers struct array into users.
 func (c *Client) parseUsersResponse(resp *XMLRPCResponse) []models.WordPressUser {
-	users := make([]models.WordPressUser, 0)
-	for _, item := range responseArray(resp) {
-		if item.Struct == nil {
-			continue
-		}
-		m := structToMap(item.Struct)
-		users = append(users, models.WordPressUser{
+	return mapStructs(resp, func(m map[string]*Value) models.WordPressUser {
+		return models.WordPressUser{
 			ID:          valInt(m, "user_id"),
 			Name:        valStr(m, "display_name"),
 			Slug:        valStr(m, "nicename"),
 			URL:         valStr(m, "url"),
 			Description: valStr(m, "bio"),
-		})
-	}
-	return users
+		}
+	})
 }
 
 // parseSiteInfo maps a wp.getOptions struct response into site information.
