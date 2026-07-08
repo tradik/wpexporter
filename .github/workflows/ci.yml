@@ -19,7 +19,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.4"
+          go-version: "1.26.5"
           cache: true
 
       - name: Set Go environment variables
@@ -50,7 +50,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.4"
+          go-version: "1.26.5"
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
@@ -69,7 +69,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.4"
+          go-version: "1.26.5"
 
       # Install gosec from an immutable, pinned module version and run it with the
       # repo's Go toolchain. This avoids the mutable @master action ref (OPS-001)
@@ -96,7 +96,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.4"
+          go-version: "1.26.5"
 
       - name: Build for multiple platforms
         run: make release
@@ -121,7 +121,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.4"
+          go-version: "1.26.5"
 
       - name: Get latest tag
         id: get_tag
