@@ -770,3 +770,41 @@ func TestConfigFields(t *testing.T) {
 		t.Errorf("AuthToken = %v, want token123", cfg.AuthToken)
 	}
 }
+
+// TestIsSameHost verifies credential-host gating for SEC-001: auth must only be
+// attached to URLs on the configured WordPress host, never to a foreign CDN/host.
+func TestIsSameHost(t *testing.T) {
+	cfg := &Config{URL: "https://blog.example.com"}
+
+	tests := []struct {
+		name   string
+		target string
+		want   bool
+	}{
+		{"same host", "https://blog.example.com/wp-content/uploads/1.jpg", true},
+		{"same host, different scheme", "http://blog.example.com/x.png", true},
+		{"same host, case-insensitive", "https://BLOG.EXAMPLE.COM/x.png", true},
+		{"same host with port ignored on hostname", "https://blog.example.com:8443/x", true},
+		{"relative URL treated as same host", "/wp-content/uploads/2.png", true},
+		{"foreign CDN host", "https://cdn.jsdelivr.net/evil.jpg", false},
+		{"attacker host", "https://attacker.example.org/collect", false},
+		{"subdomain is not same host", "https://media.example.com/x.jpg", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := cfg.IsSameHost(tt.target); got != tt.want {
+				t.Errorf("IsSameHost(%q) = %v, want %v", tt.target, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestIsSameHostInvalidBase ensures a malformed base URL never authorizes sending
+// credentials to an arbitrary host.
+func TestIsSameHostInvalidBase(t *testing.T) {
+	cfg := &Config{URL: "://not a url"}
+	if cfg.IsSameHost("https://example.com/x") {
+		t.Error("IsSameHost() with invalid base URL should not authorize a foreign host")
+	}
+}

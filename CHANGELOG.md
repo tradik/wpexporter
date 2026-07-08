@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.5] - 2026-07-08
+
+### Security
+- **Credential leak fixed (SEC-001)**: Authentication headers (`Authorization` / HTTP
+  Basic Auth) are now attached only to requests targeting the configured WordPress host.
+  Media downloads and SEO crawling of URLs on a foreign host (e.g. a CDN) no longer leak
+  WordPress credentials. New `Config.IsSameHost` gate.
+- **CSV formula injection fixed (INT-001)**: exported CSV cells beginning with `=`, `+`,
+  `-`, `@`, tab or CR are now prefixed with a quote so spreadsheet apps treat them as text.
+  Applied to Shopify, Magento, PrestaShop and Webflow exporters (`csvSafe`/`csvSafeRow`).
+- **HTML injection fixed (FE-001)**: the generated Shopify product metadata block now
+  HTML-escapes all interpolated values and validates `href` schemes (rejecting
+  `javascript:`/`data:`), preventing stored XSS in exported product descriptions.
+- **CI supply-chain hardened (OPS-001)**: the `gosec` action is pinned to an immutable
+  release tag instead of the mutable `@master` branch ref, and the security job now runs
+  with a read-only `GITHUB_TOKEN`.
+
+### Fixed
+- **XML-RPC export now returns real data (GO-001)**: the XML-RPC client previously returned
+  a fabricated "Sample Post" and empty media/term/user lists regardless of the site content.
+  It now parses the actual `wp.getPosts`/`wp.getPages`/`wp.getMediaLibrary`/`wp.getTerms`/
+  `wp.getUsers`/`wp.getOptions` struct responses (supports `<int>`/`<i4>`, `dateTime.iso8601`
+  and untyped values).
+
+### Changed
+- Version constants in `wpexportjson` and `wpmcp` and the snap package version aligned to
+  the current release (were stale at 1.6.x/1.7.1).
+
 ## [1.7.1] - 2026-04-07
 
 ### Added

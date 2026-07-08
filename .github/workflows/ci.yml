@@ -59,6 +59,10 @@ jobs:
 
   security:
     runs-on: ubuntu-latest
+    # Least privilege: this job only reads the repo. A read-only token limits the
+    # blast radius of any compromised action step (OPS-001).
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
 
@@ -68,7 +72,9 @@ jobs:
           go-version: "1.25"
 
       - name: Run Gosec Security Scanner
-        uses: securego/gosec@master
+        # Pinned to an immutable release tag instead of the mutable @master branch
+        # ref to prevent supply-chain compromise of the CI pipeline (OPS-001).
+        uses: securego/gosec@v2.22.0
         with:
           # G703: Path traversal - expected as tool saves to user-specified paths
           # G704: SSRF - expected as tool makes requests to user-provided WordPress URLs

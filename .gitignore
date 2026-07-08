@@ -61,3 +61,6 @@ temp/
 
 .windsurf/rules/packages.md
 .windsurf/rules/*
+
+# Audit reports
+audit/

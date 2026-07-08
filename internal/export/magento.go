@@ -157,7 +157,7 @@ func (m *MagentoExporter) exportWooProductsToMagento(products []models.WooCommer
 
 	for _, product := range products {
 		magentoProduct := m.convertWooProductToMagentoProduct(product)
-		if err := writer.Write(m.productToCSVRow(magentoProduct)); err != nil {
+		if err := writer.Write(csvSafeRow(m.productToCSVRow(magentoProduct))); err != nil {
 			return fmt.Errorf("failed to write product row: %w", err)
 		}
 	}
@@ -378,7 +378,7 @@ func (m *MagentoExporter) exportPostsToMagento(posts []models.WordPressPost, fil
 	// Write product rows
 	for _, post := range posts {
 		product := m.convertPostToMagentoProduct(post)
-		if err := writer.Write(m.productToCSVRow(product)); err != nil {
+		if err := writer.Write(csvSafeRow(m.productToCSVRow(product))); err != nil {
 			return fmt.Errorf("failed to write product row: %w", err)
 		}
 	}
@@ -867,7 +867,7 @@ func (m *MagentoExporter) ExportMetadata(data *models.ExportData) error {
 	}
 
 	for _, row := range metadata {
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return fmt.Errorf("failed to write metadata row: %w", err)
 		}
 	}

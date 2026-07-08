@@ -4,6 +4,8 @@ package export
 import (
 	"encoding/csv"
 	"fmt"
+	"html"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,6 +15,22 @@ import (
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/pkg/models"
 )
+
+// safeHref escapes a URL for safe inclusion in an HTML href attribute and rejects
+// non-http(s)/mailto schemes (e.g. javascript:) to prevent HTML/JS injection when
+// the generated Body (HTML) is rendered in a browser (FE-001).
+func safeHref(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "#"
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "", "http", "https", "mailto":
+		return html.EscapeString(u.String())
+	default:
+		return "#"
+	}
+}
 
 // ShopifyExporter handles export to Shopify-compatible CSV format.
 type ShopifyExporter struct {
@@ -145,7 +163,7 @@ func (s *ShopifyExporter) exportWooProductsToShopify(products []models.WooCommer
 
 	for _, product := range products {
 		shopifyProduct := s.convertWooProductToShopifyProduct(product)
-		if err := writer.Write(s.productToCSVRow(shopifyProduct)); err != nil {
+		if err := writer.Write(csvSafeRow(s.productToCSVRow(shopifyProduct))); err != nil {
 			return fmt.Errorf("failed to write product row: %w", err)
 		}
 
@@ -155,7 +173,7 @@ func (s *ShopifyExporter) exportWooProductsToShopify(products []models.WooCommer
 				continue // Skip first image as it's already the main image
 			}
 			imageRow := s.createImageRow(shopifyProduct.Handle, img.Src, i+1)
-			if err := writer.Write(imageRow); err != nil {
+			if err := writer.Write(csvSafeRow(imageRow)); err != nil {
 				return fmt.Errorf("failed to write image row: %w", err)
 			}
 		}
@@ -323,7 +341,7 @@ func (s *ShopifyExporter) exportPostsToShopify(posts []models.WordPressPost, fil
 	// Write product rows
 	for _, post := range posts {
 		product := s.convertPostToShopifyProduct(post)
-		if err := writer.Write(s.productToCSVRow(product)); err != nil {
+		if err := writer.Write(csvSafeRow(s.productToCSVRow(product))); err != nil {
 			return fmt.Errorf("failed to write product row: %w", err)
 		}
 
@@ -334,7 +352,7 @@ func (s *ShopifyExporter) exportPostsToShopify(posts []models.WordPressPost, fil
 				continue // Skip first image as it's already the main image
 			}
 			imageRow := s.createImageRow(product.Handle, imgURL, i+1)
-			if err := writer.Write(imageRow); err != nil {
+			if err := writer.Write(csvSafeRow(imageRow)); err != nil {
 				return fmt.Errorf("failed to write image row: %w", err)
 			}
 		}
@@ -636,7 +654,7 @@ func (s *ShopifyExporter) generateMetadataHTML(post models.WordPressPost, author
 
 	// Slug
 	if post.Slug != "" {
-		builder.WriteString(fmt.Sprintf("<p><strong>Slug:</strong> %s</p>\n", post.Slug))
+		builder.WriteString(fmt.Sprintf("<p><strong>Slug:</strong> %s</p>\n", html.EscapeString(post.Slug)))
 	}
 
 	// Date
@@ -651,22 +669,23 @@ func (s *ShopifyExporter) generateMetadataHTML(post models.WordPressPost, author
 
 	// Status
 	if post.Status != "" {
-		builder.WriteString(fmt.Sprintf("<p><strong>Status:</strong> %s</p>\n", post.Status))
+		builder.WriteString(fmt.Sprintf("<p><strong>Status:</strong> %s</p>\n", html.EscapeString(post.Status)))
 	}
 
 	// Type
 	if post.Type != "" {
-		builder.WriteString(fmt.Sprintf("<p><strong>Type:</strong> %s</p>\n", post.Type))
+		builder.WriteString(fmt.Sprintf("<p><strong>Type:</strong> %s</p>\n", html.EscapeString(post.Type)))
 	}
 
 	// Link
 	if post.Link != "" {
-		builder.WriteString(fmt.Sprintf("<p><strong>Link:</strong> <a href=\"%s\">%s</a></p>\n", post.Link, post.Link))
+		builder.WriteString(fmt.Sprintf("<p><strong>Link:</strong> <a href=\"%s\">%s</a></p>\n",
+			safeHref(post.Link), html.EscapeString(post.Link)))
 	}
 
 	// Author
 	if author != "" && author != "WordPress" {
-		builder.WriteString(fmt.Sprintf("<p><strong>Author:</strong> %s</p>\n", author))
+		builder.WriteString(fmt.Sprintf("<p><strong>Author:</strong> %s</p>\n", html.EscapeString(author)))
 	}
 
 	// Featured Media
@@ -676,24 +695,25 @@ func (s *ShopifyExporter) generateMetadataHTML(post models.WordPressPost, author
 
 	// Categories
 	if categories != "" {
-		builder.WriteString(fmt.Sprintf("<p><strong>Categories:</strong> %s</p>\n", categories))
+		builder.WriteString(fmt.Sprintf("<p><strong>Categories:</strong> %s</p>\n", html.EscapeString(categories)))
 	}
 
 	// Tags
 	if tags != "" {
-		builder.WriteString(fmt.Sprintf("<p><strong>Tags:</strong> %s</p>\n", tags))
+		builder.WriteString(fmt.Sprintf("<p><strong>Tags:</strong> %s</p>\n", html.EscapeString(tags)))
 	}
 
 	// Language
 	if post.SEO.Lang != "" {
-		builder.WriteString(fmt.Sprintf("<p><strong>Lang:</strong> %s</p>\n", post.SEO.Lang))
+		builder.WriteString(fmt.Sprintf("<p><strong>Lang:</strong> %s</p>\n", html.EscapeString(post.SEO.Lang)))
 	}
 
 	// Hreflangs
 	if len(post.SEO.Hreflangs) > 0 {
 		builder.WriteString("<p><strong>Hreflangs:</strong></p>\n<ul>\n")
 		for _, h := range post.SEO.Hreflangs {
-			builder.WriteString(fmt.Sprintf("<li>%s: <a href=\"%s\">%s</a></li>\n", h.Lang, h.Href, h.Href))
+			builder.WriteString(fmt.Sprintf("<li>%s: <a href=\"%s\">%s</a></li>\n",
+				html.EscapeString(h.Lang), safeHref(h.Href), html.EscapeString(h.Href)))
 		}
 		builder.WriteString("</ul>\n")
 	}
@@ -865,7 +885,7 @@ func (s *ShopifyExporter) ExportMetadata(data *models.ExportData) error {
 	}
 
 	for _, row := range metadata {
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return fmt.Errorf("failed to write metadata row: %w", err)
 		}
 	}

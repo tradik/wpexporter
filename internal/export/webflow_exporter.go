@@ -191,7 +191,7 @@ func (e *WebflowExporter) exportPostsCSV(
 			draft,
 		}
 
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return err
 		}
 	}
@@ -236,7 +236,7 @@ func (e *WebflowExporter) exportPagesCSV(pages []models.WordPressPost, baseDir s
 			draft,
 		}
 
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return err
 		}
 	}
@@ -265,7 +265,7 @@ func (e *WebflowExporter) exportCategoriesCSV(categories []models.WordPressCateg
 	// Write categories
 	for _, cat := range categories {
 		row := []string{cat.Name, cat.Slug, cat.Description}
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return err
 		}
 	}
@@ -299,7 +299,7 @@ func (e *WebflowExporter) exportAuthorsCSV(users []models.WordPressUser, baseDir
 		}
 
 		row := []string{user.Name, user.Slug, user.Description, avatar}
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return err
 		}
 	}

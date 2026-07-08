@@ -29,7 +29,7 @@ import (
 
 // Version information - set during build
 var (
-	Version   = "1.6.1"
+	Version   = "1.7.5"
 	BuildDate = "unknown"
 )
 

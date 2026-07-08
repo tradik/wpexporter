@@ -1094,3 +1094,62 @@ func TestGenerateFilename_SlashPath(t *testing.T) {
 		t.Errorf("generateFilename() = %s, want %s", result, expected)
 	}
 }
+
+// TestDownloadFileNoAuthLeakToForeignHost verifies SEC-001: credentials are never
+// attached to a download whose host differs from the configured WordPress host
+// (e.g. media served from a CDN).
+func TestDownloadFileNoAuthLeakToForeignHost(t *testing.T) {
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data"))
+	}))
+	defer server.Close()
+
+	tmp := t.TempDir()
+	cfg := &config.Config{
+		URL:       "https://blog.example.com", // different host than the 127.0.0.1 server
+		AuthToken: "secret-token",
+		UserAgent: "test",
+		Timeout:   10,
+	}
+	d := NewDownloader(cfg)
+	d.mediaDir = tmp
+
+	if !d.downloadFile(server.URL+"/x.jpg", filepath.Join(tmp, "x.jpg")) {
+		t.Fatal("downloadFile() returned false")
+	}
+	if gotAuth != "" {
+		t.Errorf("Authorization header leaked to foreign host: %q", gotAuth)
+	}
+}
+
+// TestDownloadFileSendsAuthToSameHost verifies credentials ARE sent when the
+// download targets the configured WordPress host.
+func TestDownloadFileSendsAuthToSameHost(t *testing.T) {
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data"))
+	}))
+	defer server.Close()
+
+	tmp := t.TempDir()
+	cfg := &config.Config{
+		URL:       server.URL, // same host as the download target
+		AuthToken: "secret-token",
+		UserAgent: "test",
+		Timeout:   10,
+	}
+	d := NewDownloader(cfg)
+	d.mediaDir = tmp
+
+	if !d.downloadFile(server.URL+"/x.jpg", filepath.Join(tmp, "x.jpg")) {
+		t.Fatal("downloadFile() returned false")
+	}
+	if gotAuth != "Bearer secret-token" {
+		t.Errorf("Authorization = %q, want %q", gotAuth, "Bearer secret-token")
+	}
+}

@@ -196,11 +196,15 @@ func (c *Crawler) extractSEO(pageURL string) models.SEOData {
 	// Set user agent
 	req.Header.Set("User-Agent", c.config.UserAgent)
 
-	// Apply authentication if configured
-	if c.config.AuthToken != "" {
-		req.Header.Set("Authorization", "Bearer "+c.config.AuthToken)
-	} else if c.config.AuthUser != "" && c.config.AuthPass != "" {
-		req.SetBasicAuth(c.config.AuthUser, c.config.AuthPass)
+	// Apply authentication only for URLs on the configured WordPress host.
+	// Post links come from remote API data and may point to a foreign host;
+	// attaching credentials there would leak them (SEC-001).
+	if c.config.IsSameHost(pageURL) {
+		if c.config.AuthToken != "" {
+			req.Header.Set("Authorization", "Bearer "+c.config.AuthToken)
+		} else if c.config.AuthUser != "" && c.config.AuthPass != "" {
+			req.SetBasicAuth(c.config.AuthUser, c.config.AuthPass)
+		}
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -609,11 +613,15 @@ func (c *Crawler) extractSEOAndContent(pageURL string, extractContent bool) Craw
 	// Set user agent
 	req.Header.Set("User-Agent", c.config.UserAgent)
 
-	// Apply authentication if configured
-	if c.config.AuthToken != "" {
-		req.Header.Set("Authorization", "Bearer "+c.config.AuthToken)
-	} else if c.config.AuthUser != "" && c.config.AuthPass != "" {
-		req.SetBasicAuth(c.config.AuthUser, c.config.AuthPass)
+	// Apply authentication only for URLs on the configured WordPress host.
+	// Post links come from remote API data and may point to a foreign host;
+	// attaching credentials there would leak them (SEC-001).
+	if c.config.IsSameHost(pageURL) {
+		if c.config.AuthToken != "" {
+			req.Header.Set("Authorization", "Bearer "+c.config.AuthToken)
+		} else if c.config.AuthUser != "" && c.config.AuthPass != "" {
+			req.SetBasicAuth(c.config.AuthUser, c.config.AuthPass)
+		}
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -777,11 +785,15 @@ func (c *Crawler) extractPageContent(pageURL string) string {
 	// Set user agent
 	req.Header.Set("User-Agent", c.config.UserAgent)
 
-	// Apply authentication if configured
-	if c.config.AuthToken != "" {
-		req.Header.Set("Authorization", "Bearer "+c.config.AuthToken)
-	} else if c.config.AuthUser != "" && c.config.AuthPass != "" {
-		req.SetBasicAuth(c.config.AuthUser, c.config.AuthPass)
+	// Apply authentication only for URLs on the configured WordPress host.
+	// Post links come from remote API data and may point to a foreign host;
+	// attaching credentials there would leak them (SEC-001).
+	if c.config.IsSameHost(pageURL) {
+		if c.config.AuthToken != "" {
+			req.Header.Set("Authorization", "Bearer "+c.config.AuthToken)
+		} else if c.config.AuthUser != "" && c.config.AuthPass != "" {
+			req.SetBasicAuth(c.config.AuthUser, c.config.AuthPass)
+		}
 	}
 
 	resp, err := c.httpClient.Do(req)
