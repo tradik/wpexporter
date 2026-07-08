@@ -183,6 +183,7 @@ func TestExtractSEO_WithBasicAuth(t *testing.T) {
 	defer server.Close()
 
 	cfg := config.DefaultConfig()
+	cfg.URL = server.URL // same host as the crawled URL so auth is sent (SEC-001)
 	cfg.AuthUser = "testuser"
 	cfg.AuthPass = "testpass"
 	c := NewCrawler(cfg)
@@ -205,6 +206,7 @@ func TestExtractSEO_WithBearerToken(t *testing.T) {
 	defer server.Close()
 
 	cfg := config.DefaultConfig()
+	cfg.URL = server.URL // same host as the crawled URL so auth is sent (SEC-001)
 	cfg.AuthToken = "my-secret-token"
 	c := NewCrawler(cfg)
 
@@ -649,6 +651,7 @@ func TestExtractPageContent_WithAuth(t *testing.T) {
 	defer server.Close()
 
 	cfg := config.DefaultConfig()
+	cfg.URL = server.URL // same host as the crawled URL so auth is sent (SEC-001)
 	cfg.AuthUser = "user"
 	cfg.AuthPass = "pass"
 	c := NewCrawler(cfg)
@@ -1027,4 +1030,28 @@ func TestExtractSEOAndContent_WithLang(t *testing.T) {
 	assert.Equal(t, "French Page", result.SEO.Title)
 	assert.Equal(t, "fr-FR", result.SEO.Lang)
 	assert.Contains(t, result.Content, "Contenu en français")
+}
+
+// TestExtractSEO_NoAuthLeakToForeignHost verifies SEC-001 for the crawler: when the
+// crawled URL is on a different host than the configured WordPress site, credentials
+// are not sent.
+func TestExtractSEO_NoAuthLeakToForeignHost(t *testing.T) {
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("<html><head><title>Public</title></head></html>"))
+	}))
+	defer server.Close()
+
+	cfg := config.DefaultConfig()
+	cfg.URL = "https://blog.example.com" // foreign relative to the 127.0.0.1 server
+	cfg.AuthToken = "secret-token"
+	c := NewCrawler(cfg)
+
+	_ = c.extractSEO(server.URL)
+
+	if gotAuth != "" {
+		t.Errorf("Authorization header leaked to foreign host: %q", gotAuth)
+	}
 }

@@ -1,6 +1,7 @@
 package xmlrpc
 
 import (
+	"encoding/xml"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -1044,16 +1045,48 @@ func TestParsePostsResponse(t *testing.T) {
 		t.Fatalf("Failed to create client: %v", err)
 	}
 
-	// Test with params (returns 1 sample post)
+	// Test with a real struct array: fields must be mapped from the response,
+	// never fabricated.
 	respWithParams := &XMLRPCResponse{
 		Params: []Param{
-			{Value: Value{String: stringPtr("data")}},
+			{Value: Value{Array: &Array{Data: []Value{
+				{Struct: &Struct{Members: []Member{
+					{Name: "post_id", Value: Value{Int: intPtr(42)}},
+					{Name: "post_title", Value: Value{String: stringPtr("Real Title")}},
+					{Name: "post_name", Value: Value{String: stringPtr("real-title")}},
+					{Name: "post_status", Value: Value{String: stringPtr("publish")}},
+					{Name: "post_content", Value: Value{String: stringPtr("Body")}},
+				}}},
+			}}}},
 		},
 	}
 
 	posts := client.parsePostsResponse(respWithParams)
 	if len(posts) != 1 {
-		t.Errorf("parsePostsResponse() with params should return 1 post, got %d", len(posts))
+		t.Fatalf("parsePostsResponse() should return 1 post, got %d", len(posts))
+	}
+	if posts[0].ID != 42 {
+		t.Errorf("parsePostsResponse() ID = %d, want 42", posts[0].ID)
+	}
+	if posts[0].Title.Rendered != "Real Title" {
+		t.Errorf("parsePostsResponse() Title = %q, want %q", posts[0].Title.Rendered, "Real Title")
+	}
+	if posts[0].Slug != "real-title" {
+		t.Errorf("parsePostsResponse() Slug = %q, want %q", posts[0].Slug, "real-title")
+	}
+	// Guard against the old fabricated stub value.
+	if posts[0].Title.Rendered == "Sample Post" {
+		t.Error("parsePostsResponse() returned fabricated 'Sample Post' data")
+	}
+
+	// Test with a scalar param (not an array): must yield no posts, not a fake one.
+	respScalar := &XMLRPCResponse{
+		Params: []Param{
+			{Value: Value{String: stringPtr("data")}},
+		},
+	}
+	if got := client.parsePostsResponse(respScalar); len(got) != 0 {
+		t.Errorf("parsePostsResponse() with scalar param should return 0 posts, got %d", len(got))
 	}
 
 	// Test with empty params
@@ -1064,6 +1097,117 @@ func TestParsePostsResponse(t *testing.T) {
 	postsEmpty := client.parsePostsResponse(respEmpty)
 	if len(postsEmpty) != 0 {
 		t.Errorf("parsePostsResponse() with empty params should return 0 posts, got %d", len(postsEmpty))
+	}
+}
+
+// TestParsePostsResponseFromXML validates end-to-end XML unmarshalling + mapping,
+// exercising both <int>/<i4> and dateTime.iso8601 handling.
+func TestParsePostsResponseFromXML(t *testing.T) {
+	raw := `<?xml version="1.0"?>
+<methodResponse><params><param><value><array><data>
+  <value><struct>
+    <member><name>post_id</name><value><i4>7</i4></value></member>
+    <member><name>post_title</name><value><string>Hello &amp; World</string></value></member>
+    <member><name>post_name</name><value>hello-world</value></member>
+    <member><name>post_status</name><value><string>draft</string></value></member>
+    <member><name>post_date</name><value><dateTime.iso8601>20250131T12:00:00</dateTime.iso8601></value></member>
+    <member><name>link</name><value><string>https://example.com/hello</string></value></member>
+  </struct></value>
+</data></array></value></param></params></methodResponse>`
+
+	var resp XMLRPCResponse
+	if err := xml.Unmarshal([]byte(raw), &resp); err != nil {
+		t.Fatalf("xml.Unmarshal() error = %v", err)
+	}
+
+	c := &Client{config: &config.Config{URL: "https://example.com"}}
+	posts := c.parsePostsResponse(&resp)
+	if len(posts) != 1 {
+		t.Fatalf("parsePostsResponse() len = %d, want 1", len(posts))
+	}
+	p := posts[0]
+	if p.ID != 7 {
+		t.Errorf("ID = %d, want 7 (i4 not parsed)", p.ID)
+	}
+	if p.Title.Rendered != "Hello & World" {
+		t.Errorf("Title = %q, want %q", p.Title.Rendered, "Hello & World")
+	}
+	if p.Slug != "hello-world" {
+		t.Errorf("Slug = %q, want %q (untyped value not parsed)", p.Slug, "hello-world")
+	}
+	if p.Status != "draft" {
+		t.Errorf("Status = %q, want draft", p.Status)
+	}
+	if p.Date.Year() != 2025 || p.Date.Month() != 1 || p.Date.Day() != 31 {
+		t.Errorf("Date = %v, want 2025-01-31", p.Date.Time)
+	}
+}
+
+// TestParseTermsAndUsersFromXML validates category/tag/user mapping.
+func TestParseTermsAndUsersFromXML(t *testing.T) {
+	c := &Client{config: &config.Config{URL: "https://example.com"}}
+
+	termsXML := `<?xml version="1.0"?>
+<methodResponse><params><param><value><array><data>
+  <value><struct>
+    <member><name>term_id</name><value><int>3</int></value></member>
+    <member><name>name</name><value><string>News</string></value></member>
+    <member><name>slug</name><value><string>news</string></value></member>
+    <member><name>taxonomy</name><value><string>category</string></value></member>
+    <member><name>count</name><value><int>12</int></value></member>
+  </struct></value>
+</data></array></value></param></params></methodResponse>`
+	var termsResp XMLRPCResponse
+	if err := xml.Unmarshal([]byte(termsXML), &termsResp); err != nil {
+		t.Fatalf("xml.Unmarshal(terms) error = %v", err)
+	}
+	cats := c.parseCategoriesResponse(&termsResp)
+	if len(cats) != 1 || cats[0].ID != 3 || cats[0].Name != "News" || cats[0].Count != 12 {
+		t.Errorf("parseCategoriesResponse() = %+v, want id=3 name=News count=12", cats)
+	}
+
+	usersXML := `<?xml version="1.0"?>
+<methodResponse><params><param><value><array><data>
+  <value><struct>
+    <member><name>user_id</name><value><int>5</int></value></member>
+    <member><name>display_name</name><value><string>Jane Doe</string></value></member>
+    <member><name>nicename</name><value><string>jane</string></value></member>
+  </struct></value>
+</data></array></value></param></params></methodResponse>`
+	var usersResp XMLRPCResponse
+	if err := xml.Unmarshal([]byte(usersXML), &usersResp); err != nil {
+		t.Fatalf("xml.Unmarshal(users) error = %v", err)
+	}
+	users := c.parseUsersResponse(&usersResp)
+	if len(users) != 1 || users[0].ID != 5 || users[0].Name != "Jane Doe" || users[0].Slug != "jane" {
+		t.Errorf("parseUsersResponse() = %+v, want id=5 name='Jane Doe' slug=jane", users)
+	}
+}
+
+// TestParseSiteInfoNestedStruct validates wp.getOptions parsing with the real
+// WordPress nested {value, desc} option shape.
+func TestParseSiteInfoNestedStruct(t *testing.T) {
+	c := &Client{config: &config.Config{URL: "https://example.com"}}
+	raw := `<?xml version="1.0"?>
+<methodResponse><params><param><value><struct>
+  <member><name>blog_title</name><value><struct>
+    <member><name>value</name><value><string>My Blog</string></value></member>
+    <member><name>desc</name><value><string>Site Title</string></value></member>
+  </struct></value></member>
+  <member><name>home_url</name><value><struct>
+    <member><name>value</name><value><string>https://example.com</string></value></member>
+  </struct></value></member>
+</struct></value></param></params></methodResponse>`
+	var resp XMLRPCResponse
+	if err := xml.Unmarshal([]byte(raw), &resp); err != nil {
+		t.Fatalf("xml.Unmarshal() error = %v", err)
+	}
+	info := c.parseSiteInfo(&resp)
+	if info.Name != "My Blog" {
+		t.Errorf("parseSiteInfo() Name = %q, want 'My Blog'", info.Name)
+	}
+	if info.HomeURL != "https://example.com" {
+		t.Errorf("parseSiteInfo() HomeURL = %q, want https://example.com", info.HomeURL)
 	}
 }
 

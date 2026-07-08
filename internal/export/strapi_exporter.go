@@ -235,7 +235,7 @@ func (e *StrapiExporter) buildStrapiData(data *models.ExportData) StrapiExportDa
 func (e *StrapiExporter) convertArticle(post models.WordPressPost) StrapiArticle {
 	status := "draft"
 	var publishedAt *time.Time
-	if post.Status == "publish" {
+	if post.Status == statusPublish {
 		status = "published"
 		t := post.Date.Time
 		publishedAt = &t
@@ -293,7 +293,7 @@ func (e *StrapiExporter) convertArticle(post models.WordPressPost) StrapiArticle
 func (e *StrapiExporter) convertPage(page models.WordPressPost) StrapiPage {
 	status := "draft"
 	var publishedAt *time.Time
-	if page.Status == "publish" {
+	if page.Status == statusPublish {
 		status = "published"
 		t := page.Date.Time
 		publishedAt = &t

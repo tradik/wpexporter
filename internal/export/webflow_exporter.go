@@ -166,13 +166,13 @@ func (e *WebflowExporter) exportPostsCSV(
 
 		// Format published date
 		publishedOn := ""
-		if post.Status == "publish" {
+		if post.Status == statusPublish {
 			publishedOn = post.Date.Format("2006-01-02T15:04:05Z")
 		}
 
 		// Determine draft status
 		draft := "false"
-		if post.Status != "publish" {
+		if post.Status != statusPublish {
 			draft = "true"
 		}
 
@@ -191,7 +191,7 @@ func (e *WebflowExporter) exportPostsCSV(
 			draft,
 		}
 
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return err
 		}
 	}
@@ -223,7 +223,7 @@ func (e *WebflowExporter) exportPagesCSV(pages []models.WordPressPost, baseDir s
 	// Write pages
 	for _, page := range pages {
 		draft := "false"
-		if page.Status != "publish" {
+		if page.Status != statusPublish {
 			draft = "true"
 		}
 
@@ -236,7 +236,7 @@ func (e *WebflowExporter) exportPagesCSV(pages []models.WordPressPost, baseDir s
 			draft,
 		}
 
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return err
 		}
 	}
@@ -265,7 +265,7 @@ func (e *WebflowExporter) exportCategoriesCSV(categories []models.WordPressCateg
 	// Write categories
 	for _, cat := range categories {
 		row := []string{cat.Name, cat.Slug, cat.Description}
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return err
 		}
 	}
@@ -299,7 +299,7 @@ func (e *WebflowExporter) exportAuthorsCSV(users []models.WordPressUser, baseDir
 		}
 
 		row := []string{user.Name, user.Slug, user.Description, avatar}
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return err
 		}
 	}
@@ -326,10 +326,10 @@ func (e *WebflowExporter) exportJSON(
 			Author:          userMap[post.Author],
 			MetaTitle:       post.SEO.Title,
 			MetaDescription: post.SEO.MetaDescription,
-			Draft:           post.Status != "publish",
+			Draft:           post.Status != statusPublish,
 		}
 
-		if post.Status == "publish" {
+		if post.Status == statusPublish {
 			item.PublishedOn = post.Date.Format(time.RFC3339)
 		}
 
@@ -360,10 +360,10 @@ func (e *WebflowExporter) exportJSON(
 			Content:         page.Content.Rendered,
 			MetaTitle:       page.SEO.Title,
 			MetaDescription: page.SEO.MetaDescription,
-			Draft:           page.Status != "publish",
+			Draft:           page.Status != statusPublish,
 		}
 
-		if page.Status == "publish" {
+		if page.Status == statusPublish {
 			item.PublishedOn = page.Date.Format(time.RFC3339)
 		}
 

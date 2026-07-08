@@ -1,6 +1,6 @@
 name: wpexporter
 base: core22
-version: "1.7.1"
+version: "1.7.5"
 title: wpexporter
 summary: Export WordPress content to JSON, Markdown, Shopify, and 14+ formats
 description: |
@@ -34,7 +34,7 @@ parts:
     source: .
     source-type: local
     build-snaps:
-      - go/1.25/stable
+      - go/1.26/stable
     build-environment:
       - CGO_ENABLED: "0"
       - GOFLAGS: "-mod=mod"

@@ -280,6 +280,26 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// IsSameHost reports whether rawURL targets the same host as the configured
+// WordPress URL. It is used to decide whether authentication credentials may be
+// attached to a request: credentials must never be sent to a foreign host (e.g. a
+// CDN serving media, or an attacker-controlled URL returned by a compromised site).
+// A relative URL (no host) is treated as same-host.
+func (c *Config) IsSameHost(rawURL string) bool {
+	base, err := url.Parse(c.URL)
+	if err != nil {
+		return false
+	}
+	target, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	if target.Host == "" {
+		return true // relative URL resolves against the base host
+	}
+	return strings.EqualFold(base.Hostname(), target.Hostname())
+}
+
 // EnsureOutputDir ensures the output directory exists
 func (c *Config) EnsureOutputDir() error {
 	if c.Format == "json" && filepath.Ext(c.Output) == ".json" {

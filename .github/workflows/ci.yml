@@ -19,7 +19,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25"
+          go-version: "1.26.4"
           cache: true
 
       - name: Set Go environment variables
@@ -50,7 +50,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25"
+          go-version: "1.26.4"
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
@@ -59,22 +59,31 @@ jobs:
 
   security:
     runs-on: ubuntu-latest
+    # Least privilege: this job only reads the repo. A read-only token limits the
+    # blast radius of any compromised action step (OPS-001).
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
 
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25"
+          go-version: "1.26.4"
+
+      # Install gosec from an immutable, pinned module version and run it with the
+      # repo's Go toolchain. This avoids the mutable @master action ref (OPS-001)
+      # and the outdated bundled Docker image, and keeps the scanner compatible
+      # with the current Go release.
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.0
 
       - name: Run Gosec Security Scanner
-        uses: securego/gosec@master
-        with:
-          # G703: Path traversal - expected as tool saves to user-specified paths
-          # G704: SSRF - expected as tool makes requests to user-provided WordPress URLs
-          # G117: Secret patterns - auth tokens are intentionally configurable
-          # G122: filepath.Walk TOCTOU - acceptable for zip archive creation
-          args: "-exclude=G703,G704,G117,G122 ./..."
+        # G703: Path traversal - expected as tool saves to user-specified paths
+        # G704: SSRF - expected as tool makes requests to user-provided WordPress URLs
+        # G117: Secret patterns - auth tokens are intentionally configurable
+        # G122: filepath.Walk TOCTOU - acceptable for zip archive creation
+        run: gosec -exclude=G703,G704,G117,G122 ./...
 
   build:
     runs-on: ubuntu-latest
@@ -87,7 +96,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25"
+          go-version: "1.26.4"
 
       - name: Build for multiple platforms
         run: make release
@@ -112,7 +121,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25"
+          go-version: "1.26.4"
 
       - name: Get latest tag
         id: get_tag

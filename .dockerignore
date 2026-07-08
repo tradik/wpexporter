@@ -61,3 +61,6 @@ snap/
 parts/
 stage/
 prime/
+
+# Audit reports
+audit/

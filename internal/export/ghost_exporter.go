@@ -245,7 +245,7 @@ func (e *GhostExporter) buildGhostData(data *models.ExportData) GhostExportData 
 // convertPost converts a WordPress post to a Ghost post
 func (e *GhostExporter) convertPost(post models.WordPressPost, userMap map[int]string, postType string) GhostPost {
 	status := "draft"
-	if post.Status == "publish" {
+	if post.Status == statusPublish {
 		status = "published"
 	}
 

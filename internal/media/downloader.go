@@ -222,11 +222,15 @@ func (d *Downloader) downloadFile(downloadURL, filePath string) bool {
 	}
 	req.Header.Set("User-Agent", d.config.UserAgent)
 
-	// Apply authentication if configured
-	if d.config.AuthToken != "" {
-		req.Header.Set("Authorization", "Bearer "+d.config.AuthToken)
-	} else if d.config.AuthUser != "" && d.config.AuthPass != "" {
-		req.SetBasicAuth(d.config.AuthUser, d.config.AuthPass)
+	// Apply authentication only for URLs on the configured WordPress host.
+	// Media source URLs come from remote API data and frequently point to a
+	// separate CDN host; attaching credentials there would leak them (SEC-001).
+	if d.config.IsSameHost(downloadURL) {
+		if d.config.AuthToken != "" {
+			req.Header.Set("Authorization", "Bearer "+d.config.AuthToken)
+		} else if d.config.AuthUser != "" && d.config.AuthPass != "" {
+			req.SetBasicAuth(d.config.AuthUser, d.config.AuthPass)
+		}
 	}
 
 	// Make request

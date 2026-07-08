@@ -267,7 +267,7 @@ func (e *ContentfulExporter) convertPostToEntry(post models.WordPressPost, conte
 		Fields: make(map[string]map[string]interface{}),
 	}
 
-	if post.Status == "publish" {
+	if post.Status == statusPublish {
 		entry.Sys.PublishedAt = post.Date.Format(time.RFC3339)
 	}
 

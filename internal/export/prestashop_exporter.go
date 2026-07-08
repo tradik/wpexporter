@@ -195,7 +195,7 @@ func (e *PrestaShopExporter) exportProductsCSV(
 			product.ImageURLs,
 		}
 
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return err
 		}
 	}
@@ -252,7 +252,7 @@ func (e *PrestaShopExporter) exportCategoriesCSV(categories []models.WordPressCa
 			"", // Image URL
 		}
 
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return err
 		}
 	}
@@ -322,7 +322,7 @@ func (e *PrestaShopExporter) exportMetadata(data *models.ExportData, baseDir str
 	}
 
 	for _, row := range rows {
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return err
 		}
 	}
@@ -363,7 +363,7 @@ func (e *PrestaShopExporter) convertPostToProduct(
 
 	// Determine active status
 	active := 0
-	if post.Status == "publish" {
+	if post.Status == statusPublish {
 		active = 1
 	}
 

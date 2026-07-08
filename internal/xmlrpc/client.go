@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -70,12 +71,61 @@ type Param struct {
 	Value Value `xml:"value"`
 }
 
-// Value represents an XML-RPC value
+// Value represents an XML-RPC value. All scalar types are optional pointers so
+// that an absent type element is distinguishable from an empty one. Raw captures
+// character data for the untyped <value>text</value> form.
 type Value struct {
-	String *string `xml:"string,omitempty"`
-	Int    *int    `xml:"int,omitempty"`
-	Struct *Struct `xml:"struct,omitempty"`
-	Array  *Array  `xml:"array,omitempty"`
+	String   *string `xml:"string,omitempty"`
+	Int      *int    `xml:"int,omitempty"`
+	I4       *int    `xml:"i4,omitempty"`
+	Boolean  *string `xml:"boolean,omitempty"`
+	Double   *string `xml:"double,omitempty"`
+	DateTime *string `xml:"dateTime.iso8601,omitempty"`
+	Base64   *string `xml:"base64,omitempty"`
+	Struct   *Struct `xml:"struct,omitempty"`
+	Array    *Array  `xml:"array,omitempty"`
+	Raw      string  `xml:",chardata"`
+}
+
+// AsString returns the value coerced to a string, regardless of its XML-RPC type.
+func (v *Value) AsString() string {
+	switch {
+	case v == nil:
+		return ""
+	case v.String != nil:
+		return *v.String
+	case v.DateTime != nil:
+		return *v.DateTime
+	case v.Int != nil:
+		return strconv.Itoa(*v.Int)
+	case v.I4 != nil:
+		return strconv.Itoa(*v.I4)
+	case v.Boolean != nil:
+		return *v.Boolean
+	case v.Double != nil:
+		return *v.Double
+	case v.Base64 != nil:
+		return *v.Base64
+	default:
+		return strings.TrimSpace(v.Raw)
+	}
+}
+
+// AsInt returns the value coerced to an int (0 when not parseable).
+func (v *Value) AsInt() int {
+	if v == nil {
+		return 0
+	}
+	if v.Int != nil {
+		return *v.Int
+	}
+	if v.I4 != nil {
+		return *v.I4
+	}
+	if n, err := strconv.Atoi(strings.TrimSpace(v.AsString())); err == nil {
+		return n
+	}
+	return 0
 }
 
 // Struct represents an XML-RPC struct
@@ -137,20 +187,7 @@ func (c *Client) GetSiteInfo() (*models.SiteInfo, error) {
 		return nil, fmt.Errorf("failed to get site options: %w", err)
 	}
 
-	// Parse response to extract site information
-	siteInfo := &models.SiteInfo{
-		URL:  c.config.URL,
-		Name: "WordPress Site (XML-RPC)",
-	}
-
-	// Try to extract site name and other info from response
-	if len(resp.Params) > 0 {
-		// This is a simplified extraction - in a real implementation,
-		// you would parse the XML-RPC struct response properly
-		siteInfo.Name = "WordPress Site"
-	}
-
-	return siteInfo, nil
+	return c.parseSiteInfo(resp), nil
 }
 
 // GetPosts retrieves all posts
@@ -404,47 +441,192 @@ func (c *Client) makeRequest(req *XMLRPCRequest) (*XMLRPCResponse, error) {
 	return &resp, nil
 }
 
-// Helper functions for parsing responses
-func (c *Client) parsePostsResponse(resp *XMLRPCResponse) []models.WordPressPost {
-	// This is a simplified implementation
-	// In a real implementation, you would parse the XML-RPC struct response properly
-	var posts []models.WordPressPost
-
-	// For demonstration, create a sample post
-	if len(resp.Params) > 0 {
-		post := models.WordPressPost{
-			ID:    1,
-			Title: models.RenderedContent{Rendered: "Sample Post"},
-			Type:  "post",
-		}
-		posts = append(posts, post)
+// responseArray returns the array of values from the first response parameter,
+// or nil if the response is not an array (e.g. empty params or a scalar).
+func responseArray(resp *XMLRPCResponse) []Value {
+	if resp == nil || len(resp.Params) == 0 {
+		return nil
 	}
-
-	return posts
+	if arr := resp.Params[0].Value.Array; arr != nil {
+		return arr.Data
+	}
+	return nil
 }
 
+// structToMap indexes the members of an XML-RPC struct by name for O(1) lookup.
+func structToMap(s *Struct) map[string]*Value {
+	m := make(map[string]*Value)
+	if s == nil {
+		return m
+	}
+	for i := range s.Members {
+		m[s.Members[i].Name] = &s.Members[i].Value
+	}
+	return m
+}
+
+// mapStructs applies fn to every struct element of the response array and returns
+// the collected results. It centralizes the array/struct iteration boilerplate so
+// each parser only declares its own field mapping.
+func mapStructs[T any](resp *XMLRPCResponse, fn func(m map[string]*Value) T) []T {
+	out := make([]T, 0)
+	for _, item := range responseArray(resp) {
+		if item.Struct == nil {
+			continue
+		}
+		out = append(out, fn(structToMap(item.Struct)))
+	}
+	return out
+}
+
+// valStr returns the string value of a named struct member (empty if absent).
+func valStr(m map[string]*Value, key string) string {
+	if v, ok := m[key]; ok {
+		return v.AsString()
+	}
+	return ""
+}
+
+// valInt returns the int value of a named struct member (0 if absent).
+func valInt(m map[string]*Value, key string) int {
+	if v, ok := m[key]; ok {
+		return v.AsInt()
+	}
+	return 0
+}
+
+// parseXMLRPCTime parses a WordPress dateTime.iso8601 value (and common fallbacks).
+func parseXMLRPCTime(s string) time.Time {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}
+	}
+	formats := []string{
+		"20060102T15:04:05", // WordPress dateTime.iso8601 (basic date)
+		"2006-01-02T15:04:05",
+		time.RFC3339,
+	}
+	for _, f := range formats {
+		if t, err := time.Parse(f, s); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
+}
+
+// parsePostsResponse maps a wp.getPosts/wp.getPages struct array into posts.
+func (c *Client) parsePostsResponse(resp *XMLRPCResponse) []models.WordPressPost {
+	return mapStructs(resp, func(m map[string]*Value) models.WordPressPost {
+		return models.WordPressPost{
+			ID:       valInt(m, "post_id"),
+			Slug:     valStr(m, "post_name"),
+			Status:   valStr(m, "post_status"),
+			Type:     valStr(m, "post_type"),
+			Link:     valStr(m, "link"),
+			Author:   valInt(m, "post_author"),
+			Title:    models.RenderedContent{Rendered: valStr(m, "post_title")},
+			Content:  models.RenderedContent{Rendered: valStr(m, "post_content")},
+			Excerpt:  models.RenderedContent{Rendered: valStr(m, "post_excerpt")},
+			Date:     models.WordPressTime{Time: parseXMLRPCTime(valStr(m, "post_date"))},
+			Modified: models.WordPressTime{Time: parseXMLRPCTime(valStr(m, "post_modified"))},
+		}
+	})
+}
+
+// parseMediaResponse maps a wp.getMediaLibrary struct array into media items.
 func (c *Client) parseMediaResponse(resp *XMLRPCResponse) []models.WordPressMedia {
-	media := make([]models.WordPressMedia, 0)
-	// Simplified implementation
-	return media
+	return mapStructs(resp, func(m map[string]*Value) models.WordPressMedia {
+		link := valStr(m, "link")
+		return models.WordPressMedia{
+			ID:          valInt(m, "attachment_id"),
+			Link:        link,
+			SourceURL:   link,
+			MimeType:    valStr(m, "type"),
+			Title:       models.RenderedContent{Rendered: valStr(m, "title")},
+			Caption:     models.RenderedContent{Rendered: valStr(m, "caption")},
+			Description: models.RenderedContent{Rendered: valStr(m, "description")},
+			Date:        models.WordPressTime{Time: parseXMLRPCTime(valStr(m, "date_created_gmt"))},
+		}
+	})
 }
 
+// parseCategoriesResponse maps a wp.getTerms struct array into categories.
 func (c *Client) parseCategoriesResponse(resp *XMLRPCResponse) []models.WordPressCategory {
-	categories := make([]models.WordPressCategory, 0)
-	// Simplified implementation
-	return categories
+	return mapStructs(resp, func(m map[string]*Value) models.WordPressCategory {
+		return models.WordPressCategory{
+			ID:          valInt(m, "term_id"),
+			Name:        valStr(m, "name"),
+			Slug:        valStr(m, "slug"),
+			Description: valStr(m, "description"),
+			Taxonomy:    valStr(m, "taxonomy"),
+			Parent:      valInt(m, "parent"),
+			Count:       valInt(m, "count"),
+		}
+	})
 }
 
+// parseTagsResponse maps a wp.getTerms struct array into tags.
 func (c *Client) parseTagsResponse(resp *XMLRPCResponse) []models.WordPressTag {
-	tags := make([]models.WordPressTag, 0)
-	// Simplified implementation
-	return tags
+	return mapStructs(resp, func(m map[string]*Value) models.WordPressTag {
+		return models.WordPressTag{
+			ID:          valInt(m, "term_id"),
+			Name:        valStr(m, "name"),
+			Slug:        valStr(m, "slug"),
+			Description: valStr(m, "description"),
+			Taxonomy:    valStr(m, "taxonomy"),
+			Count:       valInt(m, "count"),
+		}
+	})
 }
 
+// parseUsersResponse maps a wp.getUsers struct array into users.
 func (c *Client) parseUsersResponse(resp *XMLRPCResponse) []models.WordPressUser {
-	users := make([]models.WordPressUser, 0)
-	// Simplified implementation
-	return users
+	return mapStructs(resp, func(m map[string]*Value) models.WordPressUser {
+		return models.WordPressUser{
+			ID:          valInt(m, "user_id"),
+			Name:        valStr(m, "display_name"),
+			Slug:        valStr(m, "nicename"),
+			URL:         valStr(m, "url"),
+			Description: valStr(m, "bio"),
+		}
+	})
+}
+
+// parseSiteInfo maps a wp.getOptions struct response into site information.
+// Each option may be either a direct scalar or a nested struct with a "value" member.
+func (c *Client) parseSiteInfo(resp *XMLRPCResponse) *models.SiteInfo {
+	info := &models.SiteInfo{
+		URL:  c.config.URL,
+		Name: "WordPress Site (XML-RPC)",
+	}
+	if resp == nil || len(resp.Params) == 0 || resp.Params[0].Value.Struct == nil {
+		return info
+	}
+	opts := structToMap(resp.Params[0].Value.Struct)
+	if name := optionValue(opts, "blog_title"); name != "" {
+		info.Name = name
+	}
+	info.Description = optionValue(opts, "blog_tagline")
+	info.HomeURL = optionValue(opts, "home_url")
+	if lang := optionValue(opts, "blog_language"); lang != "" {
+		info.Language = lang
+	}
+	if tz := optionValue(opts, "time_zone"); tz != "" {
+		info.Timezone = tz
+	}
+	return info
+}
+
+// optionValue extracts an option value that may be a scalar or a {value, desc} struct.
+func optionValue(opts map[string]*Value, key string) string {
+	v, ok := opts[key]
+	if !ok {
+		return ""
+	}
+	if v.Struct != nil {
+		return valStr(structToMap(v.Struct), "value")
+	}
+	return v.AsString()
 }
 
 // Helper function to create string pointer
