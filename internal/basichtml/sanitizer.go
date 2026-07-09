@@ -2,11 +2,44 @@ package basichtml
 
 import (
 	"fmt"
+	"html"
 	"regexp"
 	"strings"
 
 	"github.com/tradik/wpexporter/pkg/models"
 )
+
+// safeURLSchemes is the allow-list of URL schemes permitted in href/src attributes.
+// Anything else (javascript:, data:, vbscript:, …) is dropped.
+var safeURLSchemes = map[string]bool{
+	"http": true, "https": true, "mailto": true, "tel": true, "ftp": true,
+}
+
+// isSafeURLValue reports whether an href/src value is safe to keep. It defeats
+// common obfuscations by decoding HTML entities and stripping whitespace/control
+// characters (which browsers ignore inside a scheme) before checking the scheme
+// against an allow-list. Relative URLs (no scheme) are permitted (SEC-003).
+func isSafeURLValue(v string) bool {
+	decoded := html.UnescapeString(v)
+	var b strings.Builder
+	for _, r := range decoded {
+		if r > 0x20 { // drop spaces and C0 control characters
+			b.WriteRune(r)
+		}
+	}
+	cleaned := strings.ToLower(b.String())
+
+	i := strings.IndexByte(cleaned, ':')
+	if i < 0 {
+		return true // no scheme -> relative URL
+	}
+	scheme := cleaned[:i]
+	// A ':' that follows a path/query/fragment delimiter is not a scheme.
+	if strings.ContainsAny(scheme, "/?#") {
+		return true
+	}
+	return safeURLSchemes[scheme]
+}
 
 // PreserveOptions defines elements to preserve from HTML processing
 type PreserveOptions struct {
@@ -306,12 +339,9 @@ func (s *Sanitizer) sanitizeAttributes(tag, attrs string) string {
 			attrValue = match[4]
 		}
 
-		// Sanitize href for javascript: and data: URLs
-		if attrName == "href" || attrName == "src" {
-			lowerVal := strings.ToLower(strings.TrimSpace(attrValue))
-			if strings.HasPrefix(lowerVal, "javascript:") || strings.HasPrefix(lowerVal, "data:") {
-				continue
-			}
+		// Drop URL-bearing attributes whose scheme is not on the safe allow-list.
+		if (attrName == "href" || attrName == "src") && !isSafeURLValue(attrValue) {
+			continue
 		}
 
 		result = append(result, attrName+`="`+s.escapeAttr(attrValue)+`"`)
