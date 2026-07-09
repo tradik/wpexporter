@@ -5,11 +5,37 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/viper"
 )
+
+// ParseScanRange parses a targeted ID range in "START-END" form into inclusive
+// bounds. ok is false (with no error) when s is empty, meaning the feature is off.
+func ParseScanRange(s string) (start, end int, ok bool, err error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, 0, false, nil
+	}
+	parts := strings.SplitN(s, "-", 2)
+	if len(parts) != 2 {
+		return 0, 0, false, fmt.Errorf("scan range must be START-END, got %q", s)
+	}
+	start, err = strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil {
+		return 0, 0, false, fmt.Errorf("invalid scan range start %q: %w", parts[0], err)
+	}
+	end, err = strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil {
+		return 0, 0, false, fmt.Errorf("invalid scan range end %q: %w", parts[1], err)
+	}
+	if start < 1 || end < start {
+		return 0, 0, false, fmt.Errorf("scan range must satisfy 1 <= start <= end, got %d-%d", start, end)
+	}
+	return start, end, true, nil
+}
 
 // Config represents the application configuration
 type Config struct {
@@ -18,6 +44,7 @@ type Config struct {
 	Format            string         `mapstructure:"format" json:"format"`
 	BruteForce        bool           `mapstructure:"brute_force" json:"brute_force"`
 	MaxID             int            `mapstructure:"max_id" json:"max_id"`
+	ScanRange         string         `mapstructure:"scan_range" json:"scan_range"` // Targeted ID range to rescan, e.g. "100-200"
 	DownloadMedia     bool           `mapstructure:"download_media" json:"download_media"`
 	RelevantMediaOnly bool           `mapstructure:"relevant_media_only" json:"relevant_media_only"`
 	Concurrent        int            `mapstructure:"concurrent" json:"concurrent"`
@@ -81,6 +108,7 @@ func DefaultConfig() *Config {
 		Format:            "json",
 		BruteForce:        false,
 		MaxID:             10000,
+		ScanRange:         "",
 		DownloadMedia:     true,
 		RelevantMediaOnly: false,
 		Concurrent:        5,
@@ -275,6 +303,10 @@ func (c *Config) Validate() error {
 
 	if c.Retries < 0 {
 		return fmt.Errorf("retries must be greater than or equal to 0")
+	}
+
+	if _, _, _, err := ParseScanRange(c.ScanRange); err != nil {
+		return err
 	}
 
 	return nil

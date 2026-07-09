@@ -26,18 +26,13 @@ type Server struct {
 // ToolHandler is a function that handles a tool call
 type ToolHandler func(args map[string]interface{}) (*CallToolResult, error)
 
-// NewServer creates a new MCP server
+// NewServer creates a new MCP server bound to standard input/output.
 func NewServer(name, version string) *Server {
-	return &Server{
-		name:    name,
-		version: version,
-		tools:   make(map[string]ToolHandler),
-		reader:  bufio.NewReader(os.Stdin),
-		writer:  os.Stdout,
-	}
+	return NewServerWithIO(name, version, os.Stdin, os.Stdout)
 }
 
-// NewServerWithIO creates a new MCP server with custom IO
+// NewServerWithIO creates a new MCP server with custom IO. NewServer delegates
+// here so both share a single construction path.
 func NewServerWithIO(name, version string, reader io.Reader, writer io.Writer) *Server {
 	return &Server{
 		name:    name,
