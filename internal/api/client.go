@@ -16,6 +16,10 @@ import (
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
+// maxAPIResponseBytes bounds a single WordPress REST API response to guard against
+// unbounded memory allocation from a hostile or misbehaving endpoint (SEC-002).
+const maxAPIResponseBytes = 64 << 20 // 64 MiB
+
 // ProgressCallback is called after each page is fetched for checkpoint saving
 type ProgressCallback func() error
 
@@ -59,6 +63,9 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	httpClient.SetRetryCount(cfg.Retries)
 	httpClient.SetHeader("User-Agent", cfg.UserAgent)
 	httpClient.SetHeader("Accept", "application/json")
+	// Bound the response size to avoid unbounded memory use on a hostile or
+	// misbehaving endpoint (SEC-002).
+	httpClient.SetResponseBodyLimit(maxAPIResponseBytes)
 
 	// Set authentication if configured
 	if cfg.AuthToken != "" {

@@ -58,6 +58,7 @@ var (
 	bruteForce        bool
 	maxID             int
 	scanRange         string
+	maxMediaMB        int
 	downloadMedia     bool
 	noMedia           bool
 	relevantMediaOnly bool
@@ -170,6 +171,8 @@ func init() {
 	exportCmd.Flags().IntVar(&maxID, "max-id", 10000, "maximum ID for brute force")
 	exportCmd.Flags().StringVar(&scanRange, "scan-range", "",
 		"rescan a specific inclusive ID range for posts/pages/media, e.g. --scan-range 100-200")
+	exportCmd.Flags().IntVar(&maxMediaMB, "max-media-mb", 0,
+		"per-file media download cap in MB (0 = built-in default of 2048)")
 	exportCmd.Flags().BoolVar(&downloadMedia, "download-media", true, "download images and videos")
 	exportCmd.Flags().BoolVar(&noMedia, "no-media", false, "disable media downloads (alias for --download-media=false)")
 	exportCmd.Flags().BoolVar(&relevantMediaOnly, "relevant-media-only", false, "only download featured images and images embedded in content")
@@ -368,6 +371,9 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("scan-range") {
 		cfg.ScanRange = scanRange
+	}
+	if cmd.Flags().Changed("max-media-mb") {
+		cfg.MaxMediaBytes = int64(maxMediaMB) << 20
 	}
 	if cmd.Flags().Changed("assisted-crawl") {
 		cfg.AssistedCrawl = assistedCrawl

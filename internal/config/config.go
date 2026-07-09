@@ -39,13 +39,15 @@ func ParseScanRange(s string) (start, end int, ok bool, err error) {
 
 // Config represents the application configuration
 type Config struct {
-	URL               string         `mapstructure:"url" json:"url"`
-	Output            string         `mapstructure:"output" json:"output"`
-	Format            string         `mapstructure:"format" json:"format"`
-	BruteForce        bool           `mapstructure:"brute_force" json:"brute_force"`
-	MaxID             int            `mapstructure:"max_id" json:"max_id"`
-	ScanRange         string         `mapstructure:"scan_range" json:"scan_range"` // Targeted ID range to rescan, e.g. "100-200"
-	DownloadMedia     bool           `mapstructure:"download_media" json:"download_media"`
+	URL           string `mapstructure:"url" json:"url"`
+	Output        string `mapstructure:"output" json:"output"`
+	Format        string `mapstructure:"format" json:"format"`
+	BruteForce    bool   `mapstructure:"brute_force" json:"brute_force"`
+	MaxID         int    `mapstructure:"max_id" json:"max_id"`
+	ScanRange     string `mapstructure:"scan_range" json:"scan_range"` // Targeted ID range to rescan, e.g. "100-200"
+	DownloadMedia bool   `mapstructure:"download_media" json:"download_media"`
+	// MaxMediaBytes is the per-file media download cap in bytes (0 = built-in default).
+	MaxMediaBytes     int64          `mapstructure:"max_media_bytes" json:"max_media_bytes"`
 	RelevantMediaOnly bool           `mapstructure:"relevant_media_only" json:"relevant_media_only"`
 	Concurrent        int            `mapstructure:"concurrent" json:"concurrent"`
 	Timeout           int            `mapstructure:"timeout" json:"timeout"`
@@ -109,6 +111,7 @@ func DefaultConfig() *Config {
 		BruteForce:        false,
 		MaxID:             10000,
 		ScanRange:         "",
+		MaxMediaBytes:     0,
 		DownloadMedia:     true,
 		RelevantMediaOnly: false,
 		Concurrent:        5,
