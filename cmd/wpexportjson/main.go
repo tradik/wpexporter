@@ -29,7 +29,7 @@ import (
 
 // Version information - set during build
 var (
-	Version   = "1.7.5"
+	Version   = "1.7.8"
 	BuildDate = "unknown"
 )
 
@@ -135,6 +135,8 @@ Content Filters:
 Advanced:
       --brute-force           Enable brute force ID discovery
       --max-id int            Max ID for brute force (default 10000)
+      --scan-range START-END  Rescan a specific inclusive ID range (e.g. 100-200)
+      --max-media-mb int      Per-file media download cap in MB (0 = default 2048)
       --assisted-crawl        Crawl URLs for SEO metadata
       --crawl-content         Crawl pages with empty content (Bricks, Elementor)
       --relevant-media-only   Download only featured/content images
