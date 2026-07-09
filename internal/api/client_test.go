@@ -912,8 +912,8 @@ func TestGetProductsNetworkError(t *testing.T) {
 
 	// GetProducts returns empty slice on error, not an error
 	products, err := client.GetProducts()
-	if err != nil {
-		t.Errorf("GetProducts() should return empty slice on network error, got error: %v", err)
+	if err == nil {
+		t.Error("GetProducts() should return an error on a network failure (GO-003)")
 	}
 	if len(products) != 0 {
 		t.Errorf("GetProducts() should return empty slice on network error")
@@ -967,8 +967,8 @@ func TestGetProducts500Response(t *testing.T) {
 	}
 
 	products, err := client.GetProducts()
-	if err != nil {
-		t.Errorf("GetProducts() error = %v, should return empty slice", err)
+	if err == nil {
+		t.Error("GetProducts() should return an error for a 500 response (GO-003)")
 	}
 	if len(products) != 0 {
 		t.Errorf("GetProducts() should return empty slice for 500 response")
@@ -1751,8 +1751,8 @@ func TestGetProductsJSONUnmarshalError(t *testing.T) {
 	}
 
 	products, err := client.GetProducts()
-	if err != nil {
-		t.Errorf("GetProducts() should return empty slice for JSON error, got error: %v", err)
+	if err == nil {
+		t.Error("GetProducts() should return an error for malformed JSON (GO-003)")
 	}
 	if len(products) != 0 {
 		t.Errorf("GetProducts() should return empty slice for JSON error")

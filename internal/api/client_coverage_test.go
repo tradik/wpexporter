@@ -153,7 +153,7 @@ func TestGetProducts_OtherStatus(t *testing.T) {
 	require.NoError(t, err)
 
 	result, err := client.GetProducts()
-	require.NoError(t, err)
+	require.Error(t, err) // 503 is a genuine failure, not "no WooCommerce" (GO-003)
 	assert.Len(t, result, 0)
 }
 
@@ -177,7 +177,7 @@ func TestGetProducts_InvalidJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	result, err := client.GetProducts()
-	require.NoError(t, err)
+	require.Error(t, err) // malformed JSON is a genuine parse failure (GO-003)
 	assert.Len(t, result, 0)
 }
 

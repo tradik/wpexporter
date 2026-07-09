@@ -708,11 +708,14 @@ func runExport(cmd *cobra.Command, args []string) error {
 			products, err = apiClient.GetProducts()
 		}
 		if err != nil {
-			return fmt.Errorf("failed to get products: %w", err)
+			// WooCommerce is optional: surface the failure but keep whatever was
+			// fetched, so a transient Woo error doesn't silently abort or truncate
+			// the rest of the export (GO-003).
+			logf("Warning: WooCommerce products may be incomplete: %v\n", err)
 		}
 		if len(products) > 0 {
 			logf("Found %d WooCommerce products\n", len(products))
-		} else {
+		} else if err == nil {
 			logln("No WooCommerce products found (WooCommerce may not be installed)")
 		}
 	} else {
