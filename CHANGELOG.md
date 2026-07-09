@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.7] - 2026-07-09
+
+### Fixed
+- **Snap build**: the `go.mod` `go` directive is relaxed from the exact patch `1.26.5`
+  to the minor floor `go 1.26`. The go snap `1.26/stable` channel currently serves Go
+  1.26.4, so requiring 1.26.5 broke the confined snap build (it cannot fetch a newer
+  toolchain offline). CI still builds and tests with the exact 1.26.5 via `setup-go`;
+  the `go` directive is only a minimum, so 1.26.x remains valid everywhere.
+
 ## [1.7.6] - 2026-07-08
 
 ### Changed
