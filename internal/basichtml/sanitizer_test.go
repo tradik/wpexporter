@@ -1,6 +1,7 @@
 package basichtml
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -361,5 +362,57 @@ func TestWildcardToRegex(t *testing.T) {
 			result := wildcardToRegex(tt.pattern)
 			assert.Equal(t, tt.expected, result)
 		})
+	}
+}
+
+// TestIsSafeURLValue covers scheme allow-listing and obfuscation defeats (SEC-003).
+func TestIsSafeURLValue(t *testing.T) {
+	safe := []string{
+		"https://example.com/x",
+		"http://example.com",
+		"mailto:a@b.com",
+		"tel:+123",
+		"/relative/path",
+		"../also/relative",
+		"#anchor",
+		"path/with:colon/after/slash",
+		"",
+	}
+	for _, u := range safe {
+		if !isSafeURLValue(u) {
+			t.Errorf("isSafeURLValue(%q) = false, want true", u)
+		}
+	}
+
+	unsafe := []string{
+		"javascript:alert(1)",
+		"JAVASCRIPT:alert(1)",
+		"java\tscript:alert(1)",     // literal tab in scheme
+		"java\nscript:alert(1)",     // literal newline
+		"  javascript:alert(1)",     // leading whitespace
+		"java&#9;script:alert(1)",   // entity tab
+		"javascript&#58;alert(1)",   // entity colon
+		"javascript&colon;alert(1)", // named-entity colon
+		"vbscript:msgbox(1)",        // other dangerous scheme
+		"data:text/html,<script>x</script>",
+	}
+	for _, u := range unsafe {
+		if isSafeURLValue(u) {
+			t.Errorf("isSafeURLValue(%q) = true, want false", u)
+		}
+	}
+}
+
+// TestSanitizeStripsDangerousHref confirms the sanitizer drops a bypass href end-to-end.
+func TestSanitizeStripsDangerousHref(t *testing.T) {
+	s := NewSanitizer()
+	out := s.Sanitize(`<a href="java&#9;script:alert(1)">click</a>`)
+	if strings.Contains(strings.ToLower(out), "javascript") || strings.Contains(out, "&#9;") {
+		t.Errorf("Sanitize kept a dangerous href: %q", out)
+	}
+	// A normal link is preserved.
+	out2 := s.Sanitize(`<a href="https://example.com">ok</a>`)
+	if !strings.Contains(out2, "https://example.com") {
+		t.Errorf("Sanitize dropped a safe href: %q", out2)
 	}
 }

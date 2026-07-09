@@ -16,6 +16,10 @@ import (
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
+// maxAPIResponseBytes bounds a single WordPress REST API response to guard against
+// unbounded memory allocation from a hostile or misbehaving endpoint (SEC-002).
+const maxAPIResponseBytes = 64 << 20 // 64 MiB
+
 // ProgressCallback is called after each page is fetched for checkpoint saving
 type ProgressCallback func() error
 
@@ -59,6 +63,9 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	httpClient.SetRetryCount(cfg.Retries)
 	httpClient.SetHeader("User-Agent", cfg.UserAgent)
 	httpClient.SetHeader("Accept", "application/json")
+	// Bound the response size to avoid unbounded memory use on a hostile or
+	// misbehaving endpoint (SEC-002).
+	httpClient.SetResponseBodyLimit(maxAPIResponseBytes)
 
 	// Set authentication if configured
 	if cfg.AuthToken != "" {
@@ -228,15 +235,13 @@ func (c *Client) GetProducts() ([]models.WooCommerceProduct, error) {
 
 		resp, err := c.httpClient.R().Get(url)
 		if err != nil {
-			// WooCommerce might not be installed, return empty list
-			if c.config.Verbose {
-				fmt.Printf("Note: Could not fetch WooCommerce products: %v\n", err)
-			}
-			return allProducts, nil
+			// A transport error is a genuine failure (the WP host is reachable —
+			// we already fetched posts). Do not mask it as "no WooCommerce".
+			return allProducts, fmt.Errorf("failed to fetch WooCommerce products page %d: %w", page, err)
 		}
 
 		if resp.StatusCode() == 404 || resp.StatusCode() == 401 {
-			// WooCommerce not installed or no access
+			// WooCommerce not installed or no access — legitimately empty, not an error.
 			return allProducts, nil
 		}
 
@@ -246,20 +251,13 @@ func (c *Client) GetProducts() ([]models.WooCommerceProduct, error) {
 		}
 
 		if resp.StatusCode() != 200 {
-			// WooCommerce might require authentication
-			if c.config.Verbose {
-				fmt.Printf("Note: WooCommerce API returned status %d (may require authentication)\n", resp.StatusCode())
-			}
-			return allProducts, nil
+			// 5xx or other unexpected status: a real failure, not "no WooCommerce".
+			return allProducts, fmt.Errorf("WooCommerce API returned status %d for products page %d", resp.StatusCode(), page)
 		}
 
 		var products []models.WooCommerceProduct
 		if err := json.Unmarshal(resp.Body(), &products); err != nil {
-			// Parsing error, WooCommerce might not be the expected version
-			if c.config.Verbose {
-				fmt.Printf("Note: Could not parse WooCommerce products: %v\n", err)
-			}
-			return allProducts, nil
+			return allProducts, fmt.Errorf("failed to parse WooCommerce products page %d: %w", page, err)
 		}
 
 		if len(products) == 0 {
@@ -833,13 +831,11 @@ func (c *Client) GetProductsWithCheckpoint(state *checkpoint.State, onProgress P
 
 		resp, err := c.httpClient.R().Get(url)
 		if err != nil {
-			if c.config.Verbose {
-				fmt.Printf("Note: Could not fetch WooCommerce products: %v\n", err)
-			}
-			return allProducts, nil
+			return allProducts, fmt.Errorf("failed to fetch WooCommerce products page %d: %w", page, err)
 		}
 
 		if resp.StatusCode() == 404 || resp.StatusCode() == 401 {
+			// WooCommerce not installed or no access — legitimately empty, not an error.
 			return allProducts, nil
 		}
 
@@ -848,18 +844,12 @@ func (c *Client) GetProductsWithCheckpoint(state *checkpoint.State, onProgress P
 		}
 
 		if resp.StatusCode() != 200 {
-			if c.config.Verbose {
-				fmt.Printf("Note: WooCommerce API returned status %d (may require authentication)\n", resp.StatusCode())
-			}
-			return allProducts, nil
+			return allProducts, fmt.Errorf("WooCommerce API returned status %d for products page %d", resp.StatusCode(), page)
 		}
 
 		var products []models.WooCommerceProduct
 		if err := json.Unmarshal(resp.Body(), &products); err != nil {
-			if c.config.Verbose {
-				fmt.Printf("Note: Could not parse WooCommerce products: %v\n", err)
-			}
-			return allProducts, nil
+			return allProducts, fmt.Errorf("failed to parse WooCommerce products page %d: %w", page, err)
 		}
 
 		if len(products) == 0 {

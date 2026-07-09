@@ -808,3 +808,53 @@ func TestIsSameHostInvalidBase(t *testing.T) {
 		t.Error("IsSameHost() with invalid base URL should not authorize a foreign host")
 	}
 }
+
+// TestParseScanRange covers the --scan-range parser (GO-002 wiring of ScanSpecificRange).
+func TestParseScanRange(t *testing.T) {
+	tests := []struct {
+		in                 string
+		wantStart, wantEnd int
+		wantOK, wantErr    bool
+	}{
+		{"", 0, 0, false, false},
+		{"  ", 0, 0, false, false},
+		{"100-200", 100, 200, true, false},
+		{" 5 - 9 ", 5, 9, true, false},
+		{"1-1", 1, 1, true, false},
+		{"abc", 0, 0, false, true},
+		{"10", 0, 0, false, true},
+		{"0-5", 0, 0, false, true},   // start < 1
+		{"20-10", 0, 0, false, true}, // end < start
+		{"x-5", 0, 0, false, true},
+		{"5-y", 0, 0, false, true},
+	}
+	for _, tt := range tests {
+		start, end, ok, err := ParseScanRange(tt.in)
+		if (err != nil) != tt.wantErr {
+			t.Errorf("ParseScanRange(%q) err=%v, wantErr=%v", tt.in, err, tt.wantErr)
+			continue
+		}
+		if tt.wantErr {
+			continue
+		}
+		if start != tt.wantStart || end != tt.wantEnd || ok != tt.wantOK {
+			t.Errorf("ParseScanRange(%q) = (%d,%d,%v), want (%d,%d,%v)",
+				tt.in, start, end, ok, tt.wantStart, tt.wantEnd, tt.wantOK)
+		}
+	}
+}
+
+// TestValidateScanRange ensures an invalid scan range fails config validation.
+func TestValidateScanRange(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.URL = "https://example.com"
+	cfg.Output = "out"
+	cfg.ScanRange = "20-10"
+	if err := cfg.Validate(); err == nil {
+		t.Error("Validate() should reject scan_range 20-10")
+	}
+	cfg.ScanRange = "10-20"
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("Validate() rejected valid scan_range: %v", err)
+	}
+}

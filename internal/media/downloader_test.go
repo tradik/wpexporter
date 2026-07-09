@@ -1153,3 +1153,54 @@ func TestDownloadFileSendsAuthToSameHost(t *testing.T) {
 		t.Errorf("Authorization = %q, want %q", gotAuth, "Bearer secret-token")
 	}
 }
+
+// TestDownloadFileSizeLimit verifies SEC-002: a response larger than the configured
+// per-file cap is rejected and no truncated file is left behind.
+func TestDownloadFileSizeLimit(t *testing.T) {
+	big := strings.Repeat("A", 5000)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(big))
+	}))
+	defer server.Close()
+
+	tmp := t.TempDir()
+	cfg := &config.Config{
+		URL:           server.URL,
+		UserAgent:     "test",
+		Timeout:       10,
+		MaxMediaBytes: 1024, // 1 KiB cap, response is ~5 KiB
+	}
+	d := NewDownloader(cfg)
+	d.mediaDir = tmp
+
+	target := filepath.Join(tmp, "big.bin")
+	if d.downloadFile(server.URL+"/big.bin", target) {
+		t.Error("downloadFile() should fail for an oversized response")
+	}
+	if _, err := os.Stat(target); err == nil {
+		t.Error("oversized download left a truncated file behind")
+	}
+}
+
+// TestDownloadFileWithinLimit verifies a normal-sized file still downloads.
+func TestDownloadFileWithinLimit(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("small body"))
+	}))
+	defer server.Close()
+
+	tmp := t.TempDir()
+	cfg := &config.Config{URL: server.URL, UserAgent: "test", Timeout: 10, MaxMediaBytes: 1024}
+	d := NewDownloader(cfg)
+	d.mediaDir = tmp
+
+	target := filepath.Join(tmp, "ok.bin")
+	if !d.downloadFile(server.URL+"/ok.bin", target) {
+		t.Fatal("downloadFile() should succeed for a within-limit response")
+	}
+	if _, err := os.Stat(target); err != nil {
+		t.Errorf("expected downloaded file to exist: %v", err)
+	}
+}

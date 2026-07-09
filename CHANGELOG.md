@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.8] - 2026-07-09
+
+Audit medium-severity round (SEC-002, SEC-003, GO-002, GO-003, OPS-002, OPS-003).
+
+### Added
+- **`--scan-range START-END`**: rescan a specific inclusive ID range for
+  posts/pages/media and merge items not already fetched (deduped by ID). Wires up
+  the previously-unreachable `Scanner.ScanSpecificRange` (GO-002).
+- **`--max-media-mb`** and `config.max_media_bytes`: configurable per-file media
+  download cap (SEC-002).
+
+### Security
+- **SEC-002**: bounded response/download sizes — REST responses capped at 64 MiB,
+  XML-RPC at 32 MiB, and media downloads at a configurable cap (default 2 GiB) with
+  oversized files dropped rather than left truncated.
+- **SEC-003**: the basic-HTML sanitizer now decodes HTML entities and strips
+  control/whitespace characters before checking a URL scheme against an allow-list
+  (http/https/mailto/tel/ftp), defeating `javascript:`/`data:`/`vbscript:` obfuscation
+  via tabs, newlines and entity-encoded colons.
+- **OPS-002**: CI `GITHUB_TOKEN` is `contents: read` by default; only publishing jobs
+  request the narrow write scope they need.
+- **OPS-003**: all GitHub Actions in both workflows are pinned to full commit SHAs
+  (mutable tags removed); the docs workflow's checkout is unified to v6.
+
+### Fixed
+- **GO-003**: WooCommerce product fetches no longer mask transport/5xx/parse failures
+  as "not installed" — only 404/401/400 are treated as legitimately empty; real
+  failures are surfaced (export continues with a warning since WooCommerce is optional).
+
+### Changed
+- **GO-002**: dead code connected to real functionality instead of removed —
+  `mcp.NewServer` delegates to `NewServerWithIO`; the checkpoint flow uses
+  `Manager.IsEnabled()`/`GetState()`; the HTML converter/sanitizer pick the narrowest
+  constructor. (`Client.BruteForceContent` and `Manager.SetState` are intentionally
+  left as-is: wiring them would duplicate existing behavior.)
+
 ## [1.7.7] - 2026-07-09
 
 ### Fixed

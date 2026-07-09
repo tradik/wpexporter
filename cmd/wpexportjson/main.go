@@ -29,7 +29,7 @@ import (
 
 // Version information - set during build
 var (
-	Version   = "1.7.5"
+	Version   = "1.7.8"
 	BuildDate = "unknown"
 )
 
@@ -57,6 +57,8 @@ var (
 	format            string
 	bruteForce        bool
 	maxID             int
+	scanRange         string
+	maxMediaMB        int
 	downloadMedia     bool
 	noMedia           bool
 	relevantMediaOnly bool
@@ -133,6 +135,8 @@ Content Filters:
 Advanced:
       --brute-force           Enable brute force ID discovery
       --max-id int            Max ID for brute force (default 10000)
+      --scan-range START-END  Rescan a specific inclusive ID range (e.g. 100-200)
+      --max-media-mb int      Per-file media download cap in MB (0 = default 2048)
       --assisted-crawl        Crawl URLs for SEO metadata
       --crawl-content         Crawl pages with empty content (Bricks, Elementor)
       --relevant-media-only   Download only featured/content images
@@ -167,6 +171,10 @@ func init() {
 	exportCmd.Flags().StringVarP(&format, "format", "f", "json", "export format (json|markdown|shopify|magento)")
 	exportCmd.Flags().BoolVar(&bruteForce, "brute-force", false, "enable brute force ID discovery")
 	exportCmd.Flags().IntVar(&maxID, "max-id", 10000, "maximum ID for brute force")
+	exportCmd.Flags().StringVar(&scanRange, "scan-range", "",
+		"rescan a specific inclusive ID range for posts/pages/media, e.g. --scan-range 100-200")
+	exportCmd.Flags().IntVar(&maxMediaMB, "max-media-mb", 0,
+		"per-file media download cap in MB (0 = built-in default of 2048)")
 	exportCmd.Flags().BoolVar(&downloadMedia, "download-media", true, "download images and videos")
 	exportCmd.Flags().BoolVar(&noMedia, "no-media", false, "disable media downloads (alias for --download-media=false)")
 	exportCmd.Flags().BoolVar(&relevantMediaOnly, "relevant-media-only", false, "only download featured images and images embedded in content")
@@ -363,6 +371,12 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 		}
 		cfg.PathFilter = pathFilter
 	}
+	if cmd.Flags().Changed("scan-range") {
+		cfg.ScanRange = scanRange
+	}
+	if cmd.Flags().Changed("max-media-mb") {
+		cfg.MaxMediaBytes = int64(maxMediaMB) << 20
+	}
 	if cmd.Flags().Changed("assisted-crawl") {
 		cfg.AssistedCrawl = assistedCrawl
 	}
@@ -480,6 +494,74 @@ func initializeCache(cfg *config.Config, apiClient *api.Client) (*cache.FileCach
 	return fileCache, nil
 }
 
+// postIDSet returns the set of post/page IDs present in posts.
+func postIDSet(posts []models.WordPressPost) map[int]bool {
+	seen := make(map[int]bool, len(posts))
+	for _, p := range posts {
+		seen[p.ID] = true
+	}
+	return seen
+}
+
+// scanPostRange rescans an ID range for a post-like content type ("posts"/"pages").
+func scanPostRange(sc *bruteforce.Scanner, kind string, start, end int) []models.WordPressPost {
+	res, err := sc.ScanSpecificRange(kind, start, end)
+	if err != nil {
+		return nil
+	}
+	items, _ := res.([]models.WordPressPost)
+	return items
+}
+
+// appendScanRange rescans the configured inclusive ID range for posts, pages and
+// media, appending items not already present (deduplicated by ID). Returns the
+// number of newly-added items.
+func appendScanRange(sc *bruteforce.Scanner, cfg *config.Config,
+	posts, pages *[]models.WordPressPost, media *[]models.WordPressMedia) (int, error) {
+	start, end, ok, err := config.ParseScanRange(cfg.ScanRange)
+	if err != nil || !ok {
+		return 0, err
+	}
+
+	found := 0
+
+	postSeen := postIDSet(*posts)
+	for _, p := range scanPostRange(sc, "posts", start, end) {
+		if !postSeen[p.ID] {
+			postSeen[p.ID] = true
+			*posts = append(*posts, p)
+			found++
+		}
+	}
+
+	pageSeen := postIDSet(*pages)
+	for _, p := range scanPostRange(sc, "pages", start, end) {
+		if !pageSeen[p.ID] {
+			pageSeen[p.ID] = true
+			*pages = append(*pages, p)
+			found++
+		}
+	}
+
+	mediaSeen := make(map[int]bool, len(*media))
+	for _, m := range *media {
+		mediaSeen[m.ID] = true
+	}
+	if res, err := sc.ScanSpecificRange("media", start, end); err == nil {
+		if items, ok := res.([]models.WordPressMedia); ok {
+			for _, m := range items {
+				if !mediaSeen[m.ID] {
+					mediaSeen[m.ID] = true
+					*media = append(*media, m)
+					found++
+				}
+			}
+		}
+	}
+
+	return found, nil
+}
+
 func runExport(cmd *cobra.Command, args []string) error {
 	// Start with default configuration
 	cfg := config.DefaultConfig()
@@ -549,18 +631,15 @@ func runExport(cmd *cobra.Command, args []string) error {
 
 	// Create checkpoint manager
 	checkpointMgr := checkpoint.NewManager(cfg.Output, cfg.Resume)
-	var checkpointState *checkpoint.State
 
-	// Load or create checkpoint state
-	if cfg.Resume {
-		var err error
-		checkpointState, err = checkpointMgr.Load(cfg.URL)
-		if err != nil {
+	// Load or create checkpoint state (the manager owns the state; see GetState()).
+	if checkpointMgr.IsEnabled() {
+		if _, err := checkpointMgr.Load(cfg.URL); err != nil {
 			return fmt.Errorf("failed to load checkpoint: %w", err)
 		}
 		if checkpointMgr.Exists() {
 			logf("Resuming from checkpoint: %s\n", checkpointMgr.GetFilePath())
-			logln(checkpointState.Summary())
+			logln(checkpointMgr.GetState().Summary())
 		}
 	}
 
@@ -594,7 +673,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if !cfg.NoPosts {
 		logln("Fetching posts...")
 		if cfg.Resume {
-			posts, err = apiClient.GetPostsWithCheckpoint(checkpointState, saveCheckpoint)
+			posts, err = apiClient.GetPostsWithCheckpoint(checkpointMgr.GetState(), saveCheckpoint)
 		} else {
 			posts, err = apiClient.GetPosts()
 		}
@@ -610,7 +689,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if !cfg.NoPages {
 		logln("Fetching pages...")
 		if cfg.Resume {
-			pages, err = apiClient.GetPagesWithCheckpoint(checkpointState, saveCheckpoint)
+			pages, err = apiClient.GetPagesWithCheckpoint(checkpointMgr.GetState(), saveCheckpoint)
 		} else {
 			pages, err = apiClient.GetPages()
 		}
@@ -626,16 +705,19 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if !cfg.NoProducts {
 		logln("Fetching WooCommerce products...")
 		if cfg.Resume {
-			products, err = apiClient.GetProductsWithCheckpoint(checkpointState, saveCheckpoint)
+			products, err = apiClient.GetProductsWithCheckpoint(checkpointMgr.GetState(), saveCheckpoint)
 		} else {
 			products, err = apiClient.GetProducts()
 		}
 		if err != nil {
-			return fmt.Errorf("failed to get products: %w", err)
+			// WooCommerce is optional: surface the failure but keep whatever was
+			// fetched, so a transient Woo error doesn't silently abort or truncate
+			// the rest of the export (GO-003).
+			logf("Warning: WooCommerce products may be incomplete: %v\n", err)
 		}
 		if len(products) > 0 {
 			logf("Found %d WooCommerce products\n", len(products))
-		} else {
+		} else if err == nil {
 			logln("No WooCommerce products found (WooCommerce may not be installed)")
 		}
 	} else {
@@ -706,7 +788,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if cfg.DownloadMedia {
 		logln("Fetching media...")
 		if cfg.Resume {
-			media, err = apiClient.GetMediaWithCheckpoint(checkpointState, saveCheckpoint)
+			media, err = apiClient.GetMediaWithCheckpoint(checkpointMgr.GetState(), saveCheckpoint)
 		} else {
 			media, err = apiClient.GetMedia()
 		}
@@ -746,7 +828,16 @@ func runExport(cmd *cobra.Command, args []string) error {
 				IDs:     cfg.PreserveIDs,
 			}
 		}
-		converter := flathtml.NewConverterWithOptions(cfg.FlatHTMLRules, preserveOpts)
+		// Pick the narrowest constructor for the configured options.
+		var converter *flathtml.Converter
+		switch {
+		case preserveOpts != nil:
+			converter = flathtml.NewConverterWithOptions(cfg.FlatHTMLRules, preserveOpts)
+		case len(cfg.FlatHTMLRules) > 0:
+			converter = flathtml.NewConverterWithRules(cfg.FlatHTMLRules)
+		default:
+			converter = flathtml.NewConverter()
+		}
 		if len(posts) > 0 {
 			posts = converter.ConvertPosts(posts)
 		}
@@ -767,7 +858,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 				IDs:     cfg.PreserveIDs,
 			}
 		}
-		sanitizer := basichtml.NewSanitizerWithOptions(preserveOpts)
+		var sanitizer *basichtml.Sanitizer
+		if preserveOpts != nil {
+			sanitizer = basichtml.NewSanitizerWithOptions(preserveOpts)
+		} else {
+			sanitizer = basichtml.NewSanitizer()
+		}
 		if len(posts) > 0 {
 			posts = sanitizer.SanitizePosts(posts)
 		}
@@ -825,6 +921,18 @@ func runExport(cmd *cobra.Command, args []string) error {
 		pages = append(pages, scanResult.Pages...)
 		media = append(media, scanResult.Media...)
 		bruteForceFound = scanResult.Found
+	}
+
+	// Targeted range rescan (--scan-range) — pull a specific inclusive ID range
+	// for posts/pages/media and merge any items not already fetched.
+	if cfg.ScanRange != "" {
+		logf("\nRescanning ID range %s...\n", cfg.ScanRange)
+		n, err := appendScanRange(scanner, cfg, &posts, &pages, &media)
+		if err != nil {
+			return fmt.Errorf("scan-range failed: %w", err)
+		}
+		bruteForceFound += n
+		logf("Range rescan found %d new items\n", n)
 	}
 
 	// Create export data

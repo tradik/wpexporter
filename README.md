@@ -281,6 +281,8 @@ wpexportjson export --config config.yaml
 <tr><td><code>--format</code></td><td>Export format (json/ markdown/ shopify/ magento/ wordpress/ drupal/ wix/ squarespace/ webflow/ weebly/ prestashop/ ghost/ strapi/ contentful)</td><td><code>json</code></td></tr>
 <tr><td><code>--brute-force</code></td><td>Enable brute force ID discovery</td><td><code>false</code></td></tr>
 <tr><td><code>--max-id</code></td><td>Maximum ID for brute force</td><td><code>10000</code></td></tr>
+<tr><td><code>--scan-range</code></td><td>Rescan a specific inclusive ID range for posts/pages/media, e.g. <code>100-200</code></td><td><code>""</code></td></tr>
+<tr><td><code>--max-media-mb</code></td><td>Per-file media download size cap in MB (0 = built-in default of 2048)</td><td><code>0</code></td></tr>
 <tr><td><code>--download-media</code></td><td>Download images and videos</td><td><code>true</code></td></tr>
 <tr><td><code>--no-media</code></td><td>Disable media downloads (alias for --download-media=false)</td><td><code>false</code></td></tr>
 <tr><td><code>--relevant-media-only</code></td><td>Download only featured images and media linked in content (images, PDFs, videos, etc.)</td><td><code>false</code></td></tr>

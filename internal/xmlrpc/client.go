@@ -15,6 +15,10 @@ import (
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
+// maxXMLRPCResponseBytes bounds a single XML-RPC response to guard against
+// unbounded allocation from a hostile or misbehaving endpoint (SEC-002).
+const maxXMLRPCResponseBytes = 32 << 20 // 32 MiB
+
 // Client represents a WordPress XML-RPC client
 type Client struct {
 	config   *config.Config
@@ -421,8 +425,8 @@ func (c *Client) makeRequest(req *XMLRPCRequest) (*XMLRPCResponse, error) {
 		return nil, fmt.Errorf("HTTP request failed with status: %d", httpResp.StatusCode)
 	}
 
-	// Read response body
-	body, err := io.ReadAll(httpResp.Body)
+	// Read response body, bounded to guard against unbounded allocation (SEC-002).
+	body, err := io.ReadAll(io.LimitReader(httpResp.Body, maxXMLRPCResponseBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}

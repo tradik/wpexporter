@@ -14,6 +14,10 @@ import (
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
+// defaultMaxMediaBytes caps a single media file download when no explicit limit
+// is configured, to avoid unbounded disk use from a hostile/oversized source (SEC-002).
+const defaultMaxMediaBytes int64 = 2 << 30 // 2 GiB
+
 // Downloader handles media file downloads
 type Downloader struct {
 	config     *config.Config
@@ -30,6 +34,14 @@ func NewDownloader(cfg *config.Config) *Downloader {
 		},
 		mediaDir: cfg.GetMediaDir(),
 	}
+}
+
+// maxMediaBytes returns the configured per-file download cap, or the built-in default.
+func (d *Downloader) maxMediaBytes() int64 {
+	if d.config != nil && d.config.MaxMediaBytes > 0 {
+		return d.config.MaxMediaBytes
+	}
+	return defaultMaxMediaBytes
 }
 
 // DownloadMedia downloads all media files from the provided media items
@@ -264,9 +276,21 @@ func (d *Downloader) downloadFile(downloadURL, filePath string) bool {
 		_ = file.Close()
 	}()
 
-	// Copy data
-	_, err = io.Copy(file, resp.Body)
-	return err == nil
+	// Copy data, bounded to avoid filling the disk from a hostile or oversized
+	// source (media URLs come from remote API data) (SEC-002).
+	limit := d.maxMediaBytes()
+	n, err := io.Copy(file, io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return false
+	}
+	if n > limit {
+		_ = os.Remove(cleanFilePath) // drop the partial file rather than keep a truncated one
+		if d.config.Verbose {
+			fmt.Printf("Media exceeds size limit (%d bytes), skipped: %s\n", limit, downloadURL)
+		}
+		return false
+	}
+	return true
 }
 
 // validateFilePath validates that the file path is safe and within the media directory
