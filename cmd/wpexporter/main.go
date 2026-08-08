@@ -12,11 +12,9 @@
 package main
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/spf13/cobra"
 
+	"github.com/tradik/wpexporter/internal/cli"
 	"github.com/tradik/wpexporter/internal/cli/exportcli"
 	"github.com/tradik/wpexporter/internal/cli/mcpcli"
 	"github.com/tradik/wpexporter/internal/cli/xmlrpccli"
@@ -24,10 +22,7 @@ import (
 )
 
 func main() {
-	if err := newRootCommand().Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
+	cli.Main(newRootCommand().Execute)
 }
 
 // newRootCommand assembles the umbrella from the three tools.

@@ -5,15 +5,10 @@
 package main
 
 import (
-	"fmt"
-	"os"
-
+	"github.com/tradik/wpexporter/internal/cli"
 	"github.com/tradik/wpexporter/internal/cli/mcpcli"
 )
 
 func main() {
-	if err := mcpcli.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
+	cli.Main(mcpcli.Execute)
 }
