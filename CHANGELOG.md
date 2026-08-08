@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.10] - 2026-08-08
+
+Release-plumbing fixes. No changes to export behaviour.
+
+### Fixed
+- **Binaries reported the wrong version.** `wpexportjson --version` in the 1.7.9 release
+  printed `v1.7.8-7-g414285b`. The Makefile derived the version from `git describe`, and
+  CI's `build` job runs *before* the `release` job creates the tag — so every release
+  stamped its binaries with the **previous** tag plus a commit count, and `-X main.Version`
+  overrode the correct hardcoded value. The shipped 1.7.9 binaries were the right code;
+  only the version string was wrong.
+- **`wpmcp` was missing from the Docker image.** The Dockerfile built and copied only
+  `wpexportjson` and `wpxmlrpc`, so image users could not run the MCP server even though it
+  ships in every other channel (release archives, Homebrew, Snap).
+
+### Changed
+- **The release version now comes from a `VERSION` file** rather than from incrementing the
+  latest tag. Two reasons: the old scheme could only ever produce a **patch** bump, making a
+  minor release impossible without hand-tagging; and an explicit version is a reviewable line
+  in the diff rather than something inferred at release time. CI reads it, validates the
+  `MAJOR.MINOR.PATCH` shape, and skips the release with a clear warning if that tag already
+  exists (a forgotten bump).
+- Version resolution is computed once in a dedicated CI job and consumed by both `build` and
+  `release`, replacing the duplicated logic.
+- Snap's build reads the same `VERSION` file instead of `git describe`.
+
 ## [1.7.9] - 2026-08-08
 
 Media URL localisation fixes (issues #11, #13) and dependency security updates.

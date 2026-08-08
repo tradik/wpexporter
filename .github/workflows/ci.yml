@@ -86,9 +86,56 @@ jobs:
         # G122: filepath.Walk TOCTOU - acceptable for zip archive creation
         run: gosec -exclude=G703,G704,G117,G122 ./...
 
+  # The version this run will release, read once from the VERSION file and used by
+  # both build and release.
+  #
+  # It used to be derived by incrementing the latest tag, which had two problems:
+  # it could only ever produce a patch bump (so a minor release was impossible),
+  # and `build` ran before the tag existed, so `git describe` in the Makefile
+  # stamped binaries with the PREVIOUS tag plus a commit count -- v1.7.9 shipped
+  # binaries reporting v1.7.8-7-g414285b. The version is now an explicit,
+  # reviewable line in the diff.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      next_version: ${{ steps.next_version.outputs.next_version }}
+      already_released: ${{ steps.next_version.outputs.already_released }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Read release version
+        id: next_version
+        run: |
+          if [ ! -f VERSION ]; then
+            echo "::error::VERSION file is missing"
+            exit 1
+          fi
+
+          RAW=$(tr -d '[:space:]' < VERSION)
+          if ! echo "$RAW" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::VERSION must be MAJOR.MINOR.PATCH, got '$RAW'"
+            exit 1
+          fi
+
+          NEW_VERSION="v${RAW}"
+          echo "next_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+          # A tag that already exists means the VERSION bump was forgotten. Say so
+          # rather than failing later inside the release step.
+          if git rev-parse -q --verify "refs/tags/${NEW_VERSION}" >/dev/null; then
+            echo "already_released=true" >> $GITHUB_OUTPUT
+            echo "::warning::Tag ${NEW_VERSION} already exists - release will be skipped. Bump the VERSION file."
+          else
+            echo "already_released=false" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Release version: $NEW_VERSION"
+
   build:
     runs-on: ubuntu-latest
-    needs: [test, lint, security]
+    needs: [test, lint, security, version]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -99,8 +146,11 @@ jobs:
         with:
           go-version: "1.26.5"
 
+      # VERSION is passed explicitly so the binaries carry the tag this run will
+      # create. A command-line variable overrides the Makefile's `git describe`
+      # fallback, which cannot see a tag that does not exist yet.
       - name: Build for multiple platforms
-        run: make release
+        run: make release VERSION=${{ needs.version.outputs.next_version }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -111,8 +161,10 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: [build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build, version]
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && needs.version.outputs.already_released == 'false'
     permissions:
       contents: write # create tags and GitHub releases
     steps:
@@ -126,40 +178,6 @@ jobs:
         with:
           go-version: "1.26.5"
 
-      - name: Get latest tag
-        id: get_tag
-        run: |
-          # Highest semver tag (git describe picks an arbitrary tag when several
-          # tags share a commit, which stalled version bumps; sort by version).
-          LATEST_TAG=$(git tag --sort=-v:refname | head -n1)
-          LATEST_TAG=${LATEST_TAG:-v0.0.0}
-          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-          echo "Latest tag: $LATEST_TAG"
-
-      - name: Calculate next version
-        id: next_version
-        run: |
-          LATEST_TAG="${{ steps.get_tag.outputs.latest_tag }}"
-          # Remove 'v' prefix if present
-          VERSION="${LATEST_TAG#v}"
-          
-          # Split version into parts
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-          
-          # Default to 1.0.0 if no valid version found
-          if [ -z "$MAJOR" ] || [ -z "$MINOR" ] || [ -z "$PATCH" ]; then
-            MAJOR=1
-            MINOR=0
-            PATCH=0
-          else
-            # Increment patch version
-            PATCH=$((PATCH + 1))
-          fi
-          
-          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "New version: $NEW_VERSION"
-
       - name: Download build artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -169,7 +187,7 @@ jobs:
       - name: Create release packages
         run: |
           mkdir -p dist/packages
-          VERSION="${{ steps.next_version.outputs.new_version }}"
+          VERSION="${{ needs.version.outputs.next_version }}"
           
           # Create tar.gz packages for each platform
           for os in linux freebsd darwin windows; do
@@ -216,8 +234,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          tag_name: ${{ steps.next_version.outputs.new_version }}
-          name: Release ${{ steps.next_version.outputs.new_version }}
+          tag_name: ${{ needs.version.outputs.next_version }}
+          name: Release ${{ needs.version.outputs.next_version }}
           body: |
             ## What's Changed
             
@@ -227,14 +245,14 @@ jobs:
             
             | Platform | Architecture | Download |
             |----------|--------------|----------|
-            | Linux | AMD64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-linux-amd64.tar.gz` |
-            | Linux | ARM64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-linux-arm64.tar.gz` |
-            | macOS | AMD64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-darwin-amd64.tar.gz` |
-            | macOS | ARM64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-darwin-arm64.tar.gz` |
-            | Windows | AMD64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-windows-amd64.zip` |
-            | Windows | ARM64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-windows-arm64.zip` |
-            | FreeBSD | AMD64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-freebsd-amd64.tar.gz` |
-            | FreeBSD | ARM64 | `wpexportjson-${{ steps.next_version.outputs.new_version }}-freebsd-arm64.tar.gz` |
+            | Linux | AMD64 | `wpexportjson-${{ needs.version.outputs.next_version }}-linux-amd64.tar.gz` |
+            | Linux | ARM64 | `wpexportjson-${{ needs.version.outputs.next_version }}-linux-arm64.tar.gz` |
+            | macOS | AMD64 | `wpexportjson-${{ needs.version.outputs.next_version }}-darwin-amd64.tar.gz` |
+            | macOS | ARM64 | `wpexportjson-${{ needs.version.outputs.next_version }}-darwin-arm64.tar.gz` |
+            | Windows | AMD64 | `wpexportjson-${{ needs.version.outputs.next_version }}-windows-amd64.zip` |
+            | Windows | ARM64 | `wpexportjson-${{ needs.version.outputs.next_version }}-windows-arm64.zip` |
+            | FreeBSD | AMD64 | `wpexportjson-${{ needs.version.outputs.next_version }}-freebsd-amd64.tar.gz` |
+            | FreeBSD | ARM64 | `wpexportjson-${{ needs.version.outputs.next_version }}-freebsd-arm64.tar.gz` |
             
             ### Installation
 
@@ -246,7 +264,7 @@ jobs:
             sudo snap install wpexporter
 
             # Manual (Linux/macOS)
-            tar -xzf wpexportjson-${{ steps.next_version.outputs.new_version }}-<os>-<arch>.tar.gz
+            tar -xzf wpexportjson-${{ needs.version.outputs.next_version }}-<os>-<arch>.tar.gz
             chmod +x wpexportjson wpxmlrpc wpmcp
             sudo mv wpexportjson wpxmlrpc wpmcp /usr/local/bin/
 

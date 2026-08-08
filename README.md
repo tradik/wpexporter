@@ -109,7 +109,12 @@ docker run --rm -v $(pwd)/export:/export ghcr.io/tradik/wpexporter:latest \
 # Run wpxmlrpc
 docker run --rm -v $(pwd)/export:/export ghcr.io/tradik/wpexporter:latest \
   wpxmlrpc export --url https://example.com --username admin --password mypassword --output /export
+
+# Run wpmcp (MCP server over stdio)
+docker run --rm -i ghcr.io/tradik/wpexporter:latest wpmcp
 ```
+
+All three binaries — `wpexportjson`, `wpxmlrpc` and `wpmcp` — ship in the image.
 
 ## Quick Start
 
