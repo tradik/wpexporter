@@ -8,7 +8,7 @@ wpexportjson \- WordPress content export tool
 .RB [ options ]
 .SH DESCRIPTION
 .B wpexportjson
-exports content from WordPress sites via the REST API. Supports multiple output formats including JSON, Markdown, and platform-specific formats for Shopify, Magento, and others.
+exports content from WordPress sites via the REST API. Supports multiple output formats including JSON, Markdown, a static\-site\-generator content source, and platform-specific formats for Shopify, Magento, and others.
 .SH OPTIONS
 .SS "Required Options"
 .TP
@@ -20,7 +20,10 @@ WordPress site URL (required)
 Output directory (default: export/{domain}.{date})
 .TP
 .BR \-f ", " \-\-format " " \fIFORMAT\fR
-Output format: json, markdown, shopify, magento, wordpress, drupal, wix, squarespace, webflow, weebly, prestashop, ghost, strapi, contentful (default: json)
+Output format: json, markdown, ssg, shopify, magento, wordpress, drupal, wix, squarespace, webflow, weebly, prestashop, ghost, strapi, contentful (default: json)
+.IP
+.B ssg
+writes a drop\-in static\-site\-generator content source: pages nested to mirror their URL, posts under their category, single\-spelled front matter (\fBtitle\fR/\fBdescription\fR/\fBcategory\fR rather than WordPress's competing spellings), root\-relative addresses, and body HTML with entities decoded to UTF\-8, \fBalt\fR filled in from the media library and WordPress presentation classes dropped.
 .TP
 .BR \-\-zip
 Create ZIP archive of export
@@ -67,6 +70,9 @@ Form of rewritten media paths in exported content:
 .B relative
 emits \fImedia/images/123_photo.jpg\fR, correct only for content served from the site root (pre\-1.7.9 behaviour).
 .TP
+.BR \-\-report\-a11y
+Write \fIa11y\-report.md\fR next to the export, flagging inline colours below the WCAG 2.2 SC 1.4.3 minimum contrast ratio of 4.5:1 and images with no alt text (SC 1.1.1). The export itself is unchanged.
+.TP
 .BR \-\-link\-style " " \fISTYLE\fR
 Form of the address fields \fBlink\fR, \fBcanonical_url\fR and \fBhreflangs\fR:
 .B absolute
@@ -89,9 +95,10 @@ Element IDs to preserve from HTML processing (comma-separated, supports wildcard
 .TP
 .BR \-\-keep\-original\-urls
 Preserve original WordPress URLs in content (don't convert to local paths). Without this flag the
-.B json
-and
+.BR json ,
 .B markdown
+and
+.B ssg
 formats rewrite every reference to a downloaded attachment \- \fBsrc\fR, \fBhref\fR and \fBsrcset\fR alike \- matching scheme\- and host\-insensitively so historic \fIhttp://\fR, \fIwww\fR, former\-domain, protocol\-relative and root\-relative forms all resolve.
 .SS "SEO Options"
 .TP
@@ -180,6 +187,12 @@ Export for Shopify, preserving Klaviyo forms:
 .RS
 wpexportjson export --url https://example.com -f shopify --basic-html \\
   --preserve-classes "klaviyo-form-*"
+.RE
+.SS "Static Site Generator Source"
+Export a drop-in content source and check it for accessibility problems before publishing:
+.PP
+.RS
+wpexportjson export --url https://example.com -f ssg --assisted-crawl --report-a11y
 .RE
 .SS "Cached Export"
 Use caching for faster repeated exports:

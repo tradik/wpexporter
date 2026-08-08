@@ -77,8 +77,11 @@ type Config struct {
 	MediaPathStyle string `mapstructure:"media_path_style" json:"media_path_style"`
 	// LinkStyle selects the form of same-host address fields (link, canonical_url,
 	// hreflangs): "absolute" keeps the source URL, "root" emits a root-relative path
-	// so the content is not pinned to the retired host.
-	LinkStyle         string         `mapstructure:"link_style" json:"link_style"`
+	// so the content is not pinned to the retired host. Empty means the format's
+	// default — see EffectiveLinkStyle.
+	LinkStyle string `mapstructure:"link_style" json:"link_style"`
+	// ReportA11y writes an accessibility report alongside the export.
+	ReportA11y        bool           `mapstructure:"report_a11y" json:"report_a11y"`
 	NoTags            bool           `mapstructure:"no_tags" json:"no_tags"`                                   // Skip exporting tags
 	Quiet             bool           `mapstructure:"quiet" json:"quiet"`                                       // Suppress all output
 	NoIDs             bool           `mapstructure:"no_ids" json:"no_ids"`                                     // Exclude numeric IDs from frontmatter
@@ -134,18 +137,19 @@ func DefaultConfig() *Config {
 		NoUsers:           false,
 		PathFilter:        "",
 		AssistedCrawl:     false,
-		RateLimit:         0,          // No rate limiting by default
-		Resume:            false,      // Don't resume by default
-		CrawlContent:      false,      // Don't crawl empty content by default
-		SkipEmptyContent:  false,      // Don't skip empty content by default
-		FlatHTML:          false,      // Don't flatten HTML by default
-		NoTags:            false,      // Don't skip tags by default
-		Cache:             false,      // Caching disabled by default
-		CacheTTL:          "24h",      // 24 hour cache TTL by default
-		CacheDir:          "",         // Will default to ~/.wpexporter/cache
-		CacheClear:        false,      // Don't clear cache by default
-		MediaPathStyle:    "root",     // Root-relative media paths resolve from any URL depth
-		LinkStyle:         "absolute", // Addresses of the source site stay absolute unless asked otherwise
+		RateLimit:         0,      // No rate limiting by default
+		Resume:            false,  // Don't resume by default
+		CrawlContent:      false,  // Don't crawl empty content by default
+		SkipEmptyContent:  false,  // Don't skip empty content by default
+		FlatHTML:          false,  // Don't flatten HTML by default
+		NoTags:            false,  // Don't skip tags by default
+		Cache:             false,  // Caching disabled by default
+		CacheTTL:          "24h",  // 24 hour cache TTL by default
+		CacheDir:          "",     // Will default to ~/.wpexporter/cache
+		CacheClear:        false,  // Don't clear cache by default
+		MediaPathStyle:    "root", // Root-relative media paths resolve from any URL depth
+		LinkStyle:         "",     // Empty = per-format default (see EffectiveLinkStyle)
+		ReportA11y:        false,  // Don't write an accessibility report by default
 	}
 }
 
@@ -291,13 +295,13 @@ func (c *Config) Validate() error {
 	}
 
 	validFormats := map[string]bool{
-		"json": true, "markdown": true, "shopify": true, "magento": true,
+		"json": true, "markdown": true, "ssg": true, "shopify": true, "magento": true,
 		"wordpress": true, "drupal": true, "wix": true, "squarespace": true,
 		"webflow": true, "weebly": true, "prestashop": true, "ghost": true,
 		"strapi": true, "contentful": true,
 	}
 	if !validFormats[c.Format] {
-		return fmt.Errorf("format must be one of: json, markdown, shopify, magento, wordpress, drupal, " +
+		return fmt.Errorf("format must be one of: json, markdown, ssg, shopify, magento, wordpress, drupal, " +
 			"wix, squarespace, webflow, weebly, prestashop, ghost, strapi, contentful")
 	}
 
@@ -330,6 +334,37 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// LocalizesURLs reports whether this export rewrites URLs for local consumption.
+//
+// Only the formats consumed as files do: the platform importers (shopify,
+// drupal, …) pull media from the live site, so their URLs must stay original.
+func (c *Config) LocalizesURLs() bool {
+	if c.KeepOriginalURLs {
+		return false
+	}
+
+	return c.Format == "json" || c.Format == "markdown" || c.Format == "ssg"
+}
+
+// EffectiveLinkStyle resolves the form of address fields, applying the format's
+// default when none was configured.
+//
+// The ssg format defaults to "root": its whole purpose is rebuilding the site at
+// the same paths on a new host, which is exactly the case where root-relative
+// addresses preserve each URL and its search ranking. Every other format keeps
+// the source URL, which a consumer needs to derive the target one.
+func (c *Config) EffectiveLinkStyle() string {
+	if c.LinkStyle != "" {
+		return c.LinkStyle
+	}
+
+	if c.Format == "ssg" {
+		return "root"
+	}
+
+	return "absolute"
 }
 
 // IsSameHost reports whether rawURL targets the same host as the configured

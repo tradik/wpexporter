@@ -37,6 +37,26 @@ Media URL localisation fixes (issues #11, #13) and dependency security updates.
   on Windows no longer contain backslash-separated URLs.
 
 ### Added
+- **`-f ssg`** (#11 proposal 2): a drop-in content source for
+  [spagu/ssg](https://github.com/spagu/ssg) and other static site generators. Where
+  `markdown` is a faithful dump of what WordPress returned, `ssg` is a content source:
+  - pages **nested to mirror their URL** (`/a/b/` → `pages/a/b.md`), posts under their
+    category (never at the top of `posts/`, which the generator requires)
+  - **single-spelled front matter** — `title`, `description`, `category` rather than
+    WordPress's `seo_title`/`og_title`, `meta_description`/`og_description`,
+    `categories`/`category_ids`. Empty values emit no key at all
+  - `author` resolved to a name, `link` root-relative by default
+  - body HTML cleaned (see below)
+- **Content cleanup for `ssg`**: HTML entities decoded to UTF-8; `alt` filled in from the
+  media library's `alt_text` (WCAG 2.2 SC 1.1.1) without ever overwriting an existing one;
+  WordPress presentation classes (`wp-image-*`, `size-*`, `align*`, `attachment-*`,
+  `wp-block-*`) dropped while authored classes are kept; a `title` that merely repeats the
+  filename dropped; `loading`/`decoding`/`sizes` dropped.
+- **`--report-a11y`** (config key `report_a11y`): writes `a11y-report.md` next to the export,
+  flagging inline colours below WCAG 2.2 SC 1.4.3's 4.5:1 minimum and images with no alt text
+  (SC 1.1.1). Contrast is measured against a declared `background-color` where present and
+  against white otherwise. It changes nothing about the export — any WordPress site of a
+  certain age carries these, and knowing before publishing is the point.
 - **`--media-path-style`** (`root` | `relative`, config key `media_path_style`): controls
   the form of rewritten media paths.
 - **`--link-style`** (`absolute` | `root`, config key `link_style`): controls the form of the
@@ -66,11 +86,23 @@ Media URL localisation fixes (issues #11, #13) and dependency security updates.
   `github.com/go-resty/resty/v2` 2.17.1 → 2.17.2, `golang.org/x/sys` 0.40.0 → 0.47.0,
   `golang.org/x/text` 0.33.0 → 0.40.0.
 
+### Changed (markdown format)
+- **HTML entities are decoded to UTF-8** in markdown body content. The exported file is
+  UTF-8, so `&#8211;` and `&hellip;` were noise that survived into the rendered page. The
+  five HTML-significant entities (`&lt;`, `&gt;`, `&amp;`, `&quot;`, `&#39;`) stay encoded —
+  decoding those would turn escaped markup into live markup.
+- **The `excerpt` no longer carries the theme's "Continue reading →" anchor.** It is
+  navigation rather than content and was landing in `<meta name="description">`. Only an
+  anchor that looks like read-more chrome (WordPress's `more-link` class, or recognised link
+  text) is removed; an excerpt legitimately ending in a link keeps it.
+
 ### Documentation
-- README "Media URL Mapping" rewritten: documents the matched URL forms, which fields are
-  localised and which stay absolute, the exported directory layout with per-type
-  subfolders, `--media-path-style`, and the stale-variant remap. Manpage,
-  `config.example.yaml` and `docs/ARCHITECTURE.md` updated to match.
+- README documents `-f ssg` (layout, front-matter contract, content cleanup), `--report-a11y`,
+  and a **per-format URL contract table** stating for every one of the 15 formats whether
+  media URLs and address fields are localised (#11 proposal 3). "Media URL Mapping" rewritten:
+  the matched URL forms, which fields are localised and which stay absolute, the exported
+  directory layout with per-type subfolders, `--media-path-style`, and the stale-variant
+  remap. Manpage, `config.example.yaml` and `docs/ARCHITECTURE.md` updated to match.
 
 ### Internal
 - URL rewriting is now a `media.URLRewriter` built **once per export** rather than an

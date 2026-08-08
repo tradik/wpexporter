@@ -9,9 +9,11 @@ url: "https://example.com"
 # For Markdown format: specify a directory
 # output: "./export"
 
-# Export format: json, markdown, shopify, or magento
+# Export format: json, markdown, ssg, shopify, magento, and others
 # - json: Exports all content as a single JSON file
 # - markdown: Exports posts/pages as individual markdown files
+# - ssg: Static site generator content source - pages nested to mirror their URL,
+#        single-spelled front matter, root-relative addresses, cleaned body HTML
 # - shopify: Exports to Shopify-compatible CSV format for product import
 # - magento: Exports to Magento 2-compatible CSV format for product import
 format: "json"
@@ -42,6 +44,10 @@ link_style: "absolute"
 
 # Preserve original WordPress URLs instead of rewriting them to local paths
 keep_original_urls: false
+
+# Write a11y-report.md flagging WCAG 2.2 contrast (SC 1.4.3) and missing alt text
+# (SC 1.1.1). The export itself is unchanged.
+report_a11y: false
 
 # Number of concurrent downloads
 concurrent: 5
