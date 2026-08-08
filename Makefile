@@ -25,7 +25,12 @@ endif
 
 # Application name and version
 APP_NAME := wpexportjson
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "v1.0.0")
+# The VERSION file is the single source of truth for the release version, so a
+# version bump is an explicit, reviewable line in the diff. `git describe` is only
+# a fallback for builds outside a release checkout: during a release, CI creates
+# the tag *after* building, so describe would stamp binaries with the previous
+# tag plus a commit count. Overridable: make release VERSION=v1.2.3
+VERSION := $(shell test -f VERSION && echo "v$$(cat VERSION)" || git describe --tags --always --dirty 2>/dev/null || echo "v1.0.0")
 BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_DIR := build

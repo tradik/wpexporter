@@ -22,6 +22,7 @@ COPY . .
 # Build the applications for target platform
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-s -w" -o wpexportjson ./cmd/wpexportjson
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-s -w" -o wpxmlrpc ./cmd/wpxmlrpc
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-s -w" -o wpmcp ./cmd/wpmcp
 
 # Final stage
 FROM alpine:3.21
@@ -35,7 +36,7 @@ RUN apk add --no-cache --no-scripts ca-certificates && \
 WORKDIR /app
 
 # Copy binaries from builder stage
-COPY --from=builder /app/wpexportjson /app/wpxmlrpc /usr/local/bin/
+COPY --from=builder /app/wpexportjson /app/wpxmlrpc /app/wpmcp /usr/local/bin/
 
 # Copy configuration example
 COPY config.example.yaml /app/

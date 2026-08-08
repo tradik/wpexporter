@@ -1,6 +1,6 @@
 name: wpexporter
 base: core22
-version: "1.7.9"
+version: "1.7.10"
 title: wpexporter
 summary: Export WordPress content to JSON, Markdown, Shopify, and 14+ formats
 description: |
@@ -39,7 +39,9 @@ parts:
       - CGO_ENABLED: "0"
       - GOFLAGS: "-mod=mod"
     override-build: |
-      VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v1.7.1")
+      # The VERSION file is the single source of truth; git describe would stamp
+      # the previous tag plus a commit count, since the tag is created after build.
+      VERSION=$(test -f VERSION && echo "v$(tr -d '[:space:]' < VERSION)" || git describe --tags --always --dirty 2>/dev/null || echo "v0.0.0")
       BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
       GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
       LDFLAGS="-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT} -s -w"
