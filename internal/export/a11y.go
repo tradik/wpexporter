@@ -257,6 +257,9 @@ func parseColor(value string) (rgb, bool) {
 }
 
 // parseHexColor expands a 3- or 6-digit hex body into a color.
+//
+// Each channel is parsed on its own rather than shifted out of a wider integer,
+// so every value provably fits the 8 bits it is stored in.
 func parseHexColor(digits string) rgb {
 	if len(digits) == 3 {
 		digits = string([]byte{
@@ -266,13 +269,22 @@ func parseHexColor(digits string) rgb {
 		})
 	}
 
-	value, _ := strconv.ParseUint(digits, 16, 32) // pattern guarantees valid hex
-
 	return rgb{
-		r: uint8(value >> 16 & 0xff),
-		g: uint8(value >> 8 & 0xff),
-		b: uint8(value & 0xff),
+		r: parseHexChannel(digits[0:2]),
+		g: parseHexChannel(digits[2:4]),
+		b: parseHexChannel(digits[4:6]),
 	}
+}
+
+// parseHexChannel reads one two-digit hex channel. The caller's pattern has
+// already established that the digits are valid hex.
+func parseHexChannel(pair string) uint8 {
+	value, err := strconv.ParseUint(pair, 16, 8)
+	if err != nil {
+		return 0
+	}
+
+	return uint8(value)
 }
 
 // parseRGBColor reads the three channels of an rgb()/rgba() color.

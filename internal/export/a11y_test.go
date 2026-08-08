@@ -191,6 +191,14 @@ func TestInlineStyles(t *testing.T) {
 	assert.Equal(t, []string{"color: red", "color: blue"}, inlineStyles(content))
 }
 
+// TestParseHexChannelRejectsNonHex pins the defensive branch: a channel that is
+// not valid hex reads as zero rather than panicking.
+func TestParseHexChannelRejectsNonHex(t *testing.T) {
+	assert.Equal(t, uint8(0), parseHexChannel("zz"))
+	assert.Equal(t, uint8(255), parseHexChannel("ff"))
+	assert.Equal(t, uint8(0), parseHexChannel("00"))
+}
+
 func TestFormatColor(t *testing.T) {
 	assert.Equal(t, "#ffff00", formatColor(rgb{255, 255, 0}))
 	assert.Equal(t, "#000000", formatColor(rgb{0, 0, 0}))
