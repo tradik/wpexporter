@@ -14,11 +14,23 @@
 
 > **Repository:** [github.com/tradik/wpexporter](https://github.com/tradik/wpexporter)
 
-A comprehensive WordPress content export toolkit with three powerful applications:
+A comprehensive WordPress content export toolkit.
 
-- **wpexportjson** - REST API based exporter with brute force content discovery
-- **wpxmlrpc** - XML-RPC based exporter for authenticated access
-- **wpmcp** - MCP (Model Context Protocol) server for AI assistant integration
+**`wpexporter`** is the single entry point — one command covering the whole toolkit:
+
+```bash
+wpexporter export --url https://example.com -f ssg   # REST API export
+wpexporter xmlrpc export --url ... --username ...    # XML-RPC export
+wpexporter mcp                                        # MCP server for AI assistants
+```
+
+The three tools are also installed as standalone binaries, which behave identically:
+
+| Binary | Role | Umbrella equivalent |
+|---|---|---|
+| **wpexportjson** | REST API exporter with brute force content discovery | `wpexporter export` |
+| **wpxmlrpc** | XML-RPC exporter for authenticated access | `wpexporter xmlrpc` |
+| **wpmcp** | MCP (Model Context Protocol) server for AI assistants | `wpexporter mcp` |
 
 **Export to 14+ popular platforms** including e-commerce systems ([Shopify](https://www.shopify.com/), [Magento](https://business.adobe.com/products/magento/magento-commerce.html), [PrestaShop](https://www.prestashop.com/)), traditional CMS platforms ([WordPress](https://wordpress.org/), [Drupal](https://www.drupal.org/), [Wix](https://www.wix.com/), [Squarespace](https://www.squarespace.com/), [Webflow](https://webflow.com/), [Weebly](https://www.weebly.com/)), and headless CMS solutions ([Ghost](https://ghost.org/), [Strapi](https://strapi.io/), [Contentful](https://www.contentful.com/)), plus JSON and Markdown formats with full media download support.
 
@@ -64,7 +76,8 @@ A comprehensive WordPress content export toolkit with three powerful application
 brew install tradik/tap/wpexporter
 ```
 
-This installs `wpexportjson`, `wpxmlrpc`, and `wpmcp` binaries plus man pages.
+This installs the `wpexporter` umbrella command plus the `wpexportjson`, `wpxmlrpc` and
+`wpmcp` binaries, and the man pages.
 
 ### Snap (Linux)
 
@@ -72,7 +85,8 @@ This installs `wpexportjson`, `wpxmlrpc`, and `wpmcp` binaries plus man pages.
 sudo snap install wpexporter
 ```
 
-Provides `wpexporter.wpexportjson`, `wpexporter.wpxmlrpc`, and `wpexporter.wpmcp` commands.
+Provides the `wpexporter` command, plus `wpexporter.wpexportjson`, `wpexporter.wpxmlrpc`
+and `wpexporter.wpmcp`.
 
 ### From Source
 
@@ -89,6 +103,7 @@ man wpexportjson
 ### Using Go Install
 
 ```bash
+go install github.com/tradik/wpexporter/cmd/wpexporter@latest
 go install github.com/tradik/wpexporter/cmd/wpexportjson@latest
 go install github.com/tradik/wpexporter/cmd/wpxmlrpc@latest
 go install github.com/tradik/wpexporter/cmd/wpmcp@latest
@@ -114,7 +129,7 @@ docker run --rm -v $(pwd)/export:/export ghcr.io/tradik/wpexporter:latest \
 docker run --rm -i ghcr.io/tradik/wpexporter:latest wpmcp
 ```
 
-All three binaries — `wpexportjson`, `wpxmlrpc` and `wpmcp` — ship in the image.
+All four binaries — `wpexporter`, `wpexportjson`, `wpxmlrpc` and `wpmcp` — ship in the image.
 
 ## Quick Start
 

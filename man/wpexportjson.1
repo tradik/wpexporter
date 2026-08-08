@@ -1,6 +1,6 @@
-.TH WPEXPORTJSON 1 "August 2026" "wpexportjson 1.7.10" "User Commands"
+.TH WPEXPORTJSON 1 "August 2026" "wpexportjson 1.8.0" "User Commands"
 .SH NAME
-wpexportjson \- WordPress content export tool
+wpexportjson \- WordPress content export tool (REST API)
 .SH SYNOPSIS
 .B wpexportjson export
 .RB [ \-u | \-\-url ]
@@ -175,6 +175,24 @@ Suppress all output, only return exit code
 .TP
 .BR \-\-config " " \fIFILE\fR
 Configuration file path
+.SH "THE WPEXPORTER COMMAND"
+The toolkit installs four binaries. Three are the individual tools:
+.BR wpexportjson " (REST API, this page), " wpxmlrpc " (XML-RPC) and " wpmcp " (MCP server)."
+The fourth,
+.BR wpexporter ,
+is an umbrella over all three, so one command covers the toolkit:
+.PP
+.RS
+wpexporter export  \(em same as \fBwpexportjson export\fR
+.br
+wpexporter xmlrpc  \(em same as \fBwpxmlrpc\fR
+.br
+wpexporter mcp     \(em same as \fBwpmcp\fR
+.RE
+.PP
+Every flag on this page applies to
+.B wpexporter export
+unchanged.
 .SH EXAMPLES
 .SS "Basic Export"
 Export a WordPress site to JSON:

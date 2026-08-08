@@ -5,9 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 1.8.0
+## [1.8.0] - 2026-08-08
 
 ### Added
+- **`wpexporter` command.** The project has always been called wpexporter — repository, Go
+  module, Homebrew formula, Snap package, Docker image — but there was no command by that
+  name. Installing it gave three differently named binaries, and the release archive was
+  named after one of them, so `wpexporter` looked missing. There is now one entry point:
+
+  | Command | Equivalent |
+  |---|---|
+  | `wpexporter export` | `wpexportjson export` |
+  | `wpexporter xmlrpc` | `wpxmlrpc` |
+  | `wpexporter mcp` | `wpmcp` |
+
+  The three binaries remain, unchanged, for anyone scripting against them. The REST
+  exporter's subcommand sits at the umbrella's top level since it is the common case; the
+  other two mount as groups, because each defines its own `--config` and `--verbose` and
+  hoisting them all onto one root would collide.
 - **Full metadata extraction** (`--assisted-crawl`). The crawler previously read a fixed list
   of nine fields and silently discarded everything else. It now extracts:
   - **named SEO fields**: `robots`, `og:type`, `og:url`, `og:site_name`, `og:locale`,
@@ -65,6 +80,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `extractSEO` and `extractSEOAndContent` each had their own copy of the extraction block, so
   a field added to one silently missed the other. Both now call a single `populateSEO`.
+- **The three command trees moved to `internal/cli/`**, leaving `cmd/*/main.go` as thin
+  wrappers. `package main` cannot be imported, so the umbrella could not otherwise reuse
+  them.
+- **Build identity moved to `internal/version`**, and the linker now stamps that one package.
+  Each command previously declared its own `main.Version`, so `-X main.Version=…` reached
+  whichever binary was being built and missed the others — and `-X main.BuildTime=…` missed
+  all three, since two of them called the field `BuildDate`. `--version` now reports the
+  version, commit and build time consistently across every binary.
+- Removed the `cobra.OnInitialize(initConfig)` scaffolding: `initConfig` was an empty
+  function in every tool, and a package-level initializer would have run for all three once
+  they shared a process.
 
 ## [1.7.10] - 2026-08-08
 

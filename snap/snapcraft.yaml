@@ -1,6 +1,6 @@
 name: wpexporter
 base: core22
-version: "1.7.10"
+version: "1.8.0"
 title: wpexporter
 summary: Export WordPress content to JSON, Markdown, Shopify, and 14+ formats
 description: |
@@ -49,11 +49,18 @@ parts:
       go build -ldflags "${LDFLAGS}" -o ${CRAFT_PART_INSTALL}/bin/wpexportjson ./cmd/wpexportjson
       go build -ldflags "${LDFLAGS}" -o ${CRAFT_PART_INSTALL}/bin/wpxmlrpc ./cmd/wpxmlrpc
       go build -ldflags "${LDFLAGS}" -o ${CRAFT_PART_INSTALL}/bin/wpmcp ./cmd/wpmcp
+      go build -ldflags "${LDFLAGS}" -o ${CRAFT_PART_INSTALL}/bin/wpexporter ./cmd/wpexporter
 
       mkdir -p ${CRAFT_PART_INSTALL}/share/man/man1
       cp man/wpexportjson.1 ${CRAFT_PART_INSTALL}/share/man/man1/ 2>/dev/null || true
 
 apps:
+  wpexporter:
+    command: bin/wpexporter
+    plugs:
+      - network
+      - home
+      - removable-media
   wpexportjson:
     command: bin/wpexportjson
     plugs:
