@@ -304,11 +304,18 @@ func TestHandleListFormatsOutput(t *testing.T) {
 	// Check content type
 	assert.Equal(t, "text", result.Content[0].Type)
 
-	// Verify all 14 formats are present
+	// Verify all 15 formats are present
 	var formats []map[string]string
 	err = json.Unmarshal([]byte(result.Content[0].Text), &formats)
 	require.NoError(t, err)
-	assert.Len(t, formats, 14, "Should have 14 export formats")
+	assert.Len(t, formats, 15, "Should have 15 export formats")
+
+	// The list and the export_site enum must not drift apart.
+	names := make([]string, 0, len(formats))
+	for _, f := range formats {
+		names = append(names, f["name"])
+	}
+	assert.Contains(t, names, "ssg", "ssg format should be advertised")
 
 	// Verify each format has name and description
 	for _, f := range formats {

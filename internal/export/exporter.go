@@ -14,14 +14,22 @@ import (
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
+// uncategorizedDir is where a post with no resolvable category lands. It is
+// never empty, which is what keeps every post at least one directory below
+// posts/ — a requirement of the ssg format.
+const uncategorizedDir = "uncategorized"
+
 // Exporter handles data export functionality
 type Exporter struct {
 	config      *config.Config
 	downloader  *media.Downloader
-	categoryMap map[int]string // ID -> Name lookup
-	tagMap      map[int]string // ID -> Name lookup
-	userMap     map[int]string // ID -> Name lookup
-	mediaMap    map[int]string // ID -> SourceURL lookup
+	categoryMap map[int]string    // ID -> Name lookup
+	tagMap      map[int]string    // ID -> Name lookup
+	userMap     map[int]string    // ID -> Name lookup
+	mediaMap    map[int]string    // ID -> media URL lookup (localized when rewriting is active)
+	altMap      map[string]string // media URL -> alt text, for filling in missing alt attributes
+	// rewriter localizes attachment URLs; nil when the export keeps original URLs.
+	rewriter *media.URLRewriter
 }
 
 // NewExporter creates a new exporter instance
@@ -51,8 +59,13 @@ func (e *Exporter) Export(data *models.ExportData) error {
 	// Update media paths in content only for local formats (json, markdown)
 	// unless --keep-original-urls is set (for importing markdown to Shopify etc.)
 	// Other formats (shopify, magento, etc.) need original URLs
-	if (e.config.Format == "json" || e.config.Format == "markdown") && !e.config.KeepOriginalURLs {
+	if e.config.LocalizesURLs() {
 		e.updateMediaPaths(data)
+		e.updateLinkPaths(data)
+	}
+
+	if err := e.reportAccessibility(data); err != nil {
+		return fmt.Errorf("failed to write accessibility report: %w", err)
 	}
 
 	// Export based on format
@@ -85,6 +98,8 @@ func (e *Exporter) Export(data *models.ExportData) error {
 		return e.exportStrapi(data)
 	case "contentful":
 		return e.exportContentful(data)
+	case "ssg":
+		return e.exportSSG(data)
 	default:
 		return fmt.Errorf("unsupported export format: %s", e.config.Format)
 	}
@@ -120,23 +135,7 @@ func (e *Exporter) exportJSON(data *models.ExportData) error {
 
 // exportMarkdown exports data as Markdown files
 func (e *Exporter) exportMarkdown(data *models.ExportData) error {
-	// Build lookup maps for human-readable names in frontmatter
-	e.categoryMap = make(map[int]string)
-	for _, cat := range data.Categories {
-		e.categoryMap[cat.ID] = cat.Name
-	}
-	e.tagMap = make(map[int]string)
-	for _, tag := range data.Tags {
-		e.tagMap[tag.ID] = tag.Name
-	}
-	e.userMap = make(map[int]string)
-	for _, user := range data.Users {
-		e.userMap[user.ID] = user.Name
-	}
-	e.mediaMap = make(map[int]string)
-	for _, m := range data.Media {
-		e.mediaMap[m.ID] = m.SourceURL
-	}
+	e.buildLookupMaps(data)
 
 	// Create base directory structure
 	pagesDir := filepath.Join(e.config.Output, "pages")
@@ -315,7 +314,7 @@ func (e *Exporter) getCategoryPath(post models.WordPressPost, categoryMap map[in
 	}
 
 	if len(post.Categories) == 0 {
-		return "uncategorized"
+		return uncategorizedDir
 	}
 
 	// Use the first category for the primary path
@@ -326,7 +325,7 @@ func (e *Exporter) getCategoryPath(post models.WordPressPost, categoryMap map[in
 
 		// Skip generic "posts" category and use uncategorized instead
 		if categoryPath == "posts" {
-			return "uncategorized"
+			return uncategorizedDir
 		}
 
 		return categoryPath
@@ -338,13 +337,13 @@ func (e *Exporter) getCategoryPath(post models.WordPressPost, categoryMap map[in
 
 		// Skip generic "posts" category
 		if slug == "posts" {
-			return "uncategorized"
+			return uncategorizedDir
 		}
 
 		return slug
 	}
 
-	return "uncategorized"
+	return uncategorizedDir
 }
 
 // sanitizeDirectoryName sanitizes a string for use as a directory name
@@ -573,13 +572,11 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 		}
 	}
 
-	// Excerpt in frontmatter (cleaned from HTML)
-	if post.Excerpt.Rendered != "" {
-		excerptText := e.convertHTMLToMarkdown(post.Excerpt.Rendered)
-		excerptText = strings.TrimSpace(excerptText)
-		if excerptText != "" {
-			builder.WriteString(fmt.Sprintf("excerpt: \"%s\"\n", e.escapeYAML(excerptText)))
-		}
+	// Excerpt in frontmatter, reduced to plain text: the theme's "Continue
+	// reading" anchor is navigation rather than content and otherwise ends up in
+	// <meta name="description">.
+	if excerptText := plainTextExcerpt(post.Excerpt.Rendered); excerptText != "" {
+		builder.WriteString(fmt.Sprintf("excerpt: \"%s\"\n", e.escapeYAML(excerptText)))
 	}
 
 	builder.WriteString("---\n\n")
@@ -595,16 +592,7 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 
 // exportMetadata exports categories, tags, users, and media as JSON
 func (e *Exporter) exportMetadata(data *models.ExportData) error {
-	metadata := map[string]interface{}{
-		"categories":  data.Categories,
-		"tags":        data.Tags,
-		"users":       data.Users,
-		"media":       data.Media,
-		"stats":       data.Stats,
-		"exported_at": time.Now(),
-	}
-
-	jsonData, err := json.MarshalIndent(metadata, "", "  ")
+	jsonData, err := exportMetadataJSON(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
@@ -613,27 +601,106 @@ func (e *Exporter) exportMetadata(data *models.ExportData) error {
 	return os.WriteFile(filePath, jsonData, 0600)
 }
 
-// updateMediaPaths updates media URLs in all content
+// updateMediaPaths localizes attachment URLs across all exported content.
+//
+// It runs before the format switch, so the rewriter it builds is also what
+// exportMarkdown later uses for featured_image.
 func (e *Exporter) updateMediaPaths(data *models.ExportData) {
 	if !e.config.DownloadMedia {
 		return
 	}
 
-	// Update posts
+	// Built once and reused for every field: indexing the attachment list is
+	// O(media) and would otherwise be repeated for each post.
+	e.rewriter = e.downloader.NewURLRewriter(data.Media)
+
 	for i := range data.Posts {
-		data.Posts[i].Content.Rendered = e.downloader.UpdateMediaPaths(
-			data.Posts[i].Content.Rendered, data.Media)
-		data.Posts[i].Excerpt.Rendered = e.downloader.UpdateMediaPaths(
-			data.Posts[i].Excerpt.Rendered, data.Media)
+		e.localizePostMedia(&data.Posts[i])
 	}
 
-	// Update pages
 	for i := range data.Pages {
-		data.Pages[i].Content.Rendered = e.downloader.UpdateMediaPaths(
-			data.Pages[i].Content.Rendered, data.Media)
-		data.Pages[i].Excerpt.Rendered = e.downloader.UpdateMediaPaths(
-			data.Pages[i].Excerpt.Rendered, data.Media)
+		e.localizePostMedia(&data.Pages[i])
 	}
+}
+
+// localizePostMedia localizes every attachment reference a post carries: body
+// content, excerpt, and the og:image scraped from the live page.
+//
+// canonical_url, link and hreflangs are deliberately left absolute — they are
+// addresses of the source site rather than assets, and a consumer needs them to
+// derive the target URL. og:image is scraped rather than read from the media
+// library, so one pointing at a CDN or a third-party host resolves to nothing in
+// the index and correctly stays absolute.
+func (e *Exporter) localizePostMedia(post *models.WordPressPost) {
+	post.Content.Rendered = e.rewriter.Rewrite(post.Content.Rendered)
+	post.Excerpt.Rendered = e.rewriter.Rewrite(post.Excerpt.Rendered)
+	post.SEO.OGImage = e.rewriter.Rewrite(post.SEO.OGImage)
+}
+
+// localizeMediaURL localizes a single attachment URL, leaving it untouched when
+// the export is configured to keep original URLs.
+func (e *Exporter) localizeMediaURL(rawURL string) string {
+	if e.rewriter == nil {
+		return rawURL
+	}
+
+	return e.rewriter.Rewrite(rawURL)
+}
+
+// updateLinkPaths converts same-host address fields to root-relative paths when
+// --link-style root is set.
+//
+// These are addresses of the source site rather than assets, so the default
+// keeps them absolute: a consumer needs the original URL to derive the target
+// one. A site rebuilt at the same paths wants the root-relative form instead,
+// because that preserves each URL (and its search ranking) on the new host
+// without pinning the content to the old one.
+func (e *Exporter) updateLinkPaths(data *models.ExportData) {
+	if e.config.EffectiveLinkStyle() != "root" {
+		return
+	}
+
+	for i := range data.Posts {
+		e.rootRelativizeAddresses(&data.Posts[i])
+	}
+
+	for i := range data.Pages {
+		e.rootRelativizeAddresses(&data.Pages[i])
+	}
+}
+
+// rootRelativizeAddresses converts every address field a post carries.
+func (e *Exporter) rootRelativizeAddresses(post *models.WordPressPost) {
+	post.Link = e.rootRelativeURL(post.Link)
+	post.SEO.CanonicalURL = e.rootRelativeURL(post.SEO.CanonicalURL)
+
+	for i := range post.SEO.Hreflangs {
+		post.SEO.Hreflangs[i].Href = e.rootRelativeURL(post.SEO.Hreflangs[i].Href)
+	}
+}
+
+// rootRelativeURL strips scheme and host from a same-host address, preserving
+// query and fragment. A URL on a foreign host is returned unchanged — an
+// external canonical or hreflang alternate must keep pointing where it points.
+func (e *Exporter) rootRelativeURL(rawURL string) string {
+	if rawURL == "" || !e.config.IsSameHost(rawURL) {
+		return rawURL
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Path == "" {
+		return rawURL
+	}
+
+	relative := parsed.Path
+	if parsed.RawQuery != "" {
+		relative += "?" + parsed.RawQuery
+	}
+	if parsed.Fragment != "" {
+		relative += "#" + parsed.Fragment
+	}
+
+	return relative
 }
 
 // escapeYAML escapes special characters for YAML
@@ -702,7 +769,10 @@ func (e *Exporter) convertHTMLToMarkdown(html string) string {
 	md = strings.ReplaceAll(md, "\n\n\n", "\n\n")
 	md = strings.TrimSpace(md)
 
-	return md
+	// The exported file is UTF-8, so typographic entities are noise that would
+	// otherwise survive into the rendered page. The HTML-significant ones stay
+	// encoded — decoding them would turn escaped markup into live markup.
+	return decodeTypographicEntities(md)
 }
 
 // exportShopify exports data as Shopify-compatible CSV

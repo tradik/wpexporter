@@ -131,7 +131,7 @@ func GetTools() []Tool {
 						Type:        schemaTypeString,
 						Description: "Export format",
 						Enum: []string{
-							"json", "markdown", "shopify", "magento", "wordpress",
+							"json", "markdown", "ssg", "shopify", "magento", "wordpress",
 							"drupal", "wix", "squarespace", "webflow", "weebly",
 							"prestashop", "ghost", "strapi", "contentful",
 						},
@@ -369,6 +369,7 @@ func handleListFormats(_ map[string]interface{}) (*CallToolResult, error) {
 		{"name": "ghost", "description": "Ghost CMS JSON import format"},
 		{"name": "strapi", "description": "Strapi headless CMS format"},
 		{"name": "contentful", "description": "Contentful CMS import format"},
+		{"name": "ssg", "description": "Static site generator content source (URL-mirroring paths, single-spelled front matter, cleaned HTML)"},
 	}
 
 	data, _ := json.MarshalIndent(formats, "", "  ")

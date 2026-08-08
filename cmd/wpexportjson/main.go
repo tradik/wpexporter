@@ -29,7 +29,7 @@ import (
 
 // Version information - set during build
 var (
-	Version   = "1.7.8"
+	Version   = "1.7.9"
 	BuildDate = "unknown"
 )
 
@@ -83,6 +83,9 @@ var (
 	flatHTML          bool
 	basicHTML         bool
 	keepOriginalURLs  bool
+	mediaPathStyle    string
+	linkStyle         string
+	reportA11y        bool
 	noTags            bool
 	quiet             bool
 	noIDs             bool
@@ -131,6 +134,9 @@ Content Filters:
       --flat-html             Convert HTML to Markdown (Bricks Builder support)
       --basic-html            Clean HTML to basic elements (tables, lists - for Shopify)
       --keep-original-urls    Preserve WordPress URLs (don't convert to local paths)
+      --media-path-style      Rewritten media paths: root (default, /media/...) or relative
+      --link-style            link/canonical_url/hreflangs: absolute (default) or root
+      --report-a11y           Write a11y-report.md (WCAG 2.2 contrast + missing alt text)
 
 Advanced:
       --brute-force           Enable brute force ID discovery
@@ -206,6 +212,12 @@ func init() {
 		"element IDs to preserve from HTML processing (comma-separated, use with --flat-html or --basic-html)")
 	exportCmd.Flags().BoolVar(&keepOriginalURLs, "keep-original-urls", false,
 		"preserve original WordPress URLs in content (don't convert to local paths)")
+	exportCmd.Flags().StringVar(&mediaPathStyle, "media-path-style", "root",
+		"form of rewritten media paths: root (/media/...) or relative (media/...)")
+	exportCmd.Flags().StringVar(&linkStyle, "link-style", "absolute",
+		"form of link/canonical_url/hreflangs: absolute (source URL) or root (root-relative path); ssg defaults to root")
+	exportCmd.Flags().BoolVar(&reportA11y, "report-a11y", false,
+		"write a11y-report.md flagging WCAG 2.2 contrast and missing alt-text issues")
 	exportCmd.Flags().BoolVar(&noTags, "no-tags", false, "skip exporting tags")
 	exportCmd.Flags().BoolVar(&noIDs, "no-ids", false, "exclude numeric IDs from frontmatter (keep only names)")
 	exportCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress all output, only return exit code")
@@ -427,6 +439,15 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("keep-original-urls") {
 		cfg.KeepOriginalURLs = keepOriginalURLs
+	}
+	if cmd.Flags().Changed("media-path-style") {
+		cfg.MediaPathStyle = mediaPathStyle
+	}
+	if cmd.Flags().Changed("link-style") {
+		cfg.LinkStyle = linkStyle
+	}
+	if cmd.Flags().Changed("report-a11y") {
+		cfg.ReportA11y = reportA11y
 	}
 	if cmd.Flags().Changed("no-tags") {
 		cfg.NoTags = noTags

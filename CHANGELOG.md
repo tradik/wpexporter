@@ -5,6 +5,109 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.9] - 2026-08-08
+
+Media URL localisation fixes (issues #11, #13) and dependency security updates.
+
+### Fixed
+- **`featured_image` and `og_image` are localised too (#13)**: URL rewriting only ran
+  over `Content.Rendered` and `Excerpt.Rendered`, so both front-matter image fields kept
+  the original absolute `wp-content/uploads/…` URL — a static site built from the export
+  lost its hero image and its Open Graph image the moment the source host was retired,
+  the same failure as #11 one field over. Both now resolve through the same index as the
+  body content. `og_image` is scraped rather than read from the media library, so one
+  pointing at a CDN or third-party host resolves to nothing and correctly stays absolute.
+- `canonical_url`, `link` and `hreflangs` are not touched by media rewriting: they are
+  addresses of the source site rather than assets. Their form is controlled separately by
+  the new `--link-style` flag.
+- **`src`/`href` are now localised like `srcset` (#11)**: URL rewriting matched the
+  REST API's `source_url` as an exact string, so only references written in the site's
+  present-day URL form were replaced. WordPress stores `post_content` with whatever form
+  was current when the post was written, so within a single `<img>` the dynamically
+  generated `srcset` was localised while `src` — and the wrapping `href` — kept the
+  original absolute `wp-content/uploads/…` URL. An export made in order to retire the
+  source host therefore 404'd on every image. Matching is now scheme- and host-insensitive
+  (keyed on the upload path), so historic `http://`, `www`, former-domain,
+  protocol-relative, root-relative and query-string forms all resolve to the exported file.
+- **Stale size variants are remapped**: a registered-size change regenerates thumbnails
+  but never rewrites the markup already linking to the old dimensions. A reference to a
+  no-longer-generated `photo-300x199.jpg` now resolves to the closest surviving width
+  (`photo-300x225.jpg`) instead of being emitted as a dead path. `--verbose` logs each remap.
+- Media paths are built with `path.Join` rather than `filepath.Join`, so exports produced
+  on Windows no longer contain backslash-separated URLs.
+
+### Added
+- **`-f ssg`** (#11 proposal 2): a drop-in content source for
+  [spagu/ssg](https://github.com/spagu/ssg) and other static site generators. Where
+  `markdown` is a faithful dump of what WordPress returned, `ssg` is a content source:
+  - pages **nested to mirror their URL** (`/a/b/` → `pages/a/b.md`), posts under their
+    category (never at the top of `posts/`, which the generator requires)
+  - **single-spelled front matter** — `title`, `description`, `category` rather than
+    WordPress's `seo_title`/`og_title`, `meta_description`/`og_description`,
+    `categories`/`category_ids`. Empty values emit no key at all
+  - `author` resolved to a name, `link` root-relative by default
+  - body HTML cleaned (see below)
+- **Content cleanup for `ssg`**: HTML entities decoded to UTF-8; `alt` filled in from the
+  media library's `alt_text` (WCAG 2.2 SC 1.1.1) without ever overwriting an existing one;
+  WordPress presentation classes (`wp-image-*`, `size-*`, `align*`, `attachment-*`,
+  `wp-block-*`) dropped while authored classes are kept; a `title` that merely repeats the
+  filename dropped; `loading`/`decoding`/`sizes` dropped.
+- **`--report-a11y`** (config key `report_a11y`): writes `a11y-report.md` next to the export,
+  flagging inline colours below WCAG 2.2 SC 1.4.3's 4.5:1 minimum and images with no alt text
+  (SC 1.1.1). Contrast is measured against a declared `background-color` where present and
+  against white otherwise. It changes nothing about the export — any WordPress site of a
+  certain age carries these, and knowing before publishing is the point.
+- **`--media-path-style`** (`root` | `relative`, config key `media_path_style`): controls
+  the form of rewritten media paths.
+- **`--link-style`** (`absolute` | `root`, config key `link_style`): controls the form of the
+  address fields `link`, `canonical_url` and `hreflangs[].href`. #11 asks for the
+  root-relative form (it preserves each URL, and its search ranking, when the site is
+  rebuilt at the same paths); #13 states the absolute form is correct (a consumer needs the
+  original URL to derive the target one). Both are right for their case, so this is a flag
+  rather than a decision. Default `absolute` keeps existing behaviour. Only same-host
+  addresses are converted — an hreflang alternate or canonical on a foreign host is left
+  untouched — and query strings and fragments are preserved.
+
+### Changed
+- **BREAKING (json/markdown output)**: rewritten media paths are now root-relative
+  (`/media/images/123_photo.jpg`) by default. The previous relative form
+  (`media/images/123_photo.jpg`) only resolved for content served from the site root — a
+  page at `/about/team/` resolved it to `/about/team/media/images/…`. Pass
+  `--media-path-style relative` to restore the pre-1.7.9 output.
+- Each size variant now rewrites to **its own** exported file rather than collapsing to the
+  full-size image, preserving responsive `srcset` behaviour.
+
+### Security
+- **GHSA-5cv4-jp36-h3mw** (medium): `golang.org/x/net` 0.49.0 → 0.57.0, fixing a denial of
+  service in the HTML parser. The vulnerable path was not reachable from this codebase
+  (`govulncheck` reported 0 affecting vulnerabilities), so this is hardening rather than an
+  exploitable fix.
+- Dependency upgrades: `golang.org/x/term` 0.39.0 → 0.45.0,
+  `github.com/go-resty/resty/v2` 2.17.1 → 2.17.2, `golang.org/x/sys` 0.40.0 → 0.47.0,
+  `golang.org/x/text` 0.33.0 → 0.40.0.
+
+### Changed (markdown format)
+- **HTML entities are decoded to UTF-8** in markdown body content. The exported file is
+  UTF-8, so `&#8211;` and `&hellip;` were noise that survived into the rendered page. The
+  five HTML-significant entities (`&lt;`, `&gt;`, `&amp;`, `&quot;`, `&#39;`) stay encoded —
+  decoding those would turn escaped markup into live markup.
+- **The `excerpt` no longer carries the theme's "Continue reading →" anchor.** It is
+  navigation rather than content and was landing in `<meta name="description">`. Only an
+  anchor that looks like read-more chrome (WordPress's `more-link` class, or recognised link
+  text) is removed; an excerpt legitimately ending in a link keeps it.
+
+### Documentation
+- README documents `-f ssg` (layout, front-matter contract, content cleanup), `--report-a11y`,
+  and a **per-format URL contract table** stating for every one of the 15 formats whether
+  media URLs and address fields are localised (#11 proposal 3). "Media URL Mapping" rewritten:
+  the matched URL forms, which fields are localised and which stay absolute, the exported
+  directory layout with per-type subfolders, `--media-path-style`, and the stale-variant
+  remap. Manpage, `config.example.yaml` and `docs/ARCHITECTURE.md` updated to match.
+
+### Internal
+- URL rewriting is now a `media.URLRewriter` built **once per export** rather than an
+  index rebuilt for every field of every post, which was O(posts × media).
+
 ## [1.7.8] - 2026-07-09
 
 Audit medium-severity round (SEC-002, SEC-003, GO-002, GO-003, OPS-002, OPS-003).

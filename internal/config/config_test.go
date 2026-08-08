@@ -858,3 +858,119 @@ func TestValidateScanRange(t *testing.T) {
 		t.Errorf("Validate() rejected valid scan_range: %v", err)
 	}
 }
+
+// TestValidateMediaPathStyle ensures only the documented path styles are accepted.
+func TestValidateMediaPathStyle(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.URL = "https://example.com"
+	cfg.Output = "out"
+
+	for _, style := range []string{"root", "relative", ""} {
+		cfg.MediaPathStyle = style
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("Validate() rejected media_path_style %q: %v", style, err)
+		}
+	}
+
+	cfg.MediaPathStyle = "absolute"
+	if err := cfg.Validate(); err == nil {
+		t.Error("Validate() should reject media_path_style absolute")
+	}
+}
+
+// TestValidateLinkStyle ensures only the documented link styles are accepted.
+func TestValidateLinkStyle(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.URL = "https://example.com"
+	cfg.Output = "out"
+
+	for _, style := range []string{"absolute", "root", ""} {
+		cfg.LinkStyle = style
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("Validate() rejected link_style %q: %v", style, err)
+		}
+	}
+
+	cfg.LinkStyle = "relative"
+	if err := cfg.Validate(); err == nil {
+		t.Error("Validate() should reject link_style relative")
+	}
+}
+
+// TestEffectiveLinkStyle pins the per-format defaults: addresses stay absolute
+// everywhere except ssg, whose whole purpose is rebuilding at the same paths.
+func TestEffectiveLinkStyle(t *testing.T) {
+	tests := []struct {
+		name      string
+		format    string
+		linkStyle string
+		want      string
+	}{
+		{"json defaults to absolute", "json", "", "absolute"},
+		{"markdown defaults to absolute", "markdown", "", "absolute"},
+		{"ssg defaults to root", "ssg", "", "root"},
+		{"explicit root wins on markdown", "markdown", "root", "root"},
+		{"explicit absolute wins on ssg", "ssg", "absolute", "absolute"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.Format = tt.format
+			cfg.LinkStyle = tt.linkStyle
+
+			if got := cfg.EffectiveLinkStyle(); got != tt.want {
+				t.Errorf("EffectiveLinkStyle() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestLocalizesURLs pins which formats rewrite URLs for local consumption.
+func TestLocalizesURLs(t *testing.T) {
+	tests := []struct {
+		format string
+		keep   bool
+		want   bool
+	}{
+		{"json", false, true},
+		{"markdown", false, true},
+		{"ssg", false, true},
+		{"shopify", false, false},
+		{"drupal", false, false},
+		{"markdown", true, false},
+		{"ssg", true, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.format, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.Format = tt.format
+			cfg.KeepOriginalURLs = tt.keep
+
+			if got := cfg.LocalizesURLs(); got != tt.want {
+				t.Errorf("LocalizesURLs(format=%s, keep=%v) = %v, want %v", tt.format, tt.keep, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestValidateSSGFormat ensures the new format is accepted.
+func TestValidateSSGFormat(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.URL = "https://example.com"
+	cfg.Output = "out"
+	cfg.Format = "ssg"
+
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("Validate() should accept ssg format: %v", err)
+	}
+}
+
+// TestDefaultConfigMediaPathStyle pins the default to root-relative paths, which
+// resolve identically from any URL depth.
+func TestDefaultConfigMediaPathStyle(t *testing.T) {
+	if got := DefaultConfig().MediaPathStyle; got != "root" {
+		t.Errorf("DefaultConfig().MediaPathStyle = %q, want root", got)
+	}
+}

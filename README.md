@@ -27,7 +27,9 @@ A comprehensive WordPress content export toolkit with three powerful application
 ### wpexporter (REST API Client)
 - 🔍 **Complete Content Discovery**: Scans WordPress REST API for posts, pages, and media
 - 🚀 **Brute Force Mode**: Attempts to discover unlisted content by ID enumeration
-- 📁 **Multiple Export Formats**: JSON, Markdown, Shopify, Magento, WordPress, Drupal, Wix, Squarespace, Webflow, Weebly, PrestaShop, Ghost, Strapi, and Contentful
+- 📁 **Multiple Export Formats**: JSON, Markdown, SSG, Shopify, Magento, WordPress, Drupal, Wix, Squarespace, Webflow, Weebly, PrestaShop, Ghost, Strapi, and Contentful
+- 🏗️ **Static Site Generator Output**: `-f ssg` writes a drop-in content source — URL-mirroring paths, single-spelled front matter, cleaned body HTML
+- ♿ **Accessibility Report**: `--report-a11y` flags WCAG 2.2 contrast and missing alt-text issues before you publish
 - 🛒 **E-commerce Integration**: Export to [Shopify](https://www.shopify.com/), [Magento](https://business.adobe.com/products/magento/magento-commerce.html), [PrestaShop](https://www.prestashop.com/) CSV formats
 - 🌐 **CMS Migration**: Export to [WordPress](https://wordpress.org/), [Drupal](https://www.drupal.org/), [Wix](https://www.wix.com/), [Squarespace](https://www.squarespace.com/), [Webflow](https://webflow.com/), [Weebly](https://www.weebly.com/)
 - 📝 **Headless CMS Support**: Export to [Ghost](https://ghost.org/), [Strapi](https://strapi.io/), [Contentful](https://www.contentful.com/) JSON formats
@@ -278,7 +280,7 @@ wpexportjson export --config config.yaml
 <tbody>
 <tr><td><code>--url</code></td><td>WordPress site URL</td><td>Required</td></tr>
 <tr><td><code>--output</code></td><td>Output directory or file</td><td><code>./export</code></td></tr>
-<tr><td><code>--format</code></td><td>Export format (json/ markdown/ shopify/ magento/ wordpress/ drupal/ wix/ squarespace/ webflow/ weebly/ prestashop/ ghost/ strapi/ contentful)</td><td><code>json</code></td></tr>
+<tr><td><code>--format</code></td><td>Export format (json/ markdown/ ssg/ shopify/ magento/ wordpress/ drupal/ wix/ squarespace/ webflow/ weebly/ prestashop/ ghost/ strapi/ contentful)</td><td><code>json</code></td></tr>
 <tr><td><code>--brute-force</code></td><td>Enable brute force ID discovery</td><td><code>false</code></td></tr>
 <tr><td><code>--max-id</code></td><td>Maximum ID for brute force</td><td><code>10000</code></td></tr>
 <tr><td><code>--scan-range</code></td><td>Rescan a specific inclusive ID range for posts/pages/media, e.g. <code>100-200</code></td><td><code>""</code></td></tr>
@@ -287,6 +289,9 @@ wpexportjson export --config config.yaml
 <tr><td><code>--no-media</code></td><td>Disable media downloads (alias for --download-media=false)</td><td><code>false</code></td></tr>
 <tr><td><code>--relevant-media-only</code></td><td>Download only featured images and media linked in content (images, PDFs, videos, etc.)</td><td><code>false</code></td></tr>
 <tr><td><code>--exclude-media-types</code></td><td>Media types to skip (comma-separated: images,videos,audio,documents,archives,pdf,gif)</td><td>-</td></tr>
+<tr><td><code>--media-path-style</code></td><td>Form of rewritten media paths: <code>root</code> (<code>/media/…</code>, resolves at any URL depth) or <code>relative</code> (<code>media/…</code>)</td><td><code>root</code></td></tr>
+<tr><td><code>--link-style</code></td><td>Form of <code>link</code>/<code>canonical_url</code>/<code>hreflangs</code>: <code>absolute</code> (source URL) or <code>root</code> (root-relative path)</td><td><code>absolute</code><br>(<code>root</code> for <code>ssg</code>)</td></tr>
+<tr><td><code>--report-a11y</code></td><td>Write <code>a11y-report.md</code> flagging WCAG 2.2 contrast and missing alt-text issues</td><td><code>false</code></td></tr>
 <tr><td><code>--concurrent</code></td><td>Concurrent downloads</td><td><code>5</code></td></tr>
 <tr><td><code>--zip</code></td><td>Create ZIP archive of export</td><td><code>false</code></td></tr>
 <tr><td><code>--no-files</code></td><td>Remove export files after creating ZIP (requires --zip)</td><td><code>false</code></td></tr>
@@ -807,13 +812,99 @@ The exporter preserves Gutenberg comment markers in HTML exports:
 
 These markers are stripped during Markdown conversion with `--flat-html`.
 
+## 🏗️ Static Site Generator Format (`-f ssg`)
+
+A drop-in content source for [spagu/ssg](https://github.com/spagu/ssg) and other static site
+generators. Where `markdown` is a faithful dump of what WordPress returned, `ssg` is a
+*content source*: one name per concept, paths that mirror the site, and body HTML cleaned of
+the old theme's scaffolding.
+
+```bash
+wpexportjson export --url https://example.com -f ssg -o export/site \
+  --assisted-crawl --crawl-content
+```
+
+### 📂 Layout
+
+```
+export/site/
+├── metadata.json                       categories / tags / users / media
+├── pages/
+│   ├── about.md                        /about/
+│   └── baby-water-instructor/
+│       └── cost.md                     /baby-water-instructor/cost/
+├── posts/
+│   └── swimming/
+│       └── swimming-lesson.md          posts sit at least one level below posts/
+└── media/images/…
+```
+
+Pages are **nested to mirror their URL**, so the site's information architecture stays visible
+in the file tree. Posts sit under their category; one with no resolvable category lands in
+`posts/uncategorized/`.
+
+### 📝 Front Matter
+
+Single-spelled — a generator reads one name per concept, not three:
+
+| Key | Source |
+|-----|--------|
+| `title` | `seo_title` if the site rendered one, else the post title |
+| `slug`, `status`, `type` | as reported by WordPress |
+| `date`, `modified` | RFC 3339 |
+| `link` | **root-relative** by default (`--link-style absolute` to change) |
+| `author` | resolved to a name via `metadata.json` `users[]` |
+| `category` | the post's first named category |
+| `description` | `meta_description`, else `og_description`, else the excerpt |
+| `excerpt` | plain text, theme "Continue reading" chrome removed |
+| `featured_image` | localised media path |
+
+Empty values emit **no key at all**, so a generator sees an absent key rather than an empty
+string.
+
+### 🧹 Content Cleanup
+
+Applied to the body of every `ssg` document:
+
+| Transform | Why |
+|-----------|-----|
+| HTML entities → UTF-8 (`&#8211;` → `–`, `&hellip;` → `…`) | The file is UTF-8; the entities are noise that survives into the rendered page. `&lt;`, `&gt;`, `&amp;`, `&quot;` and `&#39;` stay encoded — decoding those would turn escaped markup into live markup |
+| `alt` filled from the media library's `alt_text` | WCAG 2.2 SC 1.1.1 Non-text Content. An existing `alt` is never overwritten |
+| WordPress classes dropped (`wp-image-*`, `size-*`, `align*`, `attachment-*`, `wp-block-*`) | They refer to the old theme's stylesheet. Authored classes are kept |
+| `title` dropped when it merely repeats the filename | Carries no information a reader can use |
+| `loading`, `decoding`, `sizes` dropped | Browser hints the generator emits itself |
+
+The `markdown` format keeps its existing output, with two exceptions that were plainly bugs:
+entities are decoded there too, and the excerpt no longer carries the "Continue reading" anchor.
+
+## ♿ Accessibility Report (`--report-a11y`)
+
+Writes `a11y-report.md` next to the export. It changes nothing — it tells you what you are
+about to publish:
+
+```bash
+wpexportjson export --url https://example.com -f ssg --report-a11y
+```
+
+| Check | Criterion |
+|-------|-----------|
+| Inline editor colours below a 4.5:1 contrast ratio | WCAG 2.2 SC 1.4.3 Contrast (Minimum) |
+| Images with no alt text | WCAG 2.2 SC 1.1.1 Non-text Content |
+
+Contrast is measured against the declared `background-color` where the content sets one, and
+against white otherwise — which is the worst case for the bright palette the classic WordPress
+editor offered. A 2010-era site typically carries a handful of these (`#ffff00` on white is
+**1.07:1** against a 4.5:1 requirement). Redesigning the content is not the exporter's job, but
+knowing before you publish is.
+
 ## 🖼️ Media URL Mapping
 
 When downloading media with `--download-media`, the exporter rewrites URLs in exported content to point to local files.
 
 ### 📁 File Organization
 
-Downloaded media files are stored in a structured format:
+Downloaded media files are stored in a structured format, in a subfolder per media category
+(`images`, `videos`, `audio`, `documents`, `archives`, `code`, `other`):
 
 ```
 export/
@@ -822,31 +913,119 @@ export/
 ├── pages/
 │   └── about.md
 └── media/
-    ├── 123_featured-image.jpg
-    ├── 124_inline-photo.png
-    ├── 125_document.pdf
-    └── 126_video.mp4
+    ├── images/
+    │   ├── 123_featured-image.jpg
+    │   └── 124_inline-photo.png
+    ├── documents/
+    │   └── 125_document.pdf
+    └── videos/
+        └── 126_video.mp4
 ```
 
 **Naming pattern:** `{media_id}_{original_filename}{extension}`
 
 ### 🔄 URL Rewriting
 
-Absolute WordPress URLs are converted to relative local paths:
+Every reference to a downloaded attachment is rewritten — `src`, `href`, `srcset` and any
+other URL occurrence are treated identically, so the export keeps working once the source
+WordPress host is retired.
 
 | Original URL | Rewritten Path |
 |--------------|----------------|
-| `https://example.com/wp-content/uploads/2025/01/photo.jpg` | `media/123_photo.jpg` |
-| `https://example.com/wp-content/uploads/2025/01/photo-300x200.jpg` | `media/123_photo.jpg` |
-| `https://example.com/wp-content/uploads/2025/01/photo-150x150.jpg` | `media/123_photo.jpg` |
+| `https://example.com/wp-content/uploads/2025/01/photo.jpg` | `/media/images/123_photo.jpg` |
+| `https://example.com/wp-content/uploads/2025/01/photo-300x200.jpg` | `/media/images/123_photo-300x200.jpg` |
+| `https://example.com/wp-content/uploads/2025/01/photo-150x150.jpg` | `/media/images/123_photo-150x150.jpg` |
+
+**Matching is scheme- and host-insensitive.** WordPress stores `post_content` with whatever URL
+form was current when the post was written, while the REST API reports `source_url` in the site's
+present-day form. All of these resolve to the same exported file:
+
+| Reference form in content | Example |
+|---|---|
+| current form | `https://example.com/wp-content/uploads/…` |
+| historic scheme | `http://example.com/wp-content/uploads/…` |
+| `www` / former domain | `https://www.example.com/…`, `http://old-domain.example/…` |
+| protocol-relative | `//example.com/wp-content/uploads/…` |
+| root-relative | `/wp-content/uploads/…` |
+| with a query string | `…/photo.jpg?ver=2` |
+
+URLs that do not correspond to a downloaded attachment are left untouched.
+
+### 📐 Path Style: `--media-path-style`
+
+| Value | Emitted path | When to use |
+|-------|--------------|-------------|
+| `root` *(default)* | `/media/images/123_photo.jpg` | Resolves identically from any URL depth — correct for a page served at `/about/team/` |
+| `relative` | `media/images/123_photo.jpg` | Only correct for content served from the site root; kept for backwards compatibility with pre-1.7.9 exports |
+
+```bash
+# Default — root-relative, works at any URL depth
+wpexportjson export --url https://example.com -f markdown --download-media
+
+# Pre-1.7.9 behaviour
+wpexportjson export --url https://example.com -f markdown --media-path-style relative
+```
+
+URL rewriting applies to the `json` and `markdown` formats only, and can be disabled entirely
+with `--keep-original-urls` (other formats always keep original URLs, since the target platform
+imports media from the live site).
+
+### 📋 Per-Format URL Contract
+
+What each format does with URLs, so you know what you are getting before you run an export:
+
+| Format | Media URLs | Address fields (`link`, `canonical_url`) |
+|--------|-----------|------------------------------------------|
+| `json` | localised to `/media/…` | absolute (`--link-style root` to change) |
+| `markdown` | localised to `/media/…` | absolute (`--link-style root` to change) |
+| `ssg` | localised to `/media/…` | **root-relative by default** |
+| `shopify`, `magento`, `wordpress`, `drupal`, `wix`, `squarespace`, `webflow`, `weebly`, `prestashop`, `ghost`, `strapi`, `contentful` | **left absolute** — the target platform imports media from the live site | absolute |
+
+`--keep-original-urls` disables all rewriting for `json`, `markdown` and `ssg`.
+
+### 🗂️ Which Fields Are Localised
+
+| Field | Localised | Why |
+|-------|-----------|-----|
+| body content (`content.rendered`) | ✅ | assets |
+| `excerpt` | ✅ | assets |
+| `featured_image` | ✅ | asset |
+| `og_image` | ✅ *when it resolves* | asset — but an og:image on a CDN or third-party host isn't a downloaded attachment, so it stays absolute |
+| `canonical_url` | ⚙️ `--link-style` | address of the source site, not an asset |
+| `link` | ⚙️ `--link-style` | as above |
+| `hreflangs[].href` | ⚙️ `--link-style` | as above |
+
+### 🔗 Address Fields: `--link-style`
+
+`link`, `canonical_url` and `hreflangs[].href` are **addresses of the source site, not assets**, so
+they are governed separately from media:
+
+| Value | Emitted | When to use |
+|-------|---------|-------------|
+| `absolute` *(default)* | `https://example.com/2010/07/21/389/` | You need the original URL — to derive the target URL yourself, or because the old site stays up |
+| `root` | `/2010/07/21/389/` | You are rebuilding the site **at the same paths**. Preserves each URL (and its search ranking) on the new host without pinning content to the old one |
+
+```bash
+# Rebuilding at the same paths on a new host
+wpexportjson export --url https://example.com -f markdown --link-style root
+```
+
+Only **same-host** addresses are converted. An hreflang alternate or canonical pointing at a
+different host keeps pointing where it points. Query strings and fragments are preserved
+(`/a/?page=2#top`).
 
 ### 📷 Size Variants
 
 WordPress generates multiple image sizes (thumbnail, medium, large, full). The exporter:
 
-1. ✅ Downloads the **original full-size** image
-2. ✅ Rewrites **all size variant URLs** to point to the full-size local file
+1. ✅ Downloads the **original full-size** image and every registered size variant
+2. ✅ Rewrites each variant URL to **its own** exported file, preserving responsive `srcset`
 3. ✅ Handles `-{width}x{height}` suffixed URLs automatically
+4. ✅ **Remaps stale variants**: a registered-size change regenerates thumbnails but never
+   rewrites the markup already linking to the old dimensions. A reference to a
+   no-longer-generated `photo-300x199.jpg` is remapped to the closest surviving width
+   (`photo-300x225.jpg`) instead of being left as a dead path. Run with `--verbose` to see
+   each remap.
 
 ### 🎯 Selective Media with `--relevant-media-only`
 

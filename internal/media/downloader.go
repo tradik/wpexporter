@@ -579,46 +579,6 @@ func (d *Downloader) getExtensionFromMimeType(mimeType string) string {
 	return ".bin" // Default extension
 }
 
-// UpdateMediaPaths updates media URLs in content to point to local files
-func (d *Downloader) UpdateMediaPaths(content string, mediaItems []models.WordPressMedia) string {
-	if !d.config.DownloadMedia {
-		return content
-	}
-
-	updated := content
-
-	for _, media := range mediaItems {
-		if media.SourceURL == "" {
-			continue
-		}
-
-		// Parse URL to generate local filename
-		parsedURL, err := url.Parse(media.SourceURL)
-		if err != nil {
-			continue
-		}
-
-		filename := d.generateFilename(media, parsedURL)
-		localPath := filepath.Join("media", filename)
-
-		// Replace absolute URLs with relative paths
-		updated = strings.ReplaceAll(updated, media.SourceURL, localPath)
-
-		// Also check for different size variants
-		if media.MediaDetails.Sizes != nil {
-			for _, size := range media.MediaDetails.Sizes {
-				if size.SourceURL != "" {
-					sizeFilename := d.generateSizeFilename(media, size, parsedURL)
-					sizePath := filepath.Join("media", sizeFilename)
-					updated = strings.ReplaceAll(updated, size.SourceURL, sizePath)
-				}
-			}
-		}
-	}
-
-	return updated
-}
-
 // generateSizeFilename generates filename for media size variants
 func (d *Downloader) generateSizeFilename(media models.WordPressMedia, size models.MediaSize, originalURL *url.URL) string {
 	// Parse size URL
