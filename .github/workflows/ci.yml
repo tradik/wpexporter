@@ -184,6 +184,14 @@ jobs:
           name: binaries
           path: dist/
 
+      # upload-artifact zips internally and does not preserve the executable bit,
+      # so binaries come back from the round-trip as 0644 and were shipped that
+      # way — anyone extracting a release tarball had to chmod +x by hand before
+      # the binary would run. Homebrew and Snap masked this by setting the mode
+      # themselves on install.
+      - name: Restore executable bit on binaries
+        run: chmod +x dist/wpexportjson-* dist/wpxmlrpc-* dist/wpmcp-*
+
       - name: Create release packages
         run: |
           mkdir -p dist/packages
