@@ -98,6 +98,35 @@ type Analytics struct {
 	TikTokPixel         []string `json:"tiktok_pixel,omitempty"`
 }
 
+// WordPressMenu is a navigation menu and its items.
+//
+// Menu structure is the one part of a site that cannot be reconstructed from the
+// content afterwards: nothing in a post records which menu it belonged to, in
+// what order, or under what label.
+type WordPressMenu struct {
+	ID          int                 `json:"id"`
+	Name        string              `json:"name"`
+	Slug        string              `json:"slug"`
+	Description string              `json:"description,omitempty"`
+	Locations   []string            `json:"locations,omitempty"`
+	Items       []WordPressMenuItem `json:"items"`
+}
+
+// WordPressMenuItem is one entry in a navigation menu.
+type WordPressMenuItem struct {
+	ID          int      `json:"id"`
+	Title       string   `json:"title"`
+	URL         string   `json:"url"`
+	Parent      int      `json:"parent"`
+	Order       int      `json:"order"`
+	Type        string   `json:"type"`             // taxonomy, post_type, custom
+	Object      string   `json:"object,omitempty"` // category, page, …
+	ObjectID    int      `json:"object_id,omitempty"`
+	Target      string   `json:"target,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Classes     []string `json:"classes,omitempty"`
+}
+
 // WordPressPost represents a WordPress post or page
 type WordPressPost struct {
 	ID            int                    `json:"id"`
@@ -257,6 +286,7 @@ type ExportData struct {
 	Categories []WordPressCategory  `json:"categories"`
 	Tags       []WordPressTag       `json:"tags"`
 	Users      []WordPressUser      `json:"users"`
+	Menus      []WordPressMenu      `json:"menus,omitempty"`
 	Analytics  *Analytics           `json:"analytics,omitempty"`
 	ExportedAt time.Time            `json:"exported_at"`
 	Stats      ExportStats          `json:"stats"`

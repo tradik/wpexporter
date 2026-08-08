@@ -298,5 +298,9 @@ func exportMetadataJSON(data *models.ExportData) ([]byte, error) {
 		metadata["analytics"] = data.Analytics
 	}
 
+	if len(data.Menus) > 0 {
+		metadata["menus"] = data.Menus
+	}
+
 	return json.MarshalIndent(metadata, "", "  ")
 }

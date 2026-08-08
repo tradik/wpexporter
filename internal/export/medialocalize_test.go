@@ -198,6 +198,30 @@ func TestLinkStyleRootAppliesToPages(t *testing.T) {
 	assert.Equal(t, "/2010/07/21/389/", data.Pages[0].Link)
 }
 
+// TestLinkStyleRootRewritesMenuURLs pins that navigation links match the
+// exported permalinks — a menu pointing at the old host while its content is
+// root-relative would break every entry.
+func TestLinkStyleRootRewritesMenuURLs(t *testing.T) {
+	e := NewExporter(linkConfig("root"))
+
+	data := &models.ExportData{
+		Menus: []models.WordPressMenu{{
+			ID:   3,
+			Name: "Categories",
+			Items: []models.WordPressMenuItem{
+				{ID: 41, Title: "Malta", URL: "https://hawanas.com/malta/"},
+				{ID: 42, Title: "Partner", URL: "https://partner.example.org/x/"},
+			},
+		}},
+	}
+
+	e.updateLinkPaths(data)
+
+	assert.Equal(t, "/malta/", data.Menus[0].Items[0].URL)
+	assert.Equal(t, "https://partner.example.org/x/", data.Menus[0].Items[1].URL,
+		"an external menu link keeps pointing where it points")
+}
+
 // TestRootRelativeURLPreservesQueryAndFragment pins that a root-relative address
 // keeps everything after the path.
 func TestRootRelativeURLPreservesQueryAndFragment(t *testing.T) {

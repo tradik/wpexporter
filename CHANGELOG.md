@@ -28,6 +28,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`--extract-meta`** (`all` | `none` | allow-list, config key `extract_meta`): controls
   which unnamed meta tags are kept. Defaults to `all`, because losing data is worse than
   carrying some noise.
+- **Navigation menus (#16)**, exported into `metadata.json` as a `menus` array with each
+  menu's name, slug, locations and ordered items (title, URL, parent, order, type, object).
+  Item URLs follow `--link-style`, so navigation matches the exported permalinks; an item on
+  another host keeps its absolute URL. Items are sorted by `menu_order`, which is what the
+  site renders by. `--no-menus` (config key `no_menus`) skips them.
+
+  **Correction to the issue's premise:** menus are *not* publicly readable. WordPress gates
+  `/wp/v2/menus` behind `edit_theme_options`, so a public REST API answers 401 however the
+  menus are configured — verified against a live site. Menus therefore need
+  `--auth-user`/`--auth-pass` or `--auth-token`. Without credentials the export prints a note
+  saying exactly that and carries on rather than failing.
 
 ### Fixed
 - **Site information was exported empty (#15)**. Three separate faults compounded:

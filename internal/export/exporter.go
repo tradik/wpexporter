@@ -637,6 +637,14 @@ func (e *Exporter) updateLinkPaths(data *models.ExportData) {
 	for i := range data.Pages {
 		e.rootRelativizeAddresses(&data.Pages[i])
 	}
+
+	// Menu links must match the exported permalinks, or the rebuilt navigation
+	// points at the old host while the content it links to does not.
+	for i := range data.Menus {
+		for j := range data.Menus[i].Items {
+			data.Menus[i].Items[j].URL = e.rootRelativeURL(data.Menus[i].Items[j].URL)
+		}
+	}
 }
 
 // rootRelativizeAddresses converts every address field a post carries.

@@ -86,6 +86,7 @@ type Config struct {
 	// "all" (default), "none", or a comma-separated allow-list of tag names.
 	ExtractMeta       string         `mapstructure:"extract_meta" json:"extract_meta"`
 	NoTags            bool           `mapstructure:"no_tags" json:"no_tags"`                                   // Skip exporting tags
+	NoMenus           bool           `mapstructure:"no_menus" json:"no_menus"`                                 // Skip exporting navigation menus
 	Quiet             bool           `mapstructure:"quiet" json:"quiet"`                                       // Suppress all output
 	NoIDs             bool           `mapstructure:"no_ids" json:"no_ids"`                                     // Exclude numeric IDs from frontmatter
 	ExcludeTags       []string       `mapstructure:"exclude_tags" json:"exclude_tags,omitempty"`               // SEO tags to exclude from extraction
@@ -146,6 +147,7 @@ func DefaultConfig() *Config {
 		SkipEmptyContent:  false,  // Don't skip empty content by default
 		FlatHTML:          false,  // Don't flatten HTML by default
 		NoTags:            false,  // Don't skip tags by default
+		NoMenus:           false,  // Try to export menus by default (needs auth; degrades with a warning)
 		Cache:             false,  // Caching disabled by default
 		CacheTTL:          "24h",  // 24 hour cache TTL by default
 		CacheDir:          "",     // Will default to ~/.wpexporter/cache

@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -88,6 +89,7 @@ var (
 	reportA11y        bool
 	extractMeta       string
 	noTags            bool
+	noMenus           bool
 	quiet             bool
 	noIDs             bool
 	excludeTags       string
@@ -129,6 +131,7 @@ Content Filters:
       --no-products           Skip WooCommerce products
       --no-users              Skip users
       --no-tags               Skip tags
+      --no-menus              Skip navigation menus
       --no-media              Skip media downloads
       --path-filter string    Filter by URL path (e.g., /fr/art/)
       --skip-empty-content    Skip posts/pages with empty content
@@ -222,6 +225,7 @@ func init() {
 	exportCmd.Flags().StringVar(&extractMeta, "extract-meta", "all",
 		"which meta tags to keep beyond the named SEO fields: all, none, or a comma-separated allow-list")
 	exportCmd.Flags().BoolVar(&noTags, "no-tags", false, "skip exporting tags")
+	exportCmd.Flags().BoolVar(&noMenus, "no-menus", false, "skip exporting navigation menus")
 	exportCmd.Flags().BoolVar(&noIDs, "no-ids", false, "exclude numeric IDs from frontmatter (keep only names)")
 	exportCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress all output, only return exit code")
 
@@ -457,6 +461,9 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("no-tags") {
 		cfg.NoTags = noTags
+	}
+	if cmd.Flags().Changed("no-menus") {
+		cfg.NoMenus = noMenus
 	}
 	if cmd.Flags().Changed("no-ids") {
 		cfg.NoIDs = noIDs
@@ -939,6 +946,31 @@ func runExport(cmd *cobra.Command, args []string) error {
 		logln("Skipping users (--no-users)")
 	}
 
+	// Fetch navigation menus. Menu structure is the one part of a site that
+	// cannot be reconstructed from the content afterwards.
+	var menus []models.WordPressMenu
+	if !cfg.NoMenus {
+		logln("Fetching menus...")
+		menus, err = apiClient.GetMenus()
+
+		switch {
+		case errors.Is(err, api.ErrMenusNotAccessible):
+			// WordPress gates menus behind edit_theme_options, so a public API
+			// still refuses them. Say what would make it work rather than just
+			// reporting a permission error.
+			logln("  Menus are not readable on this site — WordPress requires " +
+				"authentication for them. Pass --auth-user/--auth-pass or --auth-token to include them.")
+			menus = nil
+		case err != nil:
+			logf("Warning: could not fetch menus: %v\n", err)
+			menus = nil
+		default:
+			logf("Found %d menus\n", len(menus))
+		}
+	} else {
+		logln("Skipping menus (--no-menus)")
+	}
+
 	// Perform brute force scanning if enabled
 	var bruteForceFound int
 	if cfg.BruteForce {
@@ -977,6 +1009,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		Categories: categories,
 		Tags:       tags,
 		Users:      users,
+		Menus:      menus,
 		Analytics:  siteAnalytics,
 		Stats: models.ExportStats{
 			TotalPosts:      len(posts),

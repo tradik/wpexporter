@@ -56,6 +56,11 @@ report_a11y: false
 # - a comma-separated allow-list, e.g. "twitter:card,article:author"
 extract_meta: "all"
 
+# Skip exporting navigation menus. WordPress gates /wp/v2/menus behind
+# edit_theme_options, so menus need --auth-user/--auth-pass or --auth-token;
+# without credentials the export warns and carries on without them.
+no_menus: false
+
 # Number of concurrent downloads
 concurrent: 5
 
