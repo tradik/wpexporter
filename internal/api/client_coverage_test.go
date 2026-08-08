@@ -357,30 +357,6 @@ func TestBruteForceContent_UnknownType(t *testing.T) {
 	assert.Len(t, foundContent, 0)
 }
 
-func TestGetSiteInfo_InvalidJSON(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("invalid json"))
-	}))
-	defer server.Close()
-
-	cfg := &config.Config{
-		URL:       server.URL,
-		Timeout:   5,
-		Retries:   1,
-		UserAgent: "test-agent",
-	}
-
-	client, err := NewClient(cfg)
-	require.NoError(t, err)
-
-	siteInfo, err := client.GetSiteInfo()
-	require.NoError(t, err)
-	// Should return fallback site info
-	assert.Equal(t, "WordPress Site", siteInfo.Name)
-}
-
 func TestGetMedia_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)

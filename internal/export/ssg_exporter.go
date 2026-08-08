@@ -183,6 +183,12 @@ func (e *Exporter) writeSSGFrontMatter(builder *strings.Builder, post models.Wor
 	if post.FeaturedMedia > 0 {
 		writeYAMLString(builder, "featured_image", e.escapeYAML(e.mediaMap[post.FeaturedMedia]))
 	}
+
+	// Everything else the page declared. A generator ignores keys it does not
+	// recognize, but it cannot recover one the export dropped — and plugins put
+	// real information in tags nobody anticipated.
+	e.writeMetaMap(builder, post.SEO.Meta)
+	e.writeJSONLD(builder, post.SEO.JSONLD)
 }
 
 // writeYAMLString writes one quoted key, skipping it when the value is empty so
@@ -277,12 +283,19 @@ func (e *Exporter) buildLookupMaps(data *models.ExportData) {
 // ssg formats.
 func exportMetadataJSON(data *models.ExportData) ([]byte, error) {
 	metadata := map[string]interface{}{
+		"site":        data.Site,
 		"categories":  data.Categories,
 		"tags":        data.Tags,
 		"users":       data.Users,
 		"media":       data.Media,
 		"stats":       data.Stats,
 		"exported_at": time.Now(),
+	}
+
+	// Tracking identifiers are a property of the site, so they live alongside the
+	// other site-wide records rather than being repeated on every post.
+	if data.Analytics != nil {
+		metadata["analytics"] = data.Analytics
 	}
 
 	return json.MarshalIndent(metadata, "", "  ")

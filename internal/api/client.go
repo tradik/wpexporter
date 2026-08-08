@@ -136,34 +136,136 @@ func (c *Client) GetSiteInfo() (*models.SiteInfo, error) {
 		return &cachedInfo, nil
 	}
 
-	settingsURL := strings.Replace(c.baseURL, "/wp/v2", "", 1) + "/wp/v2/settings"
-
-	resp, err := c.httpClient.R().Get(settingsURL)
+	siteInfo, err := c.fetchAPIRootInfo()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get site info: %w", err)
+		return nil, err
 	}
 
-	if resp.StatusCode() != 200 {
-		// Try alternative endpoint
-		resp, err = c.httpClient.R().Get(c.baseURL)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get site info: %w", err)
-		}
-	}
+	// /wp/v2/settings carries the richer set (admin email, date and time formats,
+	// start of week) but needs authentication. Anything it returns wins, because
+	// it is the site's own configuration rather than the public projection.
+	c.mergeSettingsInfo(&siteInfo)
 
-	var siteInfo models.SiteInfo
-	if err := json.Unmarshal(resp.Body(), &siteInfo); err != nil {
-		// If settings endpoint fails, create basic site info
-		siteInfo = models.SiteInfo{
-			URL:  c.config.URL,
-			Name: "WordPress Site",
-		}
+	if siteInfo.URL == "" {
+		siteInfo.URL = c.config.URL
 	}
 
 	// Cache the result
 	c.saveToCache(cacheKey, &siteInfo)
 
 	return &siteInfo, nil
+}
+
+// apiRootInfo is the unauthenticated /wp-json/ document. Its field names differ
+// from the settings endpoint's, which is why it needs its own shape.
+type apiRootInfo struct {
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	URL            string `json:"url"`
+	Home           string `json:"home"`
+	GMTOffset      string `json:"gmt_offset"`
+	TimezoneString string `json:"timezone_string"`
+}
+
+// siteSettings is the authenticated /wp/v2/settings document. Note `title`
+// rather than `name`: reading it as `name` was why the site title came out
+// empty even when the endpoint was reachable.
+type siteSettings struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	URL         string `json:"url"`
+	Email       string `json:"email"`
+	Timezone    string `json:"timezone"`
+	DateFormat  string `json:"date_format"`
+	TimeFormat  string `json:"time_format"`
+	StartOfWeek int    `json:"start_of_week"`
+	Language    string `json:"language"`
+}
+
+// fetchAPIRootInfo reads the REST API root, which every public WordPress serves
+// without authentication and which carries the site's identity.
+//
+// A transport failure is returned as an error, since it means the site is not
+// reachable at all. An unhelpful response — a status other than 200, or a body
+// that is not the root document — is not: the export can still proceed and
+// record which URL it was pointed at.
+func (c *Client) fetchAPIRootInfo() (models.SiteInfo, error) {
+	rootURL := strings.TrimSuffix(c.baseURL, "/wp/v2")
+
+	resp, err := c.httpClient.R().Get(rootURL)
+	if err != nil {
+		return models.SiteInfo{}, fmt.Errorf("failed to get site info: %w", err)
+	}
+
+	if resp.StatusCode() != 200 {
+		return models.SiteInfo{}, nil
+	}
+
+	var root apiRootInfo
+	if err := json.Unmarshal(resp.Body(), &root); err != nil {
+		return models.SiteInfo{}, nil
+	}
+
+	timezone := root.TimezoneString
+	if timezone == "" && root.GMTOffset != "" {
+		// A site that never set a named zone reports only an offset.
+		timezone = "UTC" + gmtOffsetSuffix(root.GMTOffset)
+	}
+
+	return models.SiteInfo{
+		Name:        root.Name,
+		Description: root.Description,
+		URL:         root.URL,
+		HomeURL:     root.Home,
+		Timezone:    timezone,
+	}, nil
+}
+
+// mergeSettingsInfo overlays the authenticated settings document when it is
+// reachable. An unauthenticated site returns 401 here, which is not an error:
+// the root document already supplied the identity fields.
+func (c *Client) mergeSettingsInfo(siteInfo *models.SiteInfo) {
+	settingsURL := strings.TrimSuffix(c.baseURL, "/wp/v2") + "/wp/v2/settings"
+
+	resp, err := c.httpClient.R().Get(settingsURL)
+	if err != nil || resp.StatusCode() != 200 {
+		return
+	}
+
+	var settings siteSettings
+	if err := json.Unmarshal(resp.Body(), &settings); err != nil {
+		return
+	}
+
+	overlay(&siteInfo.Name, settings.Title)
+	overlay(&siteInfo.Description, settings.Description)
+	overlay(&siteInfo.URL, settings.URL)
+	overlay(&siteInfo.AdminEmail, settings.Email)
+	overlay(&siteInfo.Timezone, settings.Timezone)
+	overlay(&siteInfo.DateFormat, settings.DateFormat)
+	overlay(&siteInfo.TimeFormat, settings.TimeFormat)
+	overlay(&siteInfo.Language, settings.Language)
+
+	if settings.StartOfWeek != 0 {
+		siteInfo.StartOfWeek = settings.StartOfWeek
+	}
+}
+
+// overlay replaces a value when the authoritative source supplied one.
+func overlay(target *string, value string) {
+	if strings.TrimSpace(value) != "" {
+		*target = value
+	}
+}
+
+// gmtOffsetSuffix renders a numeric GMT offset as a signed suffix.
+func gmtOffsetSuffix(offset string) string {
+	offset = strings.TrimSpace(offset)
+	if offset == "" || strings.HasPrefix(offset, "-") || strings.HasPrefix(offset, "+") {
+		return offset
+	}
+
+	return "+" + offset
 }
 
 // GetPosts retrieves all posts with pagination

@@ -103,7 +103,14 @@ formats rewrite every reference to a downloaded attachment \- \fBsrc\fR, \fBhref
 .SS "SEO Options"
 .TP
 .BR \-\-assisted\-crawl
-Crawl URLs to extract SEO metadata (title, description, og tags)
+Crawl URLs to extract SEO metadata: title, description, keywords, robots, the Open Graph and Twitter Card tags, article metadata, canonical, language and hreflang alternates. Every other meta tag is kept in a \fBmeta\fR map (see \fB\-\-extract\-meta\fR), \fBapplication/ld+json\fR blocks are preserved, and tracking identifiers (GA4, Universal Analytics, Google Tag Manager, Google Ads, Meta Pixel, Hotjar, Clarity, LinkedIn, TikTok) are collected site\-wide into \fImetadata.json\fR.
+.TP
+.BR \-\-extract\-meta " " \fIPOLICY\fR
+Which meta tags to keep beyond the named SEO fields:
+.B all
+(default) keeps every one \- plugins and themes put real information in tags nobody anticipated, and a generator can ignore a key it does not recognise but cannot recover one the export dropped;
+.B none
+keeps only the named fields; or a comma\-separated allow\-list such as \fBtwitter:card,article:author\fR.
 .TP
 .BR \-\-crawl\-content
 Crawl pages with empty content (Bricks, Elementor page builders)

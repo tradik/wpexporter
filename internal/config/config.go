@@ -81,7 +81,10 @@ type Config struct {
 	// default — see EffectiveLinkStyle.
 	LinkStyle string `mapstructure:"link_style" json:"link_style"`
 	// ReportA11y writes an accessibility report alongside the export.
-	ReportA11y        bool           `mapstructure:"report_a11y" json:"report_a11y"`
+	ReportA11y bool `mapstructure:"report_a11y" json:"report_a11y"`
+	// ExtractMeta selects which meta tags beyond the named SEO fields are kept:
+	// "all" (default), "none", or a comma-separated allow-list of tag names.
+	ExtractMeta       string         `mapstructure:"extract_meta" json:"extract_meta"`
 	NoTags            bool           `mapstructure:"no_tags" json:"no_tags"`                                   // Skip exporting tags
 	Quiet             bool           `mapstructure:"quiet" json:"quiet"`                                       // Suppress all output
 	NoIDs             bool           `mapstructure:"no_ids" json:"no_ids"`                                     // Exclude numeric IDs from frontmatter
@@ -150,6 +153,7 @@ func DefaultConfig() *Config {
 		MediaPathStyle:    "root", // Root-relative media paths resolve from any URL depth
 		LinkStyle:         "",     // Empty = per-format default (see EffectiveLinkStyle)
 		ReportA11y:        false,  // Don't write an accessibility report by default
+		ExtractMeta:       "all",  // Keep every meta tag: plugins put real data in unexpected ones
 	}
 }
 

@@ -86,6 +86,7 @@ var (
 	mediaPathStyle    string
 	linkStyle         string
 	reportA11y        bool
+	extractMeta       string
 	noTags            bool
 	quiet             bool
 	noIDs             bool
@@ -218,6 +219,8 @@ func init() {
 		"form of link/canonical_url/hreflangs: absolute (source URL) or root (root-relative path); ssg defaults to root")
 	exportCmd.Flags().BoolVar(&reportA11y, "report-a11y", false,
 		"write a11y-report.md flagging WCAG 2.2 contrast and missing alt-text issues")
+	exportCmd.Flags().StringVar(&extractMeta, "extract-meta", "all",
+		"which meta tags to keep beyond the named SEO fields: all, none, or a comma-separated allow-list")
 	exportCmd.Flags().BoolVar(&noTags, "no-tags", false, "skip exporting tags")
 	exportCmd.Flags().BoolVar(&noIDs, "no-ids", false, "exclude numeric IDs from frontmatter (keep only names)")
 	exportCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress all output, only return exit code")
@@ -448,6 +451,9 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("report-a11y") {
 		cfg.ReportA11y = reportA11y
+	}
+	if cmd.Flags().Changed("extract-meta") {
+		cfg.ExtractMeta = extractMeta
 	}
 	if cmd.Flags().Changed("no-tags") {
 		cfg.NoTags = noTags
@@ -756,6 +762,9 @@ func runExport(cmd *cobra.Command, args []string) error {
 			cfg.PathFilter, len(posts), originalPosts, len(pages), originalPages)
 	}
 
+	// Tracking identifiers are a property of the site, collected while crawling.
+	var siteAnalytics *models.Analytics
+
 	// Crawl URLs for SEO data and/or content
 	if cfg.AssistedCrawl && cfg.CrawlContent {
 		// Combined crawl - fetch each page once for both SEO and content
@@ -768,6 +777,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if len(pages) > 0 {
 			pages = crawler.EnrichPostsWithSEOAndContent(pages)
 		}
+		siteAnalytics = crawler.Analytics()
 		logln("SEO metadata and content extraction complete")
 	} else if cfg.AssistedCrawl {
 		// SEO only
@@ -780,6 +790,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if len(pages) > 0 {
 			pages = crawler.EnrichPostsWithSEO(pages)
 		}
+		siteAnalytics = crawler.Analytics()
 		logln("SEO metadata extraction complete")
 	} else if cfg.CrawlContent {
 		// Content only
@@ -966,6 +977,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		Categories: categories,
 		Tags:       tags,
 		Users:      users,
+		Analytics:  siteAnalytics,
 		Stats: models.ExportStats{
 			TotalPosts:      len(posts),
 			TotalPages:      len(pages),

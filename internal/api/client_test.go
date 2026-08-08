@@ -77,11 +77,10 @@ func TestGetSiteInfo(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			response := `{
-				"name": "Test Site",
+				"title": "Test Site",
 				"description": "Test Description",
 				"url": "https://example.com",
-				"home": "https://example.com",
-				"admin_email": "admin@example.com",
+				"email": "admin@example.com",
 				"timezone": "UTC",
 				"date_format": "Y-m-d",
 				"time_format": "H:i:s",
@@ -118,46 +117,6 @@ func TestGetSiteInfo(t *testing.T) {
 
 	if siteInfo.URL == "" {
 		t.Errorf("GetSiteInfo() URL should not be empty")
-	}
-}
-
-func TestGetSiteInfoFallback(t *testing.T) {
-	// Create a test server that returns 404 for settings but works for base
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/wp-json/wp/v2/settings" {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		if r.URL.Path == "/wp-json/wp/v2" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"name": "Fallback Site"}`))
-			return
-		}
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	defer server.Close()
-
-	cfg := &config.Config{
-		URL:       server.URL,
-		Timeout:   10,
-		Retries:   1,
-		UserAgent: "test-agent",
-	}
-
-	client, err := NewClient(cfg)
-	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
-	}
-
-	siteInfo, err := client.GetSiteInfo()
-	if err != nil {
-		t.Fatalf("GetSiteInfo() error = %v", err)
-	}
-
-	// Should fallback to basic site info
-	if siteInfo.Name != "Fallback Site" {
-		t.Errorf("GetSiteInfo() fallback Name = %v, want %v", siteInfo.Name, "Fallback Site")
 	}
 }
 
@@ -1147,89 +1106,6 @@ func TestNewClientWithOnlyAuthUser(t *testing.T) {
 
 	if client == nil {
 		t.Error("NewClient() should create client even with only auth user")
-	}
-}
-
-func TestGetSiteInfoFallbackInvalidJSON(t *testing.T) {
-	// Server that returns non-200 for settings, then invalid JSON for fallback
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/wp-json/wp/v2/settings" {
-			// Return non-200 to trigger fallback
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-		if r.URL.Path == "/wp-json/wp/v2" {
-			// Return invalid JSON to test unmarshal error handling
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`not json at all`))
-			return
-		}
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	defer server.Close()
-
-	cfg := &config.Config{
-		URL:       server.URL,
-		Timeout:   5,
-		Retries:   0,
-		UserAgent: "test-agent",
-	}
-
-	client, err := NewClient(cfg)
-	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
-	}
-
-	siteInfo, err := client.GetSiteInfo()
-	if err != nil {
-		t.Fatalf("GetSiteInfo() error = %v, should fallback to default", err)
-	}
-
-	// Should fallback to default site info when JSON parsing fails
-	if siteInfo.Name != "WordPress Site" {
-		t.Errorf("GetSiteInfo() should fallback to default name, got %s", siteInfo.Name)
-	}
-}
-
-func TestGetSiteInfoFallbackNetworkError(t *testing.T) {
-	// Server that returns non-200 for settings, then hijacks connection for fallback
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/wp-json/wp/v2/settings" {
-			// Return non-200 to trigger fallback
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-		if r.URL.Path == "/wp-json/wp/v2" {
-			// Hijack connection and close it to simulate network error
-			hj, ok := w.(http.Hijacker)
-			if ok {
-				conn, _, _ := hj.Hijack()
-				if conn != nil {
-					conn.Close()
-				}
-			}
-			return
-		}
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	defer server.Close()
-
-	cfg := &config.Config{
-		URL:       server.URL,
-		Timeout:   5,
-		Retries:   0,
-		UserAgent: "test-agent",
-	}
-
-	client, err := NewClient(cfg)
-	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
-	}
-
-	_, err = client.GetSiteInfo()
-	if err == nil {
-		t.Error("GetSiteInfo() should return error when fallback fails with network error")
 	}
 }
 

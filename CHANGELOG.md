@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 1.8.0
+
+### Added
+- **Full metadata extraction** (`--assisted-crawl`). The crawler previously read a fixed list
+  of nine fields and silently discarded everything else. It now extracts:
+  - **named SEO fields**: `robots`, `og:type`, `og:url`, `og:site_name`, `og:locale`,
+    `twitter:card`, `twitter:title`, `twitter:description`, `twitter:image`, `twitter:site`,
+    `article:published_time`, `article:modified_time`, `article:author`, `article:section`,
+    alongside the existing title/description/keywords/og/canonical/lang/hreflangs
+  - **every other meta tag**, into a `meta` map keyed by its `name`, `property`, `itemprop`
+    or `http-equiv`. Plugins and themes put real information in tags nobody anticipated; a
+    generator can ignore a key it does not recognise, but it cannot recover one the export
+    dropped.
+  - **`application/ld+json` blocks**, preserved raw. Rank Math and Yoast emit structured data
+    there that appears in no meta tag.
+  - **tracking identifiers**, collected site-wide into `metadata.json`: GA4, Universal
+    Analytics, Google Tag Manager, Google Ads, Meta Pixel, Hotjar, Microsoft Clarity,
+    LinkedIn and TikTok. Detection matches the identifier's shape rather than the surrounding
+    snippet, so it survives however a plugin minified or wrapped it. They belong to the site
+    rather than to any one post.
+- **`--extract-meta`** (`all` | `none` | allow-list, config key `extract_meta`): controls
+  which unnamed meta tags are kept. Defaults to `all`, because losing data is worse than
+  carrying some noise.
+
+### Fixed
+- **Site information was exported empty (#15)**. Three separate faults compounded:
+  - `GetSiteInfo` asked `/wp/v2/settings`, which needs authentication and returns 401 on a
+    public site, then fell back to `/wp-json/wp/v2` — the *route index*, which carries no
+    site fields at all. It unmarshalled cleanly into `SiteInfo` (valid JSON, no matching
+    keys), so the "endpoint failed" branch never ran and every field came out blank.
+  - Even when `/wp/v2/settings` was reachable, the site title was read as `name`; the
+    endpoint calls it `title`, so `Name` was always empty.
+  - `metadata.json` carried no `site` object at all.
+
+  Identity now comes from the unauthenticated `/wp-json/` root (`name`, `description`,
+  `url`, `home`, `timezone_string`/`gmt_offset`), with `/wp/v2/settings` overlaid where
+  reachable for the fields only it has (admin email, date and time formats, start of week,
+  language). `metadata.json` gains a `site` object. A transport failure is still an error;
+  a 401, a 404 or an unreadable body degrades to the configured URL instead.
+- **Release tarballs shipped binaries as `0644`**, so extracting one and running the binary
+  gave `permission denied` until you `chmod +x` by hand. `actions/upload-artifact` zips
+  internally and does not preserve the executable bit, so the build → release artifact
+  round-trip dropped it. Homebrew and Snap masked this by setting the mode themselves on
+  install and Docker builds from source, so only the direct-download path was affected.
+  Present in v1.7.9 and v1.7.10.
+
+### Changed
+- `extractSEO` and `extractSEOAndContent` each had their own copy of the extraction block, so
+  a field added to one silently missed the other. Both now call a single `populateSEO`.
+
 ## [1.7.10] - 2026-08-08
 
 Release-plumbing fixes. No changes to export behaviour.

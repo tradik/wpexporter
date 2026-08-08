@@ -296,6 +296,7 @@ wpexportjson export --config config.yaml
 <tr><td><code>--exclude-media-types</code></td><td>Media types to skip (comma-separated: images,videos,audio,documents,archives,pdf,gif)</td><td>-</td></tr>
 <tr><td><code>--media-path-style</code></td><td>Form of rewritten media paths: <code>root</code> (<code>/media/…</code>, resolves at any URL depth) or <code>relative</code> (<code>media/…</code>)</td><td><code>root</code></td></tr>
 <tr><td><code>--link-style</code></td><td>Form of <code>link</code>/<code>canonical_url</code>/<code>hreflangs</code>: <code>absolute</code> (source URL) or <code>root</code> (root-relative path)</td><td><code>absolute</code><br>(<code>root</code> for <code>ssg</code>)</td></tr>
+<tr><td><code>--extract-meta</code></td><td>Which meta tags to keep beyond the named SEO fields: <code>all</code>, <code>none</code>, or a comma-separated allow-list</td><td><code>all</code></td></tr>
 <tr><td><code>--report-a11y</code></td><td>Write <code>a11y-report.md</code> flagging WCAG 2.2 contrast and missing alt-text issues</td><td><code>false</code></td></tr>
 <tr><td><code>--concurrent</code></td><td>Concurrent downloads</td><td><code>5</code></td></tr>
 <tr><td><code>--zip</code></td><td>Create ZIP archive of export</td><td><code>false</code></td></tr>
