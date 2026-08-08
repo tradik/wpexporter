@@ -858,3 +858,30 @@ func TestValidateScanRange(t *testing.T) {
 		t.Errorf("Validate() rejected valid scan_range: %v", err)
 	}
 }
+
+// TestValidateMediaPathStyle ensures only the documented path styles are accepted.
+func TestValidateMediaPathStyle(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.URL = "https://example.com"
+	cfg.Output = "out"
+
+	for _, style := range []string{"root", "relative", ""} {
+		cfg.MediaPathStyle = style
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("Validate() rejected media_path_style %q: %v", style, err)
+		}
+	}
+
+	cfg.MediaPathStyle = "absolute"
+	if err := cfg.Validate(); err == nil {
+		t.Error("Validate() should reject media_path_style absolute")
+	}
+}
+
+// TestDefaultConfigMediaPathStyle pins the default to root-relative paths, which
+// resolve identically from any URL depth.
+func TestDefaultConfigMediaPathStyle(t *testing.T) {
+	if got := DefaultConfig().MediaPathStyle; got != "root" {
+		t.Errorf("DefaultConfig().MediaPathStyle = %q, want root", got)
+	}
+}

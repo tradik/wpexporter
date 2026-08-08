@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.9] - 2026-08-08
+
+Media URL localisation fix (issue #11) and dependency security updates.
+
+### Fixed
+- **`src`/`href` are now localised like `srcset` (#11)**: URL rewriting matched the
+  REST API's `source_url` as an exact string, so only references written in the site's
+  present-day URL form were replaced. WordPress stores `post_content` with whatever form
+  was current when the post was written, so within a single `<img>` the dynamically
+  generated `srcset` was localised while `src` — and the wrapping `href` — kept the
+  original absolute `wp-content/uploads/…` URL. An export made in order to retire the
+  source host therefore 404'd on every image. Matching is now scheme- and host-insensitive
+  (keyed on the upload path), so historic `http://`, `www`, former-domain,
+  protocol-relative, root-relative and query-string forms all resolve to the exported file.
+- **Stale size variants are remapped**: a registered-size change regenerates thumbnails
+  but never rewrites the markup already linking to the old dimensions. A reference to a
+  no-longer-generated `photo-300x199.jpg` now resolves to the closest surviving width
+  (`photo-300x225.jpg`) instead of being emitted as a dead path. `--verbose` logs each remap.
+- Media paths are built with `path.Join` rather than `filepath.Join`, so exports produced
+  on Windows no longer contain backslash-separated URLs.
+
+### Added
+- **`--media-path-style`** (`root` | `relative`, config key `media_path_style`): controls
+  the form of rewritten media paths.
+
+### Changed
+- **BREAKING (json/markdown output)**: rewritten media paths are now root-relative
+  (`/media/images/123_photo.jpg`) by default. The previous relative form
+  (`media/images/123_photo.jpg`) only resolved for content served from the site root — a
+  page at `/about/team/` resolved it to `/about/team/media/images/…`. Pass
+  `--media-path-style relative` to restore the pre-1.7.9 output.
+- Each size variant now rewrites to **its own** exported file rather than collapsing to the
+  full-size image, preserving responsive `srcset` behaviour.
+
+### Security
+- **GHSA-5cv4-jp36-h3mw** (medium): `golang.org/x/net` 0.49.0 → 0.57.0, fixing a denial of
+  service in the HTML parser. The vulnerable path was not reachable from this codebase
+  (`govulncheck` reported 0 affecting vulnerabilities), so this is hardening rather than an
+  exploitable fix.
+- Dependency upgrades: `golang.org/x/term` 0.39.0 → 0.45.0,
+  `github.com/go-resty/resty/v2` 2.17.1 → 2.17.2, `golang.org/x/sys` 0.40.0 → 0.47.0,
+  `golang.org/x/text` 0.33.0 → 0.40.0.
+
+### Documentation
+- README "Media URL Mapping" rewritten: documents the matched URL forms, the exported
+  directory layout with per-type subfolders, `--media-path-style`, and the stale-variant
+  remap. Manpage and `config.example.yaml` updated to match.
+
 ## [1.7.8] - 2026-07-09
 
 Audit medium-severity round (SEC-002, SEC-003, GO-002, GO-003, OPS-002, OPS-003).

@@ -162,6 +162,17 @@ type Downloader struct {
 - Progress tracking
 - File deduplication
 - Path sanitization
+- Content URL rewriting (`urlrewrite.go`)
+
+`urlrewrite.go` is deliberately separate from `downloader.go`: downloading and content
+rewriting are distinct responsibilities that happen at different stages of an export.
+It builds a `urlIndex` keyed on the *normalised upload path* — scheme, host, query and
+case stripped — rather than on the literal `source_url`, because WordPress stores
+`post_content` with whatever URL form was current when the post was written while the
+REST API reports the site's present-day form. A single regex pass over the rendered
+content then resolves each URL-ish token against that index, so `src`, `href` and
+`srcset` are rewritten uniformly. Unresolvable references with a `-{width}x{height}`
+suffix fall back to the nearest surviving width.
 
 #### bruteforce Package
 ```go

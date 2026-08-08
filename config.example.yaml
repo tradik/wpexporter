@@ -29,6 +29,14 @@ download_media: true
 # (only applies when download_media is true)
 relevant_media_only: false
 
+# Form of rewritten media paths in exported content (json/markdown formats)
+# - root:     "/media/images/123_photo.jpg" - resolves from any URL depth (default)
+# - relative: "media/images/123_photo.jpg"  - only correct at the site root
+media_path_style: "root"
+
+# Preserve original WordPress URLs instead of rewriting them to local paths
+keep_original_urls: false
+
 # Number of concurrent downloads
 concurrent: 5
 

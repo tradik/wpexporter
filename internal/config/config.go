@@ -72,6 +72,9 @@ type Config struct {
 	FlatHTML          bool           `mapstructure:"flat_html" json:"flat_html"`                               // Convert HTML to Markdown
 	BasicHTML         bool           `mapstructure:"basic_html" json:"basic_html"`                             // Clean HTML to basic elements
 	KeepOriginalURLs  bool           `mapstructure:"keep_original_urls" json:"keep_original_urls"`             // Don't convert media URLs to local paths
+	// MediaPathStyle selects the form of rewritten media paths in exported content:
+	// "root" (/media/...) resolves from any URL depth, "relative" (media/...) only at the site root.
+	MediaPathStyle    string         `mapstructure:"media_path_style" json:"media_path_style"`
 	NoTags            bool           `mapstructure:"no_tags" json:"no_tags"`                                   // Skip exporting tags
 	Quiet             bool           `mapstructure:"quiet" json:"quiet"`                                       // Suppress all output
 	NoIDs             bool           `mapstructure:"no_ids" json:"no_ids"`                                     // Exclude numeric IDs from frontmatter
@@ -127,16 +130,17 @@ func DefaultConfig() *Config {
 		NoUsers:           false,
 		PathFilter:        "",
 		AssistedCrawl:     false,
-		RateLimit:         0,     // No rate limiting by default
-		Resume:            false, // Don't resume by default
-		CrawlContent:      false, // Don't crawl empty content by default
-		SkipEmptyContent:  false, // Don't skip empty content by default
-		FlatHTML:          false, // Don't flatten HTML by default
-		NoTags:            false, // Don't skip tags by default
-		Cache:             false, // Caching disabled by default
-		CacheTTL:          "24h", // 24 hour cache TTL by default
-		CacheDir:          "",    // Will default to ~/.wpexporter/cache
-		CacheClear:        false, // Don't clear cache by default
+		RateLimit:         0,      // No rate limiting by default
+		Resume:            false,  // Don't resume by default
+		CrawlContent:      false,  // Don't crawl empty content by default
+		SkipEmptyContent:  false,  // Don't skip empty content by default
+		FlatHTML:          false,  // Don't flatten HTML by default
+		NoTags:            false,  // Don't skip tags by default
+		Cache:             false,  // Caching disabled by default
+		CacheTTL:          "24h",  // 24 hour cache TTL by default
+		CacheDir:          "",     // Will default to ~/.wpexporter/cache
+		CacheClear:        false,  // Don't clear cache by default
+		MediaPathStyle:    "root", // Root-relative media paths resolve from any URL depth
 	}
 }
 
@@ -310,6 +314,10 @@ func (c *Config) Validate() error {
 
 	if _, _, _, err := ParseScanRange(c.ScanRange); err != nil {
 		return err
+	}
+
+	if c.MediaPathStyle != "" && c.MediaPathStyle != "root" && c.MediaPathStyle != "relative" {
+		return fmt.Errorf("media_path_style must be one of: root, relative")
 	}
 
 	return nil

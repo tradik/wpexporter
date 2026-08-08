@@ -287,6 +287,7 @@ wpexportjson export --config config.yaml
 <tr><td><code>--no-media</code></td><td>Disable media downloads (alias for --download-media=false)</td><td><code>false</code></td></tr>
 <tr><td><code>--relevant-media-only</code></td><td>Download only featured images and media linked in content (images, PDFs, videos, etc.)</td><td><code>false</code></td></tr>
 <tr><td><code>--exclude-media-types</code></td><td>Media types to skip (comma-separated: images,videos,audio,documents,archives,pdf,gif)</td><td>-</td></tr>
+<tr><td><code>--media-path-style</code></td><td>Form of rewritten media paths: <code>root</code> (<code>/media/…</code>, resolves at any URL depth) or <code>relative</code> (<code>media/…</code>)</td><td><code>root</code></td></tr>
 <tr><td><code>--concurrent</code></td><td>Concurrent downloads</td><td><code>5</code></td></tr>
 <tr><td><code>--zip</code></td><td>Create ZIP archive of export</td><td><code>false</code></td></tr>
 <tr><td><code>--no-files</code></td><td>Remove export files after creating ZIP (requires --zip)</td><td><code>false</code></td></tr>
@@ -813,7 +814,8 @@ When downloading media with `--download-media`, the exporter rewrites URLs in ex
 
 ### 📁 File Organization
 
-Downloaded media files are stored in a structured format:
+Downloaded media files are stored in a structured format, in a subfolder per media category
+(`images`, `videos`, `audio`, `documents`, `archives`, `code`, `other`):
 
 ```
 export/
@@ -822,31 +824,75 @@ export/
 ├── pages/
 │   └── about.md
 └── media/
-    ├── 123_featured-image.jpg
-    ├── 124_inline-photo.png
-    ├── 125_document.pdf
-    └── 126_video.mp4
+    ├── images/
+    │   ├── 123_featured-image.jpg
+    │   └── 124_inline-photo.png
+    ├── documents/
+    │   └── 125_document.pdf
+    └── videos/
+        └── 126_video.mp4
 ```
 
 **Naming pattern:** `{media_id}_{original_filename}{extension}`
 
 ### 🔄 URL Rewriting
 
-Absolute WordPress URLs are converted to relative local paths:
+Every reference to a downloaded attachment is rewritten — `src`, `href`, `srcset` and any
+other URL occurrence are treated identically, so the export keeps working once the source
+WordPress host is retired.
 
 | Original URL | Rewritten Path |
 |--------------|----------------|
-| `https://example.com/wp-content/uploads/2025/01/photo.jpg` | `media/123_photo.jpg` |
-| `https://example.com/wp-content/uploads/2025/01/photo-300x200.jpg` | `media/123_photo.jpg` |
-| `https://example.com/wp-content/uploads/2025/01/photo-150x150.jpg` | `media/123_photo.jpg` |
+| `https://example.com/wp-content/uploads/2025/01/photo.jpg` | `/media/images/123_photo.jpg` |
+| `https://example.com/wp-content/uploads/2025/01/photo-300x200.jpg` | `/media/images/123_photo-300x200.jpg` |
+| `https://example.com/wp-content/uploads/2025/01/photo-150x150.jpg` | `/media/images/123_photo-150x150.jpg` |
+
+**Matching is scheme- and host-insensitive.** WordPress stores `post_content` with whatever URL
+form was current when the post was written, while the REST API reports `source_url` in the site's
+present-day form. All of these resolve to the same exported file:
+
+| Reference form in content | Example |
+|---|---|
+| current form | `https://example.com/wp-content/uploads/…` |
+| historic scheme | `http://example.com/wp-content/uploads/…` |
+| `www` / former domain | `https://www.example.com/…`, `http://old-domain.example/…` |
+| protocol-relative | `//example.com/wp-content/uploads/…` |
+| root-relative | `/wp-content/uploads/…` |
+| with a query string | `…/photo.jpg?ver=2` |
+
+URLs that do not correspond to a downloaded attachment are left untouched.
+
+### 📐 Path Style: `--media-path-style`
+
+| Value | Emitted path | When to use |
+|-------|--------------|-------------|
+| `root` *(default)* | `/media/images/123_photo.jpg` | Resolves identically from any URL depth — correct for a page served at `/about/team/` |
+| `relative` | `media/images/123_photo.jpg` | Only correct for content served from the site root; kept for backwards compatibility with pre-1.7.9 exports |
+
+```bash
+# Default — root-relative, works at any URL depth
+wpexportjson export --url https://example.com -f markdown --download-media
+
+# Pre-1.7.9 behaviour
+wpexportjson export --url https://example.com -f markdown --media-path-style relative
+```
+
+URL rewriting applies to the `json` and `markdown` formats only, and can be disabled entirely
+with `--keep-original-urls` (other formats always keep original URLs, since the target platform
+imports media from the live site).
 
 ### 📷 Size Variants
 
 WordPress generates multiple image sizes (thumbnail, medium, large, full). The exporter:
 
-1. ✅ Downloads the **original full-size** image
-2. ✅ Rewrites **all size variant URLs** to point to the full-size local file
+1. ✅ Downloads the **original full-size** image and every registered size variant
+2. ✅ Rewrites each variant URL to **its own** exported file, preserving responsive `srcset`
 3. ✅ Handles `-{width}x{height}` suffixed URLs automatically
+4. ✅ **Remaps stale variants**: a registered-size change regenerates thumbnails but never
+   rewrites the markup already linking to the old dimensions. A reference to a
+   no-longer-generated `photo-300x199.jpg` is remapped to the closest surviving width
+   (`photo-300x225.jpg`) instead of being left as a dead path. Run with `--verbose` to see
+   each remap.
 
 ### 🎯 Selective Media with `--relevant-media-only`
 

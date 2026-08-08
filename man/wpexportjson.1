@@ -1,4 +1,4 @@
-.TH WPEXPORTJSON 1 "April 2026" "wpexportjson 1.7.1" "User Commands"
+.TH WPEXPORTJSON 1 "August 2026" "wpexportjson 1.7.9" "User Commands"
 .SH NAME
 wpexportjson \- WordPress content export tool
 .SH SYNOPSIS
@@ -59,6 +59,13 @@ Only download featured images and images embedded in content
 .TP
 .BR \-\-exclude\-media\-types " " \fITYPES\fR
 Media types to skip (comma-separated: images,videos,audio,documents,archives)
+.TP
+.BR \-\-media\-path\-style " " \fISTYLE\fR
+Form of rewritten media paths in exported content:
+.B root
+(default) emits root\-relative paths such as \fI/media/images/123_photo.jpg\fR, which resolve identically from any URL depth;
+.B relative
+emits \fImedia/images/123_photo.jpg\fR, correct only for content served from the site root (pre\-1.7.9 behaviour).
 .SS "HTML Processing"
 .TP
 .BR \-\-flat\-html
@@ -74,7 +81,11 @@ CSS classes to preserve from HTML processing (comma-separated, supports wildcard
 Element IDs to preserve from HTML processing (comma-separated, supports wildcards)
 .TP
 .BR \-\-keep\-original\-urls
-Preserve original WordPress URLs in content (don't convert to local paths)
+Preserve original WordPress URLs in content (don't convert to local paths). Without this flag the
+.B json
+and
+.B markdown
+formats rewrite every reference to a downloaded attachment \- \fBsrc\fR, \fBhref\fR and \fBsrcset\fR alike \- matching scheme\- and host\-insensitively so historic \fIhttp://\fR, \fIwww\fR, former\-domain, protocol\-relative and root\-relative forms all resolve.
 .SS "SEO Options"
 .TP
 .BR \-\-assisted\-crawl

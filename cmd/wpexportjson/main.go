@@ -83,6 +83,7 @@ var (
 	flatHTML          bool
 	basicHTML         bool
 	keepOriginalURLs  bool
+	mediaPathStyle    string
 	noTags            bool
 	quiet             bool
 	noIDs             bool
@@ -131,6 +132,7 @@ Content Filters:
       --flat-html             Convert HTML to Markdown (Bricks Builder support)
       --basic-html            Clean HTML to basic elements (tables, lists - for Shopify)
       --keep-original-urls    Preserve WordPress URLs (don't convert to local paths)
+      --media-path-style      Rewritten media paths: root (default, /media/...) or relative
 
 Advanced:
       --brute-force           Enable brute force ID discovery
@@ -206,6 +208,8 @@ func init() {
 		"element IDs to preserve from HTML processing (comma-separated, use with --flat-html or --basic-html)")
 	exportCmd.Flags().BoolVar(&keepOriginalURLs, "keep-original-urls", false,
 		"preserve original WordPress URLs in content (don't convert to local paths)")
+	exportCmd.Flags().StringVar(&mediaPathStyle, "media-path-style", "root",
+		"form of rewritten media paths: root (/media/...) or relative (media/...)")
 	exportCmd.Flags().BoolVar(&noTags, "no-tags", false, "skip exporting tags")
 	exportCmd.Flags().BoolVar(&noIDs, "no-ids", false, "exclude numeric IDs from frontmatter (keep only names)")
 	exportCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress all output, only return exit code")
@@ -427,6 +431,9 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("keep-original-urls") {
 		cfg.KeepOriginalURLs = keepOriginalURLs
+	}
+	if cmd.Flags().Changed("media-path-style") {
+		cfg.MediaPathStyle = mediaPathStyle
 	}
 	if cmd.Flags().Changed("no-tags") {
 		cfg.NoTags = noTags

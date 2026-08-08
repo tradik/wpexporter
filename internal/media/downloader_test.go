@@ -479,7 +479,7 @@ func TestUpdateMediaPaths(t *testing.T) {
 
 	updated := downloader.UpdateMediaPaths(content, mediaItems)
 
-	expected := `<p>This is a post with images: <img src="media/images/1_image1.jpg" alt="Image 1"> and <img src="media/images/2_image2.png" alt="Image 2"></p>`
+	expected := `<p>This is a post with images: <img src="/media/images/1_image1.jpg" alt="Image 1"> and <img src="/media/images/2_image2.png" alt="Image 2"></p>`
 
 	if updated != expected {
 		t.Errorf("UpdateMediaPaths() = %s, want %s", updated, expected)
