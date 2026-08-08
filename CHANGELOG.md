@@ -7,9 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.7.9] - 2026-08-08
 
-Media URL localisation fix (issue #11) and dependency security updates.
+Media URL localisation fixes (issues #11, #13) and dependency security updates.
 
 ### Fixed
+- **`featured_image` and `og_image` are localised too (#13)**: URL rewriting only ran
+  over `Content.Rendered` and `Excerpt.Rendered`, so both front-matter image fields kept
+  the original absolute `wp-content/uploads/…` URL — a static site built from the export
+  lost its hero image and its Open Graph image the moment the source host was retired,
+  the same failure as #11 one field over. Both now resolve through the same index as the
+  body content. `og_image` is scraped rather than read from the media library, so one
+  pointing at a CDN or third-party host resolves to nothing and correctly stays absolute.
+- `canonical_url`, `link` and `hreflangs` are deliberately **not** rewritten: they are
+  addresses of the source site rather than assets, and a consumer needs them to derive
+  the target URL.
 - **`src`/`href` are now localised like `srcset` (#11)**: URL rewriting matched the
   REST API's `source_url` as an exact string, so only references written in the site's
   present-day URL form were replaced. WordPress stores `post_content` with whatever form
@@ -49,9 +59,14 @@ Media URL localisation fix (issue #11) and dependency security updates.
   `golang.org/x/text` 0.33.0 → 0.40.0.
 
 ### Documentation
-- README "Media URL Mapping" rewritten: documents the matched URL forms, the exported
-  directory layout with per-type subfolders, `--media-path-style`, and the stale-variant
-  remap. Manpage and `config.example.yaml` updated to match.
+- README "Media URL Mapping" rewritten: documents the matched URL forms, which fields are
+  localised and which stay absolute, the exported directory layout with per-type
+  subfolders, `--media-path-style`, and the stale-variant remap. Manpage,
+  `config.example.yaml` and `docs/ARCHITECTURE.md` updated to match.
+
+### Internal
+- URL rewriting is now a `media.URLRewriter` built **once per export** rather than an
+  index rebuilt for every field of every post, which was O(posts × media).
 
 ## [1.7.8] - 2026-07-09
 

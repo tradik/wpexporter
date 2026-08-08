@@ -8,14 +8,16 @@ import (
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
-// newRewriteDownloader builds a downloader wired for content rewriting only.
-func newRewriteDownloader(pathStyle string) *Downloader {
-	return &Downloader{
+// newRewriter builds a rewriter over the given attachments for the given path style.
+func newRewriter(pathStyle string, mediaItems []models.WordPressMedia) *URLRewriter {
+	downloader := &Downloader{
 		config: &config.Config{
 			DownloadMedia:  true,
 			MediaPathStyle: pathStyle,
 		},
 	}
+
+	return downloader.NewURLRewriter(mediaItems)
 }
 
 // hawanasMedia mirrors the attachment shape reported in issue #11: a multisite
@@ -44,8 +46,8 @@ func hawanasMedia() []models.WordPressMedia {
 	}
 }
 
-func TestUpdateMediaPathsRewritesSrcAndHref(t *testing.T) {
-	downloader := newRewriteDownloader(PathStyleRoot)
+func TestRewriteRewritesSrcAndHref(t *testing.T) {
+	rewriter := newRewriter(PathStyleRoot, hawanasMedia())
 
 	// src/href carry the historic http:// form, srcset the current https:// one.
 	content := `<a href="http://hawanas.com/wp-content/uploads/sites/2/2010/07/fran1.jpg">` +
@@ -53,24 +55,24 @@ func TestUpdateMediaPathsRewritesSrcAndHref(t *testing.T) {
 		`srcset="https://hawanas.com/wp-content/uploads/sites/2/2010/07/fran1.jpg 400w, ` +
 		`https://hawanas.com/wp-content/uploads/sites/2/2010/07/fran1-300x225.jpg 300w"></a>`
 
-	updated := downloader.UpdateMediaPaths(content, hawanasMedia())
+	updated := rewriter.Rewrite(content)
 
 	if strings.Contains(updated, "hawanas.com") {
-		t.Errorf("UpdateMediaPaths() left an absolute source URL behind: %s", updated)
+		t.Errorf("Rewrite() left an absolute source URL behind: %s", updated)
 	}
 	if !strings.Contains(updated, `href="/media/images/391_fran1.jpg"`) {
-		t.Errorf("UpdateMediaPaths() did not localize href, got: %s", updated)
+		t.Errorf("Rewrite() did not localize href, got: %s", updated)
 	}
 	if !strings.Contains(updated, `src="/media/images/391_fran1.jpg"`) {
-		t.Errorf("UpdateMediaPaths() did not localize src, got: %s", updated)
+		t.Errorf("Rewrite() did not localize src, got: %s", updated)
 	}
 	if !strings.Contains(updated, "/media/images/391_fran1-300x225.jpg 300w") {
-		t.Errorf("UpdateMediaPaths() did not localize srcset candidate, got: %s", updated)
+		t.Errorf("Rewrite() did not localize srcset candidate, got: %s", updated)
 	}
 }
 
-func TestUpdateMediaPathsSchemeAndHostVariants(t *testing.T) {
-	downloader := newRewriteDownloader(PathStyleRoot)
+func TestRewriteSchemeAndHostVariants(t *testing.T) {
+	rewriter := newRewriter(PathStyleRoot, hawanasMedia())
 
 	tests := []struct {
 		name string
@@ -87,63 +89,61 @@ func TestUpdateMediaPathsSchemeAndHostVariants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updated := downloader.UpdateMediaPaths(`<img src="`+tt.ref+`">`, hawanasMedia())
+			updated := rewriter.Rewrite(`<img src="` + tt.ref + `">`)
 
 			if updated != `<img src="/media/images/391_fran1.jpg">` {
-				t.Errorf("UpdateMediaPaths(%s) = %s", tt.ref, updated)
+				t.Errorf("Rewrite(%s) = %s", tt.ref, updated)
 			}
 		})
 	}
 }
 
-func TestUpdateMediaPathsRemapsStaleSizeVariant(t *testing.T) {
-	downloader := newRewriteDownloader(PathStyleRoot)
+func TestRewriteRemapsStaleSizeVariant(t *testing.T) {
+	rewriter := newRewriter(PathStyleRoot, hawanasMedia())
 
 	// -300x199 was retired when the registered size changed; only -300x225 exists.
 	content := `<img src="https://hawanas.com/wp-content/uploads/sites/2/2010/07/fran1-300x199.jpg">`
 
-	updated := downloader.UpdateMediaPaths(content, hawanasMedia())
+	updated := rewriter.Rewrite(content)
 
 	if updated != `<img src="/media/images/391_fran1-300x225.jpg">` {
-		t.Errorf("UpdateMediaPaths() should remap a stale size to the nearest surviving width, got: %s", updated)
+		t.Errorf("Rewrite() should remap a stale size to the nearest surviving width, got: %s", updated)
 	}
 }
 
-func TestUpdateMediaPathsLeavesUnknownURLsAlone(t *testing.T) {
-	downloader := newRewriteDownloader(PathStyleRoot)
+func TestRewriteLeavesUnknownURLsAlone(t *testing.T) {
+	rewriter := newRewriter(PathStyleRoot, hawanasMedia())
 
 	content := `<a href="https://example.org/page/">link</a> ` +
 		`<img src="https://cdn.example.net/wp-content/uploads/2024/01/other.jpg">`
 
-	if updated := downloader.UpdateMediaPaths(content, hawanasMedia()); updated != content {
-		t.Errorf("UpdateMediaPaths() rewrote a URL that is not an exported attachment: %s", updated)
+	if updated := rewriter.Rewrite(content); updated != content {
+		t.Errorf("Rewrite() rewrote a URL that is not an exported attachment: %s", updated)
 	}
 }
 
-func TestUpdateMediaPathsRelativeStyle(t *testing.T) {
-	downloader := newRewriteDownloader(PathStyleRelative)
+func TestRewriteRelativeStyle(t *testing.T) {
+	rewriter := newRewriter(PathStyleRelative, hawanasMedia())
 
 	content := `<img src="https://hawanas.com/wp-content/uploads/sites/2/2010/07/fran1.jpg">`
 
-	if updated := downloader.UpdateMediaPaths(content, hawanasMedia()); updated != `<img src="media/images/391_fran1.jpg">` {
-		t.Errorf("UpdateMediaPaths() with relative style = %s", updated)
+	if updated := rewriter.Rewrite(content); updated != `<img src="media/images/391_fran1.jpg">` {
+		t.Errorf("Rewrite() with relative style = %s", updated)
 	}
 }
 
-func TestUpdateMediaPathsNoIndexableMedia(t *testing.T) {
-	downloader := newRewriteDownloader(PathStyleRoot)
-
-	content := `<img src="https://hawanas.com/wp-content/uploads/sites/2/2010/07/fran1.jpg">`
+func TestRewriteNoIndexableMedia(t *testing.T) {
 	mediaItems := []models.WordPressMedia{{ID: 1, SourceURL: ""}, {ID: 2, SourceURL: "://invalid-url"}}
+	rewriter := newRewriter(PathStyleRoot, mediaItems)
 
-	if updated := downloader.UpdateMediaPaths(content, mediaItems); updated != content {
-		t.Errorf("UpdateMediaPaths() with no indexable media should be a no-op, got: %s", updated)
+	content := `<img src="https://hawanas.com/wp-content/uploads/sites/2/2010/07/fran1.jpg">`
+
+	if updated := rewriter.Rewrite(content); updated != content {
+		t.Errorf("Rewrite() with no indexable media should be a no-op, got: %s", updated)
 	}
 }
 
-func TestUpdateMediaPathsSkipsEmptySizeURL(t *testing.T) {
-	downloader := newRewriteDownloader(PathStyleRoot)
-
+func TestRewriteSkipsEmptySizeURL(t *testing.T) {
 	mediaItems := []models.WordPressMedia{
 		{
 			ID:        7,
@@ -158,53 +158,115 @@ func TestUpdateMediaPathsSkipsEmptySizeURL(t *testing.T) {
 		},
 	}
 
+	rewriter := newRewriter(PathStyleRoot, mediaItems)
 	content := `<img src="https://example.com/wp-content/uploads/2024/01/pic.jpg">`
 
-	if updated := downloader.UpdateMediaPaths(content, mediaItems); updated != `<img src="/media/images/7_pic.jpg">` {
-		t.Errorf("UpdateMediaPaths() = %s", updated)
+	if updated := rewriter.Rewrite(content); updated != `<img src="/media/images/7_pic.jpg">` {
+		t.Errorf("Rewrite() = %s", updated)
 	}
 }
 
-func TestUpdateMediaPathsDownloadDisabled(t *testing.T) {
+func TestRewriteDownloadDisabled(t *testing.T) {
 	downloader := &Downloader{config: &config.Config{DownloadMedia: false}}
+	rewriter := downloader.NewURLRewriter(hawanasMedia())
 
 	content := `<img src="https://hawanas.com/wp-content/uploads/sites/2/2010/07/fran1.jpg">`
 
-	if updated := downloader.UpdateMediaPaths(content, hawanasMedia()); updated != content {
-		t.Errorf("UpdateMediaPaths() should be a no-op when downloads are disabled")
+	if updated := rewriter.Rewrite(content); updated != content {
+		t.Errorf("Rewrite() should be a no-op when downloads are disabled")
 	}
 }
 
-func TestUpdateMediaPathsVerboseRemapLogging(t *testing.T) {
+func TestNewURLRewriterNilConfig(t *testing.T) {
+	rewriter := (&Downloader{}).NewURLRewriter(hawanasMedia())
+
+	content := `<img src="https://hawanas.com/wp-content/uploads/sites/2/2010/07/fran1.jpg">`
+
+	if updated := rewriter.Rewrite(content); updated != content {
+		t.Errorf("Rewrite() with nil config should be a no-op, got: %s", updated)
+	}
+}
+
+func TestRewriteEmptyText(t *testing.T) {
+	if got := newRewriter(PathStyleRoot, hawanasMedia()).Rewrite(""); got != "" {
+		t.Errorf("Rewrite(\"\") = %q, want empty", got)
+	}
+}
+
+func TestRewriteVerboseRemapLogging(t *testing.T) {
 	downloader := &Downloader{
 		config: &config.Config{DownloadMedia: true, MediaPathStyle: PathStyleRoot, Verbose: true},
 	}
+	rewriter := downloader.NewURLRewriter(hawanasMedia())
 
 	content := `<img src="https://hawanas.com/wp-content/uploads/sites/2/2010/07/fran1-300x199.jpg">`
 
-	if updated := downloader.UpdateMediaPaths(content, hawanasMedia()); !strings.Contains(updated, "391_fran1-300x225.jpg") {
-		t.Errorf("UpdateMediaPaths() verbose remap = %s", updated)
+	if updated := rewriter.Rewrite(content); !strings.Contains(updated, "391_fran1-300x225.jpg") {
+		t.Errorf("Rewrite() verbose remap = %s", updated)
 	}
 }
 
-func TestUpdateMediaPathsIgnoresPathlessTokens(t *testing.T) {
-	downloader := newRewriteDownloader(PathStyleRoot)
+func TestRewriteIgnoresPathlessTokens(t *testing.T) {
+	rewriter := newRewriter(PathStyleRoot, hawanasMedia())
 
 	// Matches the URL token pattern but carries no path to key on.
 	content := `<a href="https://hawanas.com">home</a>`
 
-	if updated := downloader.UpdateMediaPaths(content, hawanasMedia()); updated != content {
-		t.Errorf("UpdateMediaPaths() should leave a pathless URL untouched, got: %s", updated)
+	if updated := rewriter.Rewrite(content); updated != content {
+		t.Errorf("Rewrite() should leave a pathless URL untouched, got: %s", updated)
 	}
 }
 
 func TestBuildURLIndexSkipsPathlessSourceURL(t *testing.T) {
-	downloader := newRewriteDownloader(PathStyleRoot)
+	downloader := &Downloader{config: &config.Config{DownloadMedia: true, MediaPathStyle: PathStyleRoot}}
 
 	mediaItems := []models.WordPressMedia{{ID: 1, SourceURL: "https://example.com", MimeType: "image/jpeg"}}
 
 	if index := downloader.buildURLIndex(mediaItems); len(index.exact) != 0 {
 		t.Errorf("buildURLIndex() should skip a source URL with no path, got %d entries", len(index.exact))
+	}
+}
+
+// TestBuildURLIndexFirstAttachmentWins pins the tie-break when two attachments
+// report the same source URL: the first indexed one owns the path.
+func TestBuildURLIndexFirstAttachmentWins(t *testing.T) {
+	mediaItems := []models.WordPressMedia{
+		{ID: 1, SourceURL: "https://example.com/wp-content/uploads/2024/01/dup.jpg", MimeType: "image/jpeg"},
+		{ID: 2, SourceURL: "https://example.com/wp-content/uploads/2024/01/dup.jpg", MimeType: "image/jpeg"},
+	}
+	rewriter := newRewriter(PathStyleRoot, mediaItems)
+
+	content := `<img src="https://example.com/wp-content/uploads/2024/01/dup.jpg">`
+
+	if updated := rewriter.Rewrite(content); updated != `<img src="/media/images/1_dup.jpg">` {
+		t.Errorf("Rewrite() = %s, want the first indexed attachment", updated)
+	}
+}
+
+// TestRewriteInfersWidthFromSuffix covers attachments whose size entries omit the
+// width: the "-<width>x<height>" suffix carries it instead.
+func TestRewriteInfersWidthFromSuffix(t *testing.T) {
+	mediaItems := []models.WordPressMedia{
+		{
+			ID:        9,
+			SourceURL: "https://example.com/wp-content/uploads/2024/01/pic.jpg",
+			MimeType:  "image/jpeg",
+			MediaDetails: models.MediaDetails{
+				Sizes: map[string]models.MediaSize{
+					// No Width field — it must be read off the filename suffix.
+					"medium": {SourceURL: "https://example.com/wp-content/uploads/2024/01/pic-300x225.jpg"},
+				},
+			},
+		},
+	}
+	rewriter := newRewriter(PathStyleRoot, mediaItems)
+
+	// A stale -300x199 must land on the -300x225 rendition, which is only possible
+	// if its width was inferred as 300.
+	content := `<img src="https://example.com/wp-content/uploads/2024/01/pic-300x199.jpg">`
+
+	if updated := rewriter.Rewrite(content); updated != `<img src="/media/images/9_pic-300x225.jpg">` {
+		t.Errorf("Rewrite() = %s, want the width inferred from the size suffix", updated)
 	}
 }
 

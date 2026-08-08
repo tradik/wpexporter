@@ -47,31 +47,31 @@ type Config struct {
 	ScanRange     string `mapstructure:"scan_range" json:"scan_range"` // Targeted ID range to rescan, e.g. "100-200"
 	DownloadMedia bool   `mapstructure:"download_media" json:"download_media"`
 	// MaxMediaBytes is the per-file media download cap in bytes (0 = built-in default).
-	MaxMediaBytes     int64          `mapstructure:"max_media_bytes" json:"max_media_bytes"`
-	RelevantMediaOnly bool           `mapstructure:"relevant_media_only" json:"relevant_media_only"`
-	Concurrent        int            `mapstructure:"concurrent" json:"concurrent"`
-	Timeout           int            `mapstructure:"timeout" json:"timeout"`
-	Retries           int            `mapstructure:"retries" json:"retries"`
-	UserAgent         string         `mapstructure:"user_agent" json:"user_agent"`
-	Verbose           bool           `mapstructure:"verbose" json:"verbose"`
-	CreateZip         bool           `mapstructure:"create_zip" json:"create_zip"`
-	NoFiles           bool           `mapstructure:"no_files" json:"no_files"`
-	NoPosts           bool           `mapstructure:"no_posts" json:"no_posts"`
-	NoPages           bool           `mapstructure:"no_pages" json:"no_pages"`
-	NoProducts        bool           `mapstructure:"no_products" json:"no_products"`
-	NoUsers           bool           `mapstructure:"no_users" json:"no_users"`
-	PathFilter        string         `mapstructure:"path_filter" json:"path_filter"`
-	AssistedCrawl     bool           `mapstructure:"assisted_crawl" json:"assisted_crawl"`
-	AuthUser          string         `mapstructure:"auth_user" json:"auth_user"`
-	AuthPass          string         `mapstructure:"auth_pass" json:"auth_pass"`
-	AuthToken         string         `mapstructure:"auth_token" json:"auth_token"`
-	RateLimit         int            `mapstructure:"rate_limit" json:"rate_limit"`                             // Milliseconds delay between API requests
-	Resume            bool           `mapstructure:"resume" json:"resume"`                                     // Resume from checkpoint if available
-	CrawlContent      bool           `mapstructure:"crawl_content" json:"crawl_content"`                       // Crawl empty content pages
-	SkipEmptyContent  bool           `mapstructure:"skip_empty_content" json:"skip_empty_content"`             // Skip posts/pages with empty content
-	FlatHTML          bool           `mapstructure:"flat_html" json:"flat_html"`                               // Convert HTML to Markdown
-	BasicHTML         bool           `mapstructure:"basic_html" json:"basic_html"`                             // Clean HTML to basic elements
-	KeepOriginalURLs  bool           `mapstructure:"keep_original_urls" json:"keep_original_urls"`             // Don't convert media URLs to local paths
+	MaxMediaBytes     int64  `mapstructure:"max_media_bytes" json:"max_media_bytes"`
+	RelevantMediaOnly bool   `mapstructure:"relevant_media_only" json:"relevant_media_only"`
+	Concurrent        int    `mapstructure:"concurrent" json:"concurrent"`
+	Timeout           int    `mapstructure:"timeout" json:"timeout"`
+	Retries           int    `mapstructure:"retries" json:"retries"`
+	UserAgent         string `mapstructure:"user_agent" json:"user_agent"`
+	Verbose           bool   `mapstructure:"verbose" json:"verbose"`
+	CreateZip         bool   `mapstructure:"create_zip" json:"create_zip"`
+	NoFiles           bool   `mapstructure:"no_files" json:"no_files"`
+	NoPosts           bool   `mapstructure:"no_posts" json:"no_posts"`
+	NoPages           bool   `mapstructure:"no_pages" json:"no_pages"`
+	NoProducts        bool   `mapstructure:"no_products" json:"no_products"`
+	NoUsers           bool   `mapstructure:"no_users" json:"no_users"`
+	PathFilter        string `mapstructure:"path_filter" json:"path_filter"`
+	AssistedCrawl     bool   `mapstructure:"assisted_crawl" json:"assisted_crawl"`
+	AuthUser          string `mapstructure:"auth_user" json:"auth_user"`
+	AuthPass          string `mapstructure:"auth_pass" json:"auth_pass"`
+	AuthToken         string `mapstructure:"auth_token" json:"auth_token"`
+	RateLimit         int    `mapstructure:"rate_limit" json:"rate_limit"`                 // Milliseconds delay between API requests
+	Resume            bool   `mapstructure:"resume" json:"resume"`                         // Resume from checkpoint if available
+	CrawlContent      bool   `mapstructure:"crawl_content" json:"crawl_content"`           // Crawl empty content pages
+	SkipEmptyContent  bool   `mapstructure:"skip_empty_content" json:"skip_empty_content"` // Skip posts/pages with empty content
+	FlatHTML          bool   `mapstructure:"flat_html" json:"flat_html"`                   // Convert HTML to Markdown
+	BasicHTML         bool   `mapstructure:"basic_html" json:"basic_html"`                 // Clean HTML to basic elements
+	KeepOriginalURLs  bool   `mapstructure:"keep_original_urls" json:"keep_original_urls"` // Don't convert media URLs to local paths
 	// MediaPathStyle selects the form of rewritten media paths in exported content:
 	// "root" (/media/...) resolves from any URL depth, "relative" (media/...) only at the site root.
 	MediaPathStyle    string         `mapstructure:"media_path_style" json:"media_path_style"`

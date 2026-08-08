@@ -881,6 +881,18 @@ URL rewriting applies to the `json` and `markdown` formats only, and can be disa
 with `--keep-original-urls` (other formats always keep original URLs, since the target platform
 imports media from the live site).
 
+### 🗂️ Which Fields Are Localised
+
+| Field | Localised | Why |
+|-------|-----------|-----|
+| body content (`content.rendered`) | ✅ | assets |
+| `excerpt` | ✅ | assets |
+| `featured_image` | ✅ | asset |
+| `og_image` | ✅ *when it resolves* | asset — but an og:image on a CDN or third-party host isn't a downloaded attachment, so it stays absolute |
+| `canonical_url` | ❌ | address of the source site, not an asset — a consumer needs it to derive the target URL |
+| `link` | ❌ | as above |
+| `hreflangs[].href` | ❌ | as above |
+
 ### 📷 Size Variants
 
 WordPress generates multiple image sizes (thumbnail, medium, large, full). The exporter:

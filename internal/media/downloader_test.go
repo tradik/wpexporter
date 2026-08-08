@@ -455,61 +455,6 @@ func TestValidateFilePath(t *testing.T) {
 	}
 }
 
-func TestUpdateMediaPaths(t *testing.T) {
-	downloader := &Downloader{
-		config: &config.Config{
-			DownloadMedia: true,
-		},
-	}
-
-	mediaItems := []models.WordPressMedia{
-		{
-			ID:        1,
-			SourceURL: "https://example.com/wp-content/uploads/2024/01/image1.jpg",
-			MimeType:  "image/jpeg",
-		},
-		{
-			ID:        2,
-			SourceURL: "https://example.com/wp-content/uploads/2024/01/image2.png",
-			MimeType:  "image/png",
-		},
-	}
-
-	content := `<p>This is a post with images: <img src="https://example.com/wp-content/uploads/2024/01/image1.jpg" alt="Image 1"> and <img src="https://example.com/wp-content/uploads/2024/01/image2.png" alt="Image 2"></p>`
-
-	updated := downloader.UpdateMediaPaths(content, mediaItems)
-
-	expected := `<p>This is a post with images: <img src="/media/images/1_image1.jpg" alt="Image 1"> and <img src="/media/images/2_image2.png" alt="Image 2"></p>`
-
-	if updated != expected {
-		t.Errorf("UpdateMediaPaths() = %s, want %s", updated, expected)
-	}
-}
-
-func TestUpdateMediaPathsDisabled(t *testing.T) {
-	downloader := &Downloader{
-		config: &config.Config{
-			DownloadMedia: false, // Disabled
-		},
-	}
-
-	mediaItems := []models.WordPressMedia{
-		{
-			ID:        1,
-			SourceURL: "https://example.com/image.jpg",
-		},
-	}
-
-	content := `<img src="https://example.com/image.jpg">`
-
-	updated := downloader.UpdateMediaPaths(content, mediaItems)
-
-	// Should return unchanged content
-	if updated != content {
-		t.Errorf("UpdateMediaPaths() with disabled download should return unchanged content")
-	}
-}
-
 func TestGenerateSizeFilename(t *testing.T) {
 	downloader := &Downloader{}
 
@@ -624,98 +569,6 @@ func TestSanitizeFilenameLongFilename(t *testing.T) {
 	// Should preserve extension
 	if filepath.Ext(result) != ".jpg" {
 		t.Errorf("sanitizeFilename() should preserve extension, got %s", filepath.Ext(result))
-	}
-}
-
-func TestUpdateMediaPathsWithMediaSizes(t *testing.T) {
-	downloader := &Downloader{
-		config: &config.Config{
-			DownloadMedia: true,
-		},
-	}
-
-	mediaItems := []models.WordPressMedia{
-		{
-			ID:        1,
-			SourceURL: "https://example.com/wp-content/uploads/2024/01/image.jpg",
-			MimeType:  "image/jpeg",
-			MediaDetails: models.MediaDetails{
-				Sizes: map[string]models.MediaSize{
-					"thumbnail": {
-						SourceURL: "https://example.com/wp-content/uploads/2024/01/image-150x150.jpg",
-					},
-					"medium": {
-						SourceURL: "https://example.com/wp-content/uploads/2024/01/image-300x200.jpg",
-					},
-				},
-			},
-		},
-	}
-
-	content := `<p>Images: <img src="https://example.com/wp-content/uploads/2024/01/image.jpg"> <img src="https://example.com/wp-content/uploads/2024/01/image-150x150.jpg"> <img src="https://example.com/wp-content/uploads/2024/01/image-300x200.jpg"></p>`
-
-	updated := downloader.UpdateMediaPaths(content, mediaItems)
-
-	// All URLs should be replaced
-	if strings.Contains(updated, "https://example.com") {
-		t.Errorf("UpdateMediaPaths() should replace all media URLs, got: %s", updated)
-	}
-
-	// Check that local paths are used (now with subfolders)
-	if !strings.Contains(updated, "media/images/1_image.jpg") {
-		t.Errorf("UpdateMediaPaths() should include local path for original, got: %s", updated)
-	}
-
-	if !strings.Contains(updated, "media/images/1_image-150x150.jpg") {
-		t.Errorf("UpdateMediaPaths() should include local path for thumbnail, got: %s", updated)
-	}
-}
-
-func TestUpdateMediaPathsEmptySourceURL(t *testing.T) {
-	downloader := &Downloader{
-		config: &config.Config{
-			DownloadMedia: true,
-		},
-	}
-
-	mediaItems := []models.WordPressMedia{
-		{
-			ID:        1,
-			SourceURL: "", // Empty URL should be skipped
-		},
-	}
-
-	content := `<p>Some content</p>`
-
-	updated := downloader.UpdateMediaPaths(content, mediaItems)
-
-	// Content should remain unchanged
-	if updated != content {
-		t.Errorf("UpdateMediaPaths() should skip empty URLs, got: %s", updated)
-	}
-}
-
-func TestUpdateMediaPathsInvalidURL(t *testing.T) {
-	downloader := &Downloader{
-		config: &config.Config{
-			DownloadMedia: true,
-		},
-	}
-
-	mediaItems := []models.WordPressMedia{
-		{
-			ID:        1,
-			SourceURL: "://invalid-url",
-		},
-	}
-
-	content := `<p>Some content</p>`
-
-	updated := downloader.UpdateMediaPaths(content, mediaItems)
-
-	// Content should remain unchanged when URL parsing fails
-	if updated != content {
-		t.Errorf("UpdateMediaPaths() should skip invalid URLs, got: %s", updated)
 	}
 }
 
@@ -870,38 +723,6 @@ func TestDownloadMediaItemNonAbsoluteFilePath(t *testing.T) {
 
 	if success {
 		t.Error("downloadMediaItem() should return false for non-absolute file path")
-	}
-}
-
-func TestUpdateMediaPathsWithEmptySizeURL(t *testing.T) {
-	downloader := &Downloader{
-		config: &config.Config{
-			DownloadMedia: true,
-		},
-	}
-
-	mediaItems := []models.WordPressMedia{
-		{
-			ID:        1,
-			SourceURL: "https://example.com/image.jpg",
-			MimeType:  "image/jpeg",
-			MediaDetails: models.MediaDetails{
-				Sizes: map[string]models.MediaSize{
-					"thumbnail": {
-						SourceURL: "", // Empty URL should be skipped
-					},
-				},
-			},
-		},
-	}
-
-	content := `<img src="https://example.com/image.jpg">`
-
-	updated := downloader.UpdateMediaPaths(content, mediaItems)
-
-	// Only main URL should be replaced (now in images subfolder)
-	if !strings.Contains(updated, "media/images/1_image.jpg") {
-		t.Errorf("UpdateMediaPaths() should replace main URL, got: %s", updated)
 	}
 }
 

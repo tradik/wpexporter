@@ -174,6 +174,14 @@ content then resolves each URL-ish token against that index, so `src`, `href` an
 `srcset` are rewritten uniformly. Unresolvable references with a `-{width}x{height}`
 suffix fall back to the nearest surviving width.
 
+The `URLRewriter` is built **once per export** (`Exporter.updateMediaPaths`) and reused
+for every field, since indexing is O(media) and would otherwise repeat per post. The
+same instance localises body content, excerpt, `og_image` and the `mediaMap` behind
+`featured_image` — one mechanism rather than a second one per field. Because it only
+substitutes on an index hit, a URL that is not a downloaded attachment (a CDN image, an
+external og:image) passes through untouched, and addresses of the source site
+(`canonical_url`, `link`, `hreflangs`) are simply never fed to it.
+
 #### bruteforce Package
 ```go
 type Scanner struct {

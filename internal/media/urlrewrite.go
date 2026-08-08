@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
@@ -53,34 +54,58 @@ type urlIndex struct {
 	variants map[string][]sizeVariant
 }
 
-// UpdateMediaPaths rewrites every reference to a downloaded attachment in the
-// given content so it points at the exported file instead of the live site.
+// URLRewriter rewrites references to downloaded attachments so they point at the
+// exported files instead of the live site.
 //
-// It replaces src, href, srcset and any other URL occurrence uniformly — the
-// whole point of a local export is that it keeps working once the source host
-// is retired.
-func (d *Downloader) UpdateMediaPaths(content string, mediaItems []models.WordPressMedia) string {
-	if !d.config.DownloadMedia {
-		return content
+// It is built once per export and reused for every field, because indexing the
+// attachment list is O(media) and would otherwise be repeated for each post.
+type URLRewriter struct {
+	config *config.Config
+	index  *urlIndex
+}
+
+// NewURLRewriter indexes the given attachments for rewriting. When media
+// downloads are disabled the resulting rewriter is a no-op, since nothing was
+// exported to point at.
+func (d *Downloader) NewURLRewriter(mediaItems []models.WordPressMedia) *URLRewriter {
+	rewriter := &URLRewriter{
+		config: d.config,
+		index:  &urlIndex{exact: map[string]string{}, variants: map[string][]sizeVariant{}},
 	}
 
-	index := d.buildURLIndex(mediaItems)
-	if len(index.exact) == 0 {
-		return content
+	if d.config == nil || !d.config.DownloadMedia {
+		return rewriter
 	}
 
-	return urlTokenPattern.ReplaceAllStringFunc(content, func(token string) string {
+	rewriter.index = d.buildURLIndex(mediaItems)
+
+	return rewriter
+}
+
+// Rewrite replaces every reference to a downloaded attachment in text with its
+// exported path.
+//
+// It treats src, href, srcset and a bare URL in a metadata field uniformly — the
+// whole point of a local export is that it keeps working once the source host is
+// retired. Text that does not resolve to an exported attachment is returned
+// unchanged, so a CDN or third-party image URL correctly stays absolute.
+func (r *URLRewriter) Rewrite(text string) string {
+	if text == "" || len(r.index.exact) == 0 {
+		return text
+	}
+
+	return urlTokenPattern.ReplaceAllStringFunc(text, func(token string) string {
 		key, ok := normalizeURLKey(token)
 		if !ok {
 			return token
 		}
 
-		localPath, remapped, ok := index.resolve(key)
+		localPath, remapped, ok := r.index.resolve(key)
 		if !ok {
 			return token
 		}
 
-		if remapped && d.config.Verbose && !d.config.Quiet {
+		if remapped && r.config != nil && r.config.Verbose && !r.config.Quiet {
 			fmt.Printf("  ↻ Remapped stale size variant: %s -> %s\n", token, localPath)
 		}
 

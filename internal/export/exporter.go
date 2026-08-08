@@ -21,7 +21,9 @@ type Exporter struct {
 	categoryMap map[int]string // ID -> Name lookup
 	tagMap      map[int]string // ID -> Name lookup
 	userMap     map[int]string // ID -> Name lookup
-	mediaMap    map[int]string // ID -> SourceURL lookup
+	mediaMap    map[int]string // ID -> media URL lookup (localized when rewriting is active)
+	// rewriter localizes attachment URLs; nil when the export keeps original URLs.
+	rewriter *media.URLRewriter
 }
 
 // NewExporter creates a new exporter instance
@@ -135,7 +137,9 @@ func (e *Exporter) exportMarkdown(data *models.ExportData) error {
 	}
 	e.mediaMap = make(map[int]string)
 	for _, m := range data.Media {
-		e.mediaMap[m.ID] = m.SourceURL
+		// Localized here so featured_image matches the body content, which the
+		// rewriter has already been over.
+		e.mediaMap[m.ID] = e.localizeMediaURL(m.SourceURL)
 	}
 
 	// Create base directory structure
@@ -613,27 +617,50 @@ func (e *Exporter) exportMetadata(data *models.ExportData) error {
 	return os.WriteFile(filePath, jsonData, 0600)
 }
 
-// updateMediaPaths updates media URLs in all content
+// updateMediaPaths localizes attachment URLs across all exported content.
+//
+// It runs before the format switch, so the rewriter it builds is also what
+// exportMarkdown later uses for featured_image.
 func (e *Exporter) updateMediaPaths(data *models.ExportData) {
 	if !e.config.DownloadMedia {
 		return
 	}
 
-	// Update posts
+	// Built once and reused for every field: indexing the attachment list is
+	// O(media) and would otherwise be repeated for each post.
+	e.rewriter = e.downloader.NewURLRewriter(data.Media)
+
 	for i := range data.Posts {
-		data.Posts[i].Content.Rendered = e.downloader.UpdateMediaPaths(
-			data.Posts[i].Content.Rendered, data.Media)
-		data.Posts[i].Excerpt.Rendered = e.downloader.UpdateMediaPaths(
-			data.Posts[i].Excerpt.Rendered, data.Media)
+		e.localizePostMedia(&data.Posts[i])
 	}
 
-	// Update pages
 	for i := range data.Pages {
-		data.Pages[i].Content.Rendered = e.downloader.UpdateMediaPaths(
-			data.Pages[i].Content.Rendered, data.Media)
-		data.Pages[i].Excerpt.Rendered = e.downloader.UpdateMediaPaths(
-			data.Pages[i].Excerpt.Rendered, data.Media)
+		e.localizePostMedia(&data.Pages[i])
 	}
+}
+
+// localizePostMedia localizes every attachment reference a post carries: body
+// content, excerpt, and the og:image scraped from the live page.
+//
+// canonical_url, link and hreflangs are deliberately left absolute — they are
+// addresses of the source site rather than assets, and a consumer needs them to
+// derive the target URL. og:image is scraped rather than read from the media
+// library, so one pointing at a CDN or a third-party host resolves to nothing in
+// the index and correctly stays absolute.
+func (e *Exporter) localizePostMedia(post *models.WordPressPost) {
+	post.Content.Rendered = e.rewriter.Rewrite(post.Content.Rendered)
+	post.Excerpt.Rendered = e.rewriter.Rewrite(post.Excerpt.Rendered)
+	post.SEO.OGImage = e.rewriter.Rewrite(post.SEO.OGImage)
+}
+
+// localizeMediaURL localizes a single attachment URL, leaving it untouched when
+// the export is configured to keep original URLs.
+func (e *Exporter) localizeMediaURL(rawURL string) string {
+	if e.rewriter == nil {
+		return rawURL
+	}
+
+	return e.rewriter.Rewrite(rawURL)
 }
 
 // escapeYAML escapes special characters for YAML
