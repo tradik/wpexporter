@@ -2,8 +2,6 @@ package xmlrpccli
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -11,6 +9,7 @@ import (
 	"github.com/spf13/pflag"
 	"golang.org/x/term"
 
+	"github.com/tradik/wpexporter/internal/cli"
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/internal/export"
 	"github.com/tradik/wpexporter/internal/xmlrpc"
@@ -81,21 +80,7 @@ func promptPassword(prompt string) (string, error) {
 
 // configFileExists checks if a configuration file exists in standard locations
 func configFileExists() bool {
-	configPaths := []string{
-		"./config.yaml",
-		"./config.yml",
-		filepath.Join(os.Getenv("HOME"), ".wpxmlrpc", "config.yaml"),
-		filepath.Join(os.Getenv("HOME"), ".wpxmlrpc", "config.yml"),
-		"/etc/wpxmlrpc/config.yaml",
-		"/etc/wpxmlrpc/config.yml",
-	}
-
-	for _, path := range configPaths {
-		if _, err := os.Stat(path); err == nil {
-			return true
-		}
-	}
-	return false
+	return cli.ConfigFileExists("wpxmlrpc")
 }
 
 func runExport(cmd *cobra.Command, args []string) error {
