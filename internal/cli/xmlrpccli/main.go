@@ -68,10 +68,6 @@ func init() {
 	rootCmd.AddCommand(exportCmd)
 }
 
-func initConfig() {
-	// Configuration will be loaded in runExport
-}
-
 // promptPassword prompts the user to enter a password securely (hidden input)
 func promptPassword(prompt string) (string, error) {
 	fmt.Print(prompt)

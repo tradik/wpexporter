@@ -10,101 +10,77 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfigFileExists_NoConfigFiles(t *testing.T) {
-	// Save original HOME and restore after test
-	originalHome := os.Getenv("HOME")
-	defer func() {
-		_ = os.Setenv("HOME", originalHome)
-	}()
+// TestConfigFileExists covers each place a config file may live. The four
+// cases shared the same twenty lines of HOME/working-directory juggling; the
+// table keeps the setup in one place.
+func TestConfigFileExists(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, home string)
+		want  bool
+	}{
+		{
+			name:  "no config anywhere",
+			setup: func(*testing.T, string) {},
+			want:  false,
+		},
+		{
+			name: "local config.yaml",
+			setup: func(t *testing.T, _ string) {
+				writeConfig(t, "config.yaml")
+			},
+			want: true,
+		},
+		{
+			name: "local config.yml",
+			setup: func(t *testing.T, _ string) {
+				writeConfig(t, "config.yml")
+			},
+			want: true,
+		},
+		{
+			name: "config in HOME",
+			setup: func(t *testing.T, home string) {
+				dir := filepath.Join(home, ".wpexportjson")
+				require.NoError(t, os.MkdirAll(dir, 0750))
+				writeConfig(t, filepath.Join(dir, "config.yaml"))
+			},
+			want: true,
+		},
+	}
 
-	// Set HOME to a temp directory without config files
-	tempDir := t.TempDir()
-	_ = os.Setenv("HOME", tempDir)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := isolateEnvironment(t)
+			tt.setup(t, home)
 
-	// Change to a directory without config files
-	originalWd, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() {
-		_ = os.Chdir(originalWd)
-	}()
-
-	emptyDir := t.TempDir()
-	err = os.Chdir(emptyDir)
-	require.NoError(t, err)
-
-	result := configFileExists()
-	assert.False(t, result)
+			assert.Equal(t, tt.want, configFileExists())
+		})
+	}
 }
 
-func TestConfigFileExists_WithLocalConfig(t *testing.T) {
-	// Change to a temp directory
+// isolateEnvironment points HOME and the working directory at fresh temporary
+// directories, restoring both afterwards, and returns the temporary HOME.
+func isolateEnvironment(t *testing.T) string {
+	t.Helper()
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
 	originalWd, err := os.Getwd()
 	require.NoError(t, err)
-	defer func() {
-		_ = os.Chdir(originalWd)
-	}()
+	t.Cleanup(func() { _ = os.Chdir(originalWd) })
 
-	tempDir := t.TempDir()
-	err = os.Chdir(tempDir)
-	require.NoError(t, err)
+	require.NoError(t, os.Chdir(t.TempDir()))
 
-	// Create a local config file
-	err = os.WriteFile("config.yaml", []byte("url: https://example.com"), 0644)
-	require.NoError(t, err)
-
-	result := configFileExists()
-	assert.True(t, result)
+	return home
 }
 
-func TestConfigFileExists_WithLocalConfigYml(t *testing.T) {
-	originalWd, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() {
-		_ = os.Chdir(originalWd)
-	}()
+// writeConfig creates a minimal config file at path.
+func writeConfig(t *testing.T, path string) {
+	t.Helper()
 
-	tempDir := t.TempDir()
-	err = os.Chdir(tempDir)
-	require.NoError(t, err)
-
-	// Create a local config.yml file
-	err = os.WriteFile("config.yml", []byte("url: https://example.com"), 0644)
-	require.NoError(t, err)
-
-	result := configFileExists()
-	assert.True(t, result)
-}
-
-func TestConfigFileExists_WithHomeConfig(t *testing.T) {
-	originalHome := os.Getenv("HOME")
-	defer func() {
-		_ = os.Setenv("HOME", originalHome)
-	}()
-
-	tempDir := t.TempDir()
-	_ = os.Setenv("HOME", tempDir)
-
-	// Create config directory and file in HOME
-	configDir := filepath.Join(tempDir, ".wpexportjson")
-	err := os.MkdirAll(configDir, 0755)
-	require.NoError(t, err)
-
-	err = os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("url: https://example.com"), 0644)
-	require.NoError(t, err)
-
-	// Change to empty directory so local config doesn't exist
-	originalWd, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() {
-		_ = os.Chdir(originalWd)
-	}()
-
-	emptyDir := t.TempDir()
-	err = os.Chdir(emptyDir)
-	require.NoError(t, err)
-
-	result := configFileExists()
-	assert.True(t, result)
+	require.NoError(t, os.WriteFile(path, []byte("url: https://example.com"), 0600))
 }
 
 func TestCreateZipArchive_Success(t *testing.T) {
@@ -266,13 +242,6 @@ func TestExportCmd_FlagDefaults(t *testing.T) {
 
 	maxIDFlag := exportCmd.Flags().Lookup("max-id")
 	assert.Equal(t, "10000", maxIDFlag.DefValue)
-}
-
-func TestInitConfig(t *testing.T) {
-	// initConfig should not panic
-	assert.NotPanics(t, func() {
-		initConfig()
-	})
 }
 
 func TestGlobalFlags(t *testing.T) {

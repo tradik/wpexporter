@@ -237,10 +237,6 @@ func init() {
 	rootCmd.AddCommand(exportCmd)
 }
 
-func initConfig() {
-	// Configuration will be loaded in runExport
-}
-
 // getDirSize calculates the total size of a directory
 func getDirSize(path string) (int64, error) {
 	var size int64
