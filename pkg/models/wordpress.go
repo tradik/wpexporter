@@ -45,17 +45,86 @@ type HreflangLink struct {
 	Href string `json:"href"`
 }
 
-// SEOData holds extracted SEO metadata from page crawling
+// SEOData holds extracted SEO metadata from page crawling.
+//
+// The named fields are the ones a static site generator reads directly. Meta
+// carries everything else the page declared: plugins and themes put real
+// information in tags nobody anticipated, and an export that drops them loses
+// it silently.
 type SEOData struct {
-	Title           string         `json:"seo_title,omitempty"`
-	MetaDescription string         `json:"meta_description,omitempty"`
-	MetaKeywords    string         `json:"meta_keywords,omitempty"`
-	OGTitle         string         `json:"og_title,omitempty"`
-	OGDescription   string         `json:"og_description,omitempty"`
-	OGImage         string         `json:"og_image,omitempty"`
-	CanonicalURL    string         `json:"canonical_url,omitempty"`
-	Lang            string         `json:"lang,omitempty"`
-	Hreflangs       []HreflangLink `json:"hreflangs,omitempty"`
+	Title            string         `json:"seo_title,omitempty"`
+	MetaDescription  string         `json:"meta_description,omitempty"`
+	MetaKeywords     string         `json:"meta_keywords,omitempty"`
+	Robots           string         `json:"robots,omitempty"`
+	OGTitle          string         `json:"og_title,omitempty"`
+	OGDescription    string         `json:"og_description,omitempty"`
+	OGImage          string         `json:"og_image,omitempty"`
+	OGType           string         `json:"og_type,omitempty"`
+	OGURL            string         `json:"og_url,omitempty"`
+	OGSiteName       string         `json:"og_site_name,omitempty"`
+	OGLocale         string         `json:"og_locale,omitempty"`
+	TwitterCard      string         `json:"twitter_card,omitempty"`
+	TwitterTitle     string         `json:"twitter_title,omitempty"`
+	TwitterDesc      string         `json:"twitter_description,omitempty"`
+	TwitterImage     string         `json:"twitter_image,omitempty"`
+	TwitterSite      string         `json:"twitter_site,omitempty"`
+	ArticlePublished string         `json:"article_published_time,omitempty"`
+	ArticleModified  string         `json:"article_modified_time,omitempty"`
+	ArticleAuthor    string         `json:"article_author,omitempty"`
+	ArticleSection   string         `json:"article_section,omitempty"`
+	CanonicalURL     string         `json:"canonical_url,omitempty"`
+	Lang             string         `json:"lang,omitempty"`
+	Hreflangs        []HreflangLink `json:"hreflangs,omitempty"`
+	// Meta holds every other meta tag the page declared, keyed by its name or
+	// property attribute.
+	Meta map[string]string `json:"meta,omitempty"`
+	// JSONLD holds the raw application/ld+json blocks. Rank Math and Yoast emit
+	// structured data there that appears in no meta tag.
+	JSONLD []string `json:"json_ld,omitempty"`
+}
+
+// Analytics holds tracking identifiers found in a site's pages. They are a
+// property of the site rather than of any one post, and an operator rebuilding
+// elsewhere needs them to carry the same measurement over.
+type Analytics struct {
+	GA4                 []string `json:"ga4,omitempty"`                   // G-XXXXXXXXXX
+	UniversalAnalytics  []string `json:"universal_analytics,omitempty"`   // UA-XXXXXX-Y
+	GoogleTagManager    []string `json:"google_tag_manager,omitempty"`    // GTM-XXXXXXX
+	GoogleAdsConversion []string `json:"google_ads_conversion,omitempty"` // AW-XXXXXXXXX
+	MetaPixel           []string `json:"meta_pixel,omitempty"`
+	HotjarSiteID        []string `json:"hotjar_site_id,omitempty"`
+	ClarityProjectID    []string `json:"clarity_project_id,omitempty"`
+	LinkedInPartnerID   []string `json:"linkedin_partner_id,omitempty"`
+	TikTokPixel         []string `json:"tiktok_pixel,omitempty"`
+}
+
+// WordPressMenu is a navigation menu and its items.
+//
+// Menu structure is the one part of a site that cannot be reconstructed from the
+// content afterwards: nothing in a post records which menu it belonged to, in
+// what order, or under what label.
+type WordPressMenu struct {
+	ID          int                 `json:"id"`
+	Name        string              `json:"name"`
+	Slug        string              `json:"slug"`
+	Description string              `json:"description,omitempty"`
+	Locations   []string            `json:"locations,omitempty"`
+	Items       []WordPressMenuItem `json:"items"`
+}
+
+// WordPressMenuItem is one entry in a navigation menu.
+type WordPressMenuItem struct {
+	ID          int      `json:"id"`
+	Title       string   `json:"title"`
+	URL         string   `json:"url"`
+	Parent      int      `json:"parent"`
+	Order       int      `json:"order"`
+	Type        string   `json:"type"`             // taxonomy, post_type, custom
+	Object      string   `json:"object,omitempty"` // category, page, …
+	ObjectID    int      `json:"object_id,omitempty"`
+	Target      string   `json:"target,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Classes     []string `json:"classes,omitempty"`
 }
 
 // WordPressPost represents a WordPress post or page
@@ -217,6 +286,8 @@ type ExportData struct {
 	Categories []WordPressCategory  `json:"categories"`
 	Tags       []WordPressTag       `json:"tags"`
 	Users      []WordPressUser      `json:"users"`
+	Menus      []WordPressMenu      `json:"menus,omitempty"`
+	Analytics  *Analytics           `json:"analytics,omitempty"`
 	ExportedAt time.Time            `json:"exported_at"`
 	Stats      ExportStats          `json:"stats"`
 }

@@ -184,6 +184,14 @@ jobs:
           name: binaries
           path: dist/
 
+      # upload-artifact zips internally and does not preserve the executable bit,
+      # so binaries come back from the round-trip as 0644 and were shipped that
+      # way — anyone extracting a release tarball had to chmod +x by hand before
+      # the binary would run. Homebrew and Snap masked this by setting the mode
+      # themselves on install.
+      - name: Restore executable bit on binaries
+        run: chmod +x dist/wpexportjson-* dist/wpxmlrpc-* dist/wpmcp-* dist/wpexporter-*
+
       - name: Create release packages
         run: |
           mkdir -p dist/packages
@@ -204,6 +212,7 @@ jobs:
                 cp "dist/wpexportjson-${os}-${arch}${ext}" "$PKG_DIR/wpexportjson${ext}"
                 cp "dist/wpxmlrpc-${os}-${arch}${ext}" "$PKG_DIR/wpxmlrpc${ext}"
                 cp "dist/wpmcp-${os}-${arch}${ext}" "$PKG_DIR/wpmcp${ext}" 2>/dev/null || true
+                cp "dist/wpexporter-${os}-${arch}${ext}" "$PKG_DIR/wpexporter${ext}" 2>/dev/null || true
 
                 # Copy docs and man pages
                 cp README.md "$PKG_DIR/" 2>/dev/null || true
@@ -403,10 +412,12 @@ jobs:
               bin.install "wpexportjson"
               bin.install "wpxmlrpc"
               bin.install "wpmcp"
+              bin.install "wpexporter"
               man1.install "man/wpexportjson.1" if File.exist? "man/wpexportjson.1"
             end
 
             test do
+              system "#{bin}/wpexporter", "--help"
               system "#{bin}/wpexportjson", "--help"
               system "#{bin}/wpxmlrpc", "--help"
             end

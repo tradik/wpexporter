@@ -1,6 +1,6 @@
-.TH WPEXPORTJSON 1 "August 2026" "wpexportjson 1.7.10" "User Commands"
+.TH WPEXPORTJSON 1 "August 2026" "wpexportjson 1.8.0" "User Commands"
 .SH NAME
-wpexportjson \- WordPress content export tool
+wpexportjson \- WordPress content export tool (REST API)
 .SH SYNOPSIS
 .B wpexportjson export
 .RB [ \-u | \-\-url ]
@@ -103,7 +103,14 @@ formats rewrite every reference to a downloaded attachment \- \fBsrc\fR, \fBhref
 .SS "SEO Options"
 .TP
 .BR \-\-assisted\-crawl
-Crawl URLs to extract SEO metadata (title, description, og tags)
+Crawl URLs to extract SEO metadata: title, description, keywords, robots, the Open Graph and Twitter Card tags, article metadata, canonical, language and hreflang alternates. Every other meta tag is kept in a \fBmeta\fR map (see \fB\-\-extract\-meta\fR), \fBapplication/ld+json\fR blocks are preserved, and tracking identifiers (GA4, Universal Analytics, Google Tag Manager, Google Ads, Meta Pixel, Hotjar, Clarity, LinkedIn, TikTok) are collected site\-wide into \fImetadata.json\fR.
+.TP
+.BR \-\-extract\-meta " " \fIPOLICY\fR
+Which meta tags to keep beyond the named SEO fields:
+.B all
+(default) keeps every one \- plugins and themes put real information in tags nobody anticipated, and a generator can ignore a key it does not recognise but cannot recover one the export dropped;
+.B none
+keeps only the named fields; or a comma\-separated allow\-list such as \fBtwitter:card,article:author\fR.
 .TP
 .BR \-\-crawl\-content
 Crawl pages with empty content (Bricks, Elementor page builders)
@@ -168,6 +175,24 @@ Suppress all output, only return exit code
 .TP
 .BR \-\-config " " \fIFILE\fR
 Configuration file path
+.SH "THE WPEXPORTER COMMAND"
+The toolkit installs four binaries. Three are the individual tools:
+.BR wpexportjson " (REST API, this page), " wpxmlrpc " (XML-RPC) and " wpmcp " (MCP server)."
+The fourth,
+.BR wpexporter ,
+is an umbrella over all three, so one command covers the toolkit:
+.PP
+.RS
+wpexporter export  \(em same as \fBwpexportjson export\fR
+.br
+wpexporter xmlrpc  \(em same as \fBwpxmlrpc\fR
+.br
+wpexporter mcp     \(em same as \fBwpmcp\fR
+.RE
+.PP
+Every flag on this page applies to
+.B wpexporter export
+unchanged.
 .SH EXAMPLES
 .SS "Basic Export"
 Export a WordPress site to JSON:

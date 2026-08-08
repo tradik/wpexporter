@@ -540,37 +540,7 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 	}
 
 	// SEO fields (if crawled via --assisted-crawl)
-	if post.SEO.Title != "" {
-		builder.WriteString(fmt.Sprintf("seo_title: \"%s\"\n", e.escapeYAML(post.SEO.Title)))
-	}
-	if post.SEO.MetaDescription != "" {
-		builder.WriteString(fmt.Sprintf("meta_description: \"%s\"\n", e.escapeYAML(post.SEO.MetaDescription)))
-	}
-	if post.SEO.MetaKeywords != "" {
-		builder.WriteString(fmt.Sprintf("meta_keywords: \"%s\"\n", e.escapeYAML(post.SEO.MetaKeywords)))
-	}
-	if post.SEO.OGTitle != "" {
-		builder.WriteString(fmt.Sprintf("og_title: \"%s\"\n", e.escapeYAML(post.SEO.OGTitle)))
-	}
-	if post.SEO.OGDescription != "" {
-		builder.WriteString(fmt.Sprintf("og_description: \"%s\"\n", e.escapeYAML(post.SEO.OGDescription)))
-	}
-	if post.SEO.OGImage != "" {
-		builder.WriteString(fmt.Sprintf("og_image: \"%s\"\n", e.escapeYAML(post.SEO.OGImage)))
-	}
-	if post.SEO.CanonicalURL != "" {
-		builder.WriteString(fmt.Sprintf("canonical_url: \"%s\"\n", e.escapeYAML(post.SEO.CanonicalURL)))
-	}
-	if post.SEO.Lang != "" {
-		builder.WriteString(fmt.Sprintf("lang: \"%s\"\n", post.SEO.Lang))
-	}
-	if len(post.SEO.Hreflangs) > 0 {
-		builder.WriteString("hreflangs:\n")
-		for _, h := range post.SEO.Hreflangs {
-			builder.WriteString(fmt.Sprintf("  - lang: \"%s\"\n", h.Lang))
-			builder.WriteString(fmt.Sprintf("    href: \"%s\"\n", e.escapeYAML(h.Href)))
-		}
-	}
+	e.writeSEOFrontMatter(&builder, post.SEO)
 
 	// Excerpt in frontmatter, reduced to plain text: the theme's "Continue
 	// reading" anchor is navigation rather than content and otherwise ends up in
@@ -666,6 +636,14 @@ func (e *Exporter) updateLinkPaths(data *models.ExportData) {
 
 	for i := range data.Pages {
 		e.rootRelativizeAddresses(&data.Pages[i])
+	}
+
+	// Menu links must match the exported permalinks, or the rebuilt navigation
+	// points at the old host while the content it links to does not.
+	for i := range data.Menus {
+		for j := range data.Menus[i].Items {
+			data.Menus[i].Items[j].URL = e.rootRelativeURL(data.Menus[i].Items[j].URL)
+		}
 	}
 }
 

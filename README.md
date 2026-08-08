@@ -14,11 +14,23 @@
 
 > **Repository:** [github.com/tradik/wpexporter](https://github.com/tradik/wpexporter)
 
-A comprehensive WordPress content export toolkit with three powerful applications:
+A comprehensive WordPress content export toolkit.
 
-- **wpexportjson** - REST API based exporter with brute force content discovery
-- **wpxmlrpc** - XML-RPC based exporter for authenticated access
-- **wpmcp** - MCP (Model Context Protocol) server for AI assistant integration
+**`wpexporter`** is the single entry point — one command covering the whole toolkit:
+
+```bash
+wpexporter export --url https://example.com -f ssg   # REST API export
+wpexporter xmlrpc export --url ... --username ...    # XML-RPC export
+wpexporter mcp                                        # MCP server for AI assistants
+```
+
+The three tools are also installed as standalone binaries, which behave identically:
+
+| Binary | Role | Umbrella equivalent |
+|---|---|---|
+| **wpexportjson** | REST API exporter with brute force content discovery | `wpexporter export` |
+| **wpxmlrpc** | XML-RPC exporter for authenticated access | `wpexporter xmlrpc` |
+| **wpmcp** | MCP (Model Context Protocol) server for AI assistants | `wpexporter mcp` |
 
 **Export to 14+ popular platforms** including e-commerce systems ([Shopify](https://www.shopify.com/), [Magento](https://business.adobe.com/products/magento/magento-commerce.html), [PrestaShop](https://www.prestashop.com/)), traditional CMS platforms ([WordPress](https://wordpress.org/), [Drupal](https://www.drupal.org/), [Wix](https://www.wix.com/), [Squarespace](https://www.squarespace.com/), [Webflow](https://webflow.com/), [Weebly](https://www.weebly.com/)), and headless CMS solutions ([Ghost](https://ghost.org/), [Strapi](https://strapi.io/), [Contentful](https://www.contentful.com/)), plus JSON and Markdown formats with full media download support.
 
@@ -64,7 +76,8 @@ A comprehensive WordPress content export toolkit with three powerful application
 brew install tradik/tap/wpexporter
 ```
 
-This installs `wpexportjson`, `wpxmlrpc`, and `wpmcp` binaries plus man pages.
+This installs the `wpexporter` umbrella command plus the `wpexportjson`, `wpxmlrpc` and
+`wpmcp` binaries, and the man pages.
 
 ### Snap (Linux)
 
@@ -72,7 +85,8 @@ This installs `wpexportjson`, `wpxmlrpc`, and `wpmcp` binaries plus man pages.
 sudo snap install wpexporter
 ```
 
-Provides `wpexporter.wpexportjson`, `wpexporter.wpxmlrpc`, and `wpexporter.wpmcp` commands.
+Provides the `wpexporter` command, plus `wpexporter.wpexportjson`, `wpexporter.wpxmlrpc`
+and `wpexporter.wpmcp`.
 
 ### From Source
 
@@ -89,6 +103,7 @@ man wpexportjson
 ### Using Go Install
 
 ```bash
+go install github.com/tradik/wpexporter/cmd/wpexporter@latest
 go install github.com/tradik/wpexporter/cmd/wpexportjson@latest
 go install github.com/tradik/wpexporter/cmd/wpxmlrpc@latest
 go install github.com/tradik/wpexporter/cmd/wpmcp@latest
@@ -114,7 +129,7 @@ docker run --rm -v $(pwd)/export:/export ghcr.io/tradik/wpexporter:latest \
 docker run --rm -i ghcr.io/tradik/wpexporter:latest wpmcp
 ```
 
-All three binaries — `wpexportjson`, `wpxmlrpc` and `wpmcp` — ship in the image.
+All four binaries — `wpexporter`, `wpexportjson`, `wpxmlrpc` and `wpmcp` — ship in the image.
 
 ## Quick Start
 
@@ -296,6 +311,7 @@ wpexportjson export --config config.yaml
 <tr><td><code>--exclude-media-types</code></td><td>Media types to skip (comma-separated: images,videos,audio,documents,archives,pdf,gif)</td><td>-</td></tr>
 <tr><td><code>--media-path-style</code></td><td>Form of rewritten media paths: <code>root</code> (<code>/media/…</code>, resolves at any URL depth) or <code>relative</code> (<code>media/…</code>)</td><td><code>root</code></td></tr>
 <tr><td><code>--link-style</code></td><td>Form of <code>link</code>/<code>canonical_url</code>/<code>hreflangs</code>: <code>absolute</code> (source URL) or <code>root</code> (root-relative path)</td><td><code>absolute</code><br>(<code>root</code> for <code>ssg</code>)</td></tr>
+<tr><td><code>--extract-meta</code></td><td>Which meta tags to keep beyond the named SEO fields: <code>all</code>, <code>none</code>, or a comma-separated allow-list</td><td><code>all</code></td></tr>
 <tr><td><code>--report-a11y</code></td><td>Write <code>a11y-report.md</code> flagging WCAG 2.2 contrast and missing alt-text issues</td><td><code>false</code></td></tr>
 <tr><td><code>--concurrent</code></td><td>Concurrent downloads</td><td><code>5</code></td></tr>
 <tr><td><code>--zip</code></td><td>Create ZIP archive of export</td><td><code>false</code></td></tr>
@@ -305,6 +321,7 @@ wpexportjson export --config config.yaml
 <tr><td><code>--no-products</code></td><td>Skip exporting WooCommerce products</td><td><code>false</code></td></tr>
 <tr><td><code>--no-users</code></td><td>Skip exporting users</td><td><code>false</code></td></tr>
 <tr><td><code>--no-tags</code></td><td>Skip exporting tags</td><td><code>false</code></td></tr>
+<tr><td><code>--no-menus</code></td><td>Skip exporting navigation menus (they need authentication; see below)</td><td><code>false</code></td></tr>
 <tr><td><code>--path-filter</code></td><td>Filter posts/pages by URL path pattern (e.g., /fr/arts/)</td><td>-</td></tr>
 <tr><td><code>--flat-html</code></td><td>Convert HTML to Markdown (Bricks Builder, Elementor support)</td><td><code>false</code></td></tr>
 <tr><td><code>--basic-html</code></td><td>Clean HTML to basic elements (tables, lists, links - for Shopify)</td><td><code>false</code></td></tr>
@@ -881,6 +898,51 @@ Applied to the body of every `ssg` document:
 
 The `markdown` format keeps its existing output, with two exceptions that were plainly bugs:
 entities are decoded there too, and the excerpt no longer carries the "Continue reading" anchor.
+
+## 🧭 Navigation Menus
+
+Menu structure is the one part of a site that **cannot be reconstructed from the content
+afterwards** — nothing in a post records which menu it belonged to, in what order, or under
+what label. Menus are exported into `metadata.json`:
+
+```json
+"menus": [
+  {
+    "id": 3, "name": "Categories", "slug": "categories", "locations": ["primary"],
+    "items": [
+      { "id": 41, "title": "Malta", "url": "/malta/", "parent": 0, "order": 1,
+        "type": "taxonomy", "object": "category", "object_id": 5 },
+      { "id": 42, "title": "About Us", "url": "/about-us", "parent": 0, "order": 2,
+        "type": "post_type", "object": "page", "object_id": 7 }
+    ]
+  }
+]
+```
+
+Item URLs follow `--link-style`, so navigation matches the exported permalinks. An item
+pointing at another host keeps its absolute URL. Items are ordered by `menu_order`, which is
+what the site renders by.
+
+### ⚠️ Menus require authentication
+
+WordPress gates `/wp/v2/menus` behind the `edit_theme_options` capability, so **a public REST
+API still refuses them** regardless of how the menus are configured:
+
+```console
+$ curl -s https://example.com/wp-json/wp/v2/menus
+{"code":"rest_cannot_view","message":"Sorry, you are not allowed to view menus.","data":{"status":401}}
+```
+
+Pass credentials to include them:
+
+```bash
+wpexportjson export --url https://example.com --auth-user admin --auth-pass "app password"
+# or
+wpexportjson export --url https://example.com --auth-token "$TOKEN"
+```
+
+Without credentials the export **prints a note and carries on** — menus are simply absent.
+`--no-menus` skips the attempt entirely.
 
 ## ♿ Accessibility Report (`--report-a11y`)
 

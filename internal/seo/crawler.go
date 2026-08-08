@@ -23,6 +23,11 @@ type Crawler struct {
 	config     *config.Config
 	httpClient *http.Client
 	cache      *cache.FileCache // Optional cache (nil if disabled)
+	// analytics accumulates tracking identifiers across every crawled page.
+	// They belong to the site rather than to any one post. Crawling runs in a
+	// worker pool, so the mutex is required.
+	analyticsMu sync.Mutex
+	analytics   models.Analytics
 }
 
 // NewCrawler creates a new SEO crawler
@@ -43,8 +48,9 @@ func (c *Crawler) SetCache(cache *cache.FileCache) {
 
 // CrawlResult holds both SEO data and content from a crawl
 type CrawlResultCache struct {
-	SEO     models.SEOData `json:"seo"`
-	Content string         `json:"content"`
+	SEO       models.SEOData   `json:"seo"`
+	Content   string           `json:"content"`
+	Analytics models.Analytics `json:"analytics,omitempty"`
 }
 
 // getFromCache tries to get data from cache
@@ -186,6 +192,41 @@ func (c *Crawler) EnrichPostsWithSEO(posts []models.WordPressPost) []models.Word
 	return posts
 }
 
+// populateSEO fills seo from a page's HTML: the <title>, every meta tag (named
+// ones promoted to first-class fields, the rest kept in seo.Meta), structured
+// data, canonical, language and hreflang alternates.
+//
+// Both crawl paths call this, so a field added here appears in every export
+// rather than only the one the caller happened to use.
+func (c *Crawler) populateSEO(seo *models.SEOData, html string) {
+	excluded := c.buildExclusionMap()
+
+	if !excluded["title"] {
+		seo.Title = c.extractTitle(html)
+	}
+
+	// Every meta tag in one pass: the named ones become first-class fields, the
+	// rest are kept in seo.Meta so nothing the page declared is lost.
+	c.applyPageMeta(seo, html, excluded)
+
+	// Structured data, which carries information that appears in no meta tag.
+	if !excluded["json-ld"] {
+		seo.JSONLD = extractJSONLD(html)
+	}
+
+	if !excluded["canonical"] {
+		seo.CanonicalURL = c.extractCanonical(html)
+	}
+
+	if !excluded["lang"] {
+		seo.Lang = c.extractLang(html)
+	}
+
+	if !excluded["hreflangs"] {
+		seo.Hreflangs = c.extractHreflangs(html)
+	}
+}
+
 // extractSEO fetches a URL and extracts SEO metadata from HTML
 func (c *Crawler) extractSEO(pageURL string) models.SEOData {
 	seo := models.SEOData{}
@@ -196,6 +237,7 @@ func (c *Crawler) extractSEO(pageURL string) models.SEOData {
 
 	// Try cache first
 	if cached, found := c.getFromCache(pageURL); found {
+		c.recordAnalytics(cached.Analytics)
 		return cached.SEO
 	}
 
@@ -238,54 +280,44 @@ func (c *Crawler) extractSEO(pageURL string) models.SEOData {
 		c.logf("Detected duplicate tags on %s: %s\n", pageURL, strings.Join(duplicates, ", "))
 	}
 
-	// Build exclusion map
-	excluded := c.buildExclusionMap()
+	c.populateSEO(&seo, html)
 
-	// Extract <title> tag
-	if !excluded["title"] {
-		seo.Title = c.extractTitle(html)
-	}
-
-	// Extract meta description
-	if !excluded["meta:description"] {
-		seo.MetaDescription = c.extractMetaContent(html, "description")
-	}
-
-	// Extract meta keywords
-	if !excluded["meta:keywords"] {
-		seo.MetaKeywords = c.extractMetaContent(html, "keywords")
-	}
-
-	// Extract Open Graph tags
-	if !excluded["og:title"] {
-		seo.OGTitle = c.extractOGContent(html, "og:title")
-	}
-	if !excluded["og:description"] {
-		seo.OGDescription = c.extractOGContent(html, "og:description")
-	}
-	if !excluded["og:image"] {
-		seo.OGImage = c.extractOGContent(html, "og:image")
-	}
-
-	// Extract canonical URL
-	if !excluded["canonical"] {
-		seo.CanonicalURL = c.extractCanonical(html)
-	}
-
-	// Extract page language
-	if !excluded["lang"] {
-		seo.Lang = c.extractLang(html)
-	}
-
-	// Extract hreflang alternate links
-	if !excluded["hreflangs"] {
-		seo.Hreflangs = c.extractHreflangs(html)
-	}
+	// Tracking identifiers belong to the site, not the page, so they are folded
+	// into a site-wide set rather than stored on the post.
+	analytics := extractAnalytics(html)
+	c.recordAnalytics(analytics)
 
 	// Cache the result
-	c.saveToCache(pageURL, &CrawlResultCache{SEO: seo})
+	c.saveToCache(pageURL, &CrawlResultCache{SEO: seo, Analytics: analytics})
 
 	return seo
+}
+
+// recordAnalytics folds one page's tracking identifiers into the site-wide set.
+func (c *Crawler) recordAnalytics(found models.Analytics) {
+	if isEmptyAnalytics(found) {
+		return
+	}
+
+	c.analyticsMu.Lock()
+	defer c.analyticsMu.Unlock()
+
+	mergeAnalytics(&c.analytics, found)
+}
+
+// Analytics returns the tracking identifiers seen across the crawl, or nil when
+// the site carries none.
+func (c *Crawler) Analytics() *models.Analytics {
+	c.analyticsMu.Lock()
+	defer c.analyticsMu.Unlock()
+
+	if isEmptyAnalytics(c.analytics) {
+		return nil
+	}
+
+	found := c.analytics
+
+	return &found
 }
 
 // buildExclusionMap creates a map of excluded tags for quick lookup
@@ -489,28 +521,35 @@ func (c *Crawler) extractCanonical(html string) string {
 
 // decodeHTMLEntities decodes common HTML entities
 func (c *Crawler) decodeHTMLEntities(s string) string {
-	replacements := map[string]string{
-		"&amp;":   "&",
-		"&lt;":    "<",
-		"&gt;":    ">",
-		"&quot;":  "\"",
-		"&#39;":   "'",
-		"&apos;":  "'",
-		"&nbsp;":  " ",
-		"&#x27;":  "'",
-		"&#x2F;":  "/",
-		"&ndash;": "-",
-		"&mdash;": "-",
-		"&lsquo;": "'",
-		"&rsquo;": "'",
-		"&ldquo;": "\"",
-		"&rdquo;": "\"",
-	}
+	return decodeEntities(s)
+}
 
+// entityReplacements are the entities WordPress themes emit in attribute values.
+var entityReplacements = map[string]string{
+	"&amp;":   "&",
+	"&lt;":    "<",
+	"&gt;":    ">",
+	"&quot;":  "\"",
+	"&#39;":   "'",
+	"&apos;":  "'",
+	"&nbsp;":  " ",
+	"&#x27;":  "'",
+	"&#x2F;":  "/",
+	"&ndash;": "-",
+	"&mdash;": "-",
+	"&lsquo;": "'",
+	"&rsquo;": "'",
+	"&ldquo;": "\"",
+	"&rdquo;": "\"",
+}
+
+// decodeEntities decodes the common HTML entities found in meta content.
+func decodeEntities(s string) string {
 	result := s
-	for entity, char := range replacements {
+	for entity, char := range entityReplacements {
 		result = strings.ReplaceAll(result, entity, char)
 	}
+
 	return result
 }
 
@@ -646,45 +685,18 @@ func (c *Crawler) extractSEOAndContent(pageURL string, extractContent bool) Craw
 		c.logf("Detected duplicate tags on %s: %s\n", pageURL, strings.Join(duplicates, ", "))
 	}
 
-	// Build exclusion map
-	excluded := c.buildExclusionMap()
-
-	// Extract SEO data with exclusion support
-	if !excluded["title"] {
-		result.SEO.Title = c.extractTitle(html)
-	}
-	if !excluded["meta:description"] {
-		result.SEO.MetaDescription = c.extractMetaContent(html, "description")
-	}
-	if !excluded["meta:keywords"] {
-		result.SEO.MetaKeywords = c.extractMetaContent(html, "keywords")
-	}
-	if !excluded["og:title"] {
-		result.SEO.OGTitle = c.extractOGContent(html, "og:title")
-	}
-	if !excluded["og:description"] {
-		result.SEO.OGDescription = c.extractOGContent(html, "og:description")
-	}
-	if !excluded["og:image"] {
-		result.SEO.OGImage = c.extractOGContent(html, "og:image")
-	}
-	if !excluded["canonical"] {
-		result.SEO.CanonicalURL = c.extractCanonical(html)
-	}
-	if !excluded["lang"] {
-		result.SEO.Lang = c.extractLang(html)
-	}
-	if !excluded["hreflangs"] {
-		result.SEO.Hreflangs = c.extractHreflangs(html)
-	}
+	c.populateSEO(&result.SEO, html)
 
 	// Extract content only if needed
 	if extractContent {
 		result.Content = c.extractMainContent(html)
 	}
 
+	analytics := extractAnalytics(html)
+	c.recordAnalytics(analytics)
+
 	// Cache the result
-	c.saveToCache(pageURL, &CrawlResultCache{SEO: result.SEO, Content: result.Content})
+	c.saveToCache(pageURL, &CrawlResultCache{SEO: result.SEO, Content: result.Content, Analytics: analytics})
 
 	return result
 }

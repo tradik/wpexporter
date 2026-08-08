@@ -47,10 +47,15 @@ GOENV := $(GOCMD) env
 BINARY_NAME := $(APP_NAME)
 XMLRPC_BINARY := wpxmlrpc
 MCP_BINARY := wpmcp
+UMBRELLA_BINARY := wpexporter
 
 # Build flags
-LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT) -s -w"
-PROD_LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT) -s -w -extldflags '-static'"
+# The linker stamps one shared package rather than each command's own main, so
+# a new binary cannot silently miss the version.
+VERSION_PKG := github.com/tradik/wpexporter/internal/version
+VERSION_VARS := -X $(VERSION_PKG).Version=$(VERSION) -X $(VERSION_PKG).BuildTime=$(BUILD_TIME) -X $(VERSION_PKG).GitCommit=$(GIT_COMMIT)
+LDFLAGS := -ldflags "$(VERSION_VARS) -s -w"
+PROD_LDFLAGS := -ldflags "$(VERSION_VARS) -s -w -extldflags '-static'"
 
 .PHONY: help build clean test test-coverage deps run install dev lint vet sec check format build-prod release package packages docker-build docker-push version tag snap
 
@@ -76,6 +81,9 @@ build: deps ## Build all applications for development
 	@echo "${BLUE}Building $(MCP_BINARY) $(VERSION)...${RESET}"
 	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(MCP_BINARY) ./cmd/wpmcp
 	@echo "${GREEN}Build complete: $(BUILD_DIR)/$(MCP_BINARY)${RESET}"
+	@echo "${BLUE}Building $(UMBRELLA_BINARY) $(VERSION)...${RESET}"
+	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(UMBRELLA_BINARY) ./cmd/wpexporter
+	@echo "${GREEN}Build complete: $(BUILD_DIR)/$(UMBRELLA_BINARY)${RESET}"
 
 clean: ## Clean build artifacts
 	@echo "${YELLOW}Cleaning build artifacts...${RESET}"
@@ -165,34 +173,42 @@ release: deps ## Build release binaries for all platforms
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) $(PROD_LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) $(PROD_LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-linux-amd64 ./cmd/wpxmlrpc
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) $(PROD_LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-linux-amd64 ./cmd/wpmcp
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) $(PROD_LDFLAGS) -o $(DIST_DIR)/$(UMBRELLA_BINARY)-linux-amd64 ./cmd/wpexporter
 	@echo "${YELLOW}Building Linux ARM64...${RESET}"
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) $(PROD_LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-linux-arm64 ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) $(PROD_LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-linux-arm64 ./cmd/wpxmlrpc
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) $(PROD_LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-linux-arm64 ./cmd/wpmcp
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) $(PROD_LDFLAGS) -o $(DIST_DIR)/$(UMBRELLA_BINARY)-linux-arm64 ./cmd/wpexporter
 	@echo "${YELLOW}Building FreeBSD AMD64...${RESET}"
 	CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-freebsd-amd64 ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-freebsd-amd64 ./cmd/wpxmlrpc
 	CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-freebsd-amd64 ./cmd/wpmcp
+	CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(UMBRELLA_BINARY)-freebsd-amd64 ./cmd/wpexporter
 	@echo "${YELLOW}Building FreeBSD ARM64...${RESET}"
 	CGO_ENABLED=0 GOOS=freebsd GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-freebsd-arm64 ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=freebsd GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-freebsd-arm64 ./cmd/wpxmlrpc
 	CGO_ENABLED=0 GOOS=freebsd GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-freebsd-arm64 ./cmd/wpmcp
+	CGO_ENABLED=0 GOOS=freebsd GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(UMBRELLA_BINARY)-freebsd-arm64 ./cmd/wpexporter
 	@echo "${YELLOW}Building macOS AMD64...${RESET}"
 	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-darwin-amd64 ./cmd/wpxmlrpc
 	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-darwin-amd64 ./cmd/wpmcp
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(UMBRELLA_BINARY)-darwin-amd64 ./cmd/wpexporter
 	@echo "${YELLOW}Building macOS ARM64...${RESET}"
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-darwin-arm64 ./cmd/wpxmlrpc
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-darwin-arm64 ./cmd/wpmcp
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(UMBRELLA_BINARY)-darwin-arm64 ./cmd/wpexporter
 	@echo "${YELLOW}Building Windows AMD64...${RESET}"
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-windows-amd64.exe ./cmd/wpxmlrpc
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-windows-amd64.exe ./cmd/wpmcp
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(UMBRELLA_BINARY)-windows-amd64.exe ./cmd/wpexporter
 	@echo "${YELLOW}Building Windows ARM64...${RESET}"
 	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-windows-arm64.exe ./cmd/wpexportjson
 	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(XMLRPC_BINARY)-windows-arm64.exe ./cmd/wpxmlrpc
 	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(MCP_BINARY)-windows-arm64.exe ./cmd/wpmcp
+	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(UMBRELLA_BINARY)-windows-arm64.exe ./cmd/wpexporter
 	@echo "${GREEN}Release binaries built in $(DIST_DIR)/${RESET}"
 	@ls -la $(DIST_DIR)/
 

@@ -49,6 +49,18 @@ keep_original_urls: false
 # (SC 1.1.1). The export itself is unchanged.
 report_a11y: false
 
+# Which meta tags to keep beyond the named SEO fields (requires assisted_crawl):
+# - all:  every meta tag lands in the `meta` map (default - plugins put real
+#         information in tags nobody anticipated, and a dropped tag is unrecoverable)
+# - none: only the named SEO fields
+# - a comma-separated allow-list, e.g. "twitter:card,article:author"
+extract_meta: "all"
+
+# Skip exporting navigation menus. WordPress gates /wp/v2/menus behind
+# edit_theme_options, so menus need --auth-user/--auth-pass or --auth-token;
+# without credentials the export warns and carries on without them.
+no_menus: false
+
 # Number of concurrent downloads
 concurrent: 5
 

@@ -81,8 +81,12 @@ type Config struct {
 	// default — see EffectiveLinkStyle.
 	LinkStyle string `mapstructure:"link_style" json:"link_style"`
 	// ReportA11y writes an accessibility report alongside the export.
-	ReportA11y        bool           `mapstructure:"report_a11y" json:"report_a11y"`
+	ReportA11y bool `mapstructure:"report_a11y" json:"report_a11y"`
+	// ExtractMeta selects which meta tags beyond the named SEO fields are kept:
+	// "all" (default), "none", or a comma-separated allow-list of tag names.
+	ExtractMeta       string         `mapstructure:"extract_meta" json:"extract_meta"`
 	NoTags            bool           `mapstructure:"no_tags" json:"no_tags"`                                   // Skip exporting tags
+	NoMenus           bool           `mapstructure:"no_menus" json:"no_menus"`                                 // Skip exporting navigation menus
 	Quiet             bool           `mapstructure:"quiet" json:"quiet"`                                       // Suppress all output
 	NoIDs             bool           `mapstructure:"no_ids" json:"no_ids"`                                     // Exclude numeric IDs from frontmatter
 	ExcludeTags       []string       `mapstructure:"exclude_tags" json:"exclude_tags,omitempty"`               // SEO tags to exclude from extraction
@@ -143,6 +147,7 @@ func DefaultConfig() *Config {
 		SkipEmptyContent:  false,  // Don't skip empty content by default
 		FlatHTML:          false,  // Don't flatten HTML by default
 		NoTags:            false,  // Don't skip tags by default
+		NoMenus:           false,  // Try to export menus by default (needs auth; degrades with a warning)
 		Cache:             false,  // Caching disabled by default
 		CacheTTL:          "24h",  // 24 hour cache TTL by default
 		CacheDir:          "",     // Will default to ~/.wpexporter/cache
@@ -150,6 +155,7 @@ func DefaultConfig() *Config {
 		MediaPathStyle:    "root", // Root-relative media paths resolve from any URL depth
 		LinkStyle:         "",     // Empty = per-format default (see EffectiveLinkStyle)
 		ReportA11y:        false,  // Don't write an accessibility report by default
+		ExtractMeta:       "all",  // Keep every meta tag: plugins put real data in unexpected ones
 	}
 }
 

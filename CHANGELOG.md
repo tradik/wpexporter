@@ -5,6 +5,93 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-08-08
+
+### Added
+- **`wpexporter` command.** The project has always been called wpexporter — repository, Go
+  module, Homebrew formula, Snap package, Docker image — but there was no command by that
+  name. Installing it gave three differently named binaries, and the release archive was
+  named after one of them, so `wpexporter` looked missing. There is now one entry point:
+
+  | Command | Equivalent |
+  |---|---|
+  | `wpexporter export` | `wpexportjson export` |
+  | `wpexporter xmlrpc` | `wpxmlrpc` |
+  | `wpexporter mcp` | `wpmcp` |
+
+  The three binaries remain, unchanged, for anyone scripting against them. The REST
+  exporter's subcommand sits at the umbrella's top level since it is the common case; the
+  other two mount as groups, because each defines its own `--config` and `--verbose` and
+  hoisting them all onto one root would collide.
+- **Full metadata extraction** (`--assisted-crawl`). The crawler previously read a fixed list
+  of nine fields and silently discarded everything else. It now extracts:
+  - **named SEO fields**: `robots`, `og:type`, `og:url`, `og:site_name`, `og:locale`,
+    `twitter:card`, `twitter:title`, `twitter:description`, `twitter:image`, `twitter:site`,
+    `article:published_time`, `article:modified_time`, `article:author`, `article:section`,
+    alongside the existing title/description/keywords/og/canonical/lang/hreflangs
+  - **every other meta tag**, into a `meta` map keyed by its `name`, `property`, `itemprop`
+    or `http-equiv`. Plugins and themes put real information in tags nobody anticipated; a
+    generator can ignore a key it does not recognise, but it cannot recover one the export
+    dropped.
+  - **`application/ld+json` blocks**, preserved raw. Rank Math and Yoast emit structured data
+    there that appears in no meta tag.
+  - **tracking identifiers**, collected site-wide into `metadata.json`: GA4, Universal
+    Analytics, Google Tag Manager, Google Ads, Meta Pixel, Hotjar, Microsoft Clarity,
+    LinkedIn and TikTok. Detection matches the identifier's shape rather than the surrounding
+    snippet, so it survives however a plugin minified or wrapped it. They belong to the site
+    rather than to any one post.
+- **`--extract-meta`** (`all` | `none` | allow-list, config key `extract_meta`): controls
+  which unnamed meta tags are kept. Defaults to `all`, because losing data is worse than
+  carrying some noise.
+- **Navigation menus (#16)**, exported into `metadata.json` as a `menus` array with each
+  menu's name, slug, locations and ordered items (title, URL, parent, order, type, object).
+  Item URLs follow `--link-style`, so navigation matches the exported permalinks; an item on
+  another host keeps its absolute URL. Items are sorted by `menu_order`, which is what the
+  site renders by. `--no-menus` (config key `no_menus`) skips them.
+
+  **Correction to the issue's premise:** menus are *not* publicly readable. WordPress gates
+  `/wp/v2/menus` behind `edit_theme_options`, so a public REST API answers 401 however the
+  menus are configured — verified against a live site. Menus therefore need
+  `--auth-user`/`--auth-pass` or `--auth-token`. Without credentials the export prints a note
+  saying exactly that and carries on rather than failing.
+
+### Fixed
+- **Site information was exported empty (#15)**. Three separate faults compounded:
+  - `GetSiteInfo` asked `/wp/v2/settings`, which needs authentication and returns 401 on a
+    public site, then fell back to `/wp-json/wp/v2` — the *route index*, which carries no
+    site fields at all. It unmarshalled cleanly into `SiteInfo` (valid JSON, no matching
+    keys), so the "endpoint failed" branch never ran and every field came out blank.
+  - Even when `/wp/v2/settings` was reachable, the site title was read as `name`; the
+    endpoint calls it `title`, so `Name` was always empty.
+  - `metadata.json` carried no `site` object at all.
+
+  Identity now comes from the unauthenticated `/wp-json/` root (`name`, `description`,
+  `url`, `home`, `timezone_string`/`gmt_offset`), with `/wp/v2/settings` overlaid where
+  reachable for the fields only it has (admin email, date and time formats, start of week,
+  language). `metadata.json` gains a `site` object. A transport failure is still an error;
+  a 401, a 404 or an unreadable body degrades to the configured URL instead.
+- **Release tarballs shipped binaries as `0644`**, so extracting one and running the binary
+  gave `permission denied` until you `chmod +x` by hand. `actions/upload-artifact` zips
+  internally and does not preserve the executable bit, so the build → release artifact
+  round-trip dropped it. Homebrew and Snap masked this by setting the mode themselves on
+  install and Docker builds from source, so only the direct-download path was affected.
+  Present in v1.7.9 and v1.7.10.
+
+### Changed
+- `extractSEO` and `extractSEOAndContent` each had their own copy of the extraction block, so
+  a field added to one silently missed the other. Both now call a single `populateSEO`.
+- **The three command trees moved to `internal/cli/`**, leaving `cmd/*/main.go` as thin
+  wrappers. `package main` cannot be imported, so the umbrella could not otherwise reuse
+  them.
+- **Build identity moved to `internal/version`**, and the linker now stamps that one package.
+  Each command previously declared its own `main.Version`, so `-X main.Version=…` reached
+  whichever binary was being built and missed the others — and `-X main.BuildTime=…` missed
+  all three, since two of them called the field `BuildDate`. `--version` now reports the
+  version, commit and build time consistently across every binary.
+- Removed the `cobra.OnInitialize(initConfig)` scaffolding: `initConfig` was an empty
+  function in every tool, and a package-level initializer would have run for all three once
+  they shared a process.
+
 ## [1.7.10] - 2026-08-08
 
 Release-plumbing fixes. No changes to export behaviour.
