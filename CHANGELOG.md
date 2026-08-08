@@ -17,9 +17,9 @@ Media URL localisation fixes (issues #11, #13) and dependency security updates.
   the same failure as #11 one field over. Both now resolve through the same index as the
   body content. `og_image` is scraped rather than read from the media library, so one
   pointing at a CDN or third-party host resolves to nothing and correctly stays absolute.
-- `canonical_url`, `link` and `hreflangs` are deliberately **not** rewritten: they are
-  addresses of the source site rather than assets, and a consumer needs them to derive
-  the target URL.
+- `canonical_url`, `link` and `hreflangs` are not touched by media rewriting: they are
+  addresses of the source site rather than assets. Their form is controlled separately by
+  the new `--link-style` flag.
 - **`src`/`href` are now localised like `srcset` (#11)**: URL rewriting matched the
   REST API's `source_url` as an exact string, so only references written in the site's
   present-day URL form were replaced. WordPress stores `post_content` with whatever form
@@ -39,6 +39,14 @@ Media URL localisation fixes (issues #11, #13) and dependency security updates.
 ### Added
 - **`--media-path-style`** (`root` | `relative`, config key `media_path_style`): controls
   the form of rewritten media paths.
+- **`--link-style`** (`absolute` | `root`, config key `link_style`): controls the form of the
+  address fields `link`, `canonical_url` and `hreflangs[].href`. #11 asks for the
+  root-relative form (it preserves each URL, and its search ranking, when the site is
+  rebuilt at the same paths); #13 states the absolute form is correct (a consumer needs the
+  original URL to derive the target one). Both are right for their case, so this is a flag
+  rather than a decision. Default `absolute` keeps existing behaviour. Only same-host
+  addresses are converted — an hreflang alternate or canonical on a foreign host is left
+  untouched — and query strings and fragments are preserved.
 
 ### Changed
 - **BREAKING (json/markdown output)**: rewritten media paths are now root-relative

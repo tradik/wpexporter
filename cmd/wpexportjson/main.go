@@ -84,6 +84,7 @@ var (
 	basicHTML         bool
 	keepOriginalURLs  bool
 	mediaPathStyle    string
+	linkStyle         string
 	noTags            bool
 	quiet             bool
 	noIDs             bool
@@ -133,6 +134,7 @@ Content Filters:
       --basic-html            Clean HTML to basic elements (tables, lists - for Shopify)
       --keep-original-urls    Preserve WordPress URLs (don't convert to local paths)
       --media-path-style      Rewritten media paths: root (default, /media/...) or relative
+      --link-style            link/canonical_url/hreflangs: absolute (default) or root
 
 Advanced:
       --brute-force           Enable brute force ID discovery
@@ -210,6 +212,8 @@ func init() {
 		"preserve original WordPress URLs in content (don't convert to local paths)")
 	exportCmd.Flags().StringVar(&mediaPathStyle, "media-path-style", "root",
 		"form of rewritten media paths: root (/media/...) or relative (media/...)")
+	exportCmd.Flags().StringVar(&linkStyle, "link-style", "absolute",
+		"form of link/canonical_url/hreflangs: absolute (source URL) or root (root-relative path)")
 	exportCmd.Flags().BoolVar(&noTags, "no-tags", false, "skip exporting tags")
 	exportCmd.Flags().BoolVar(&noIDs, "no-ids", false, "exclude numeric IDs from frontmatter (keep only names)")
 	exportCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress all output, only return exit code")
@@ -434,6 +438,9 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("media-path-style") {
 		cfg.MediaPathStyle = mediaPathStyle
+	}
+	if cmd.Flags().Changed("link-style") {
+		cfg.LinkStyle = linkStyle
 	}
 	if cmd.Flags().Changed("no-tags") {
 		cfg.NoTags = noTags

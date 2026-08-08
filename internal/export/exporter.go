@@ -55,6 +55,7 @@ func (e *Exporter) Export(data *models.ExportData) error {
 	// Other formats (shopify, magento, etc.) need original URLs
 	if (e.config.Format == "json" || e.config.Format == "markdown") && !e.config.KeepOriginalURLs {
 		e.updateMediaPaths(data)
+		e.updateLinkPaths(data)
 	}
 
 	// Export based on format
@@ -661,6 +662,62 @@ func (e *Exporter) localizeMediaURL(rawURL string) string {
 	}
 
 	return e.rewriter.Rewrite(rawURL)
+}
+
+// updateLinkPaths converts same-host address fields to root-relative paths when
+// --link-style root is set.
+//
+// These are addresses of the source site rather than assets, so the default
+// keeps them absolute: a consumer needs the original URL to derive the target
+// one. A site rebuilt at the same paths wants the root-relative form instead,
+// because that preserves each URL (and its search ranking) on the new host
+// without pinning the content to the old one.
+func (e *Exporter) updateLinkPaths(data *models.ExportData) {
+	if e.config.LinkStyle != "root" {
+		return
+	}
+
+	for i := range data.Posts {
+		e.rootRelativizeAddresses(&data.Posts[i])
+	}
+
+	for i := range data.Pages {
+		e.rootRelativizeAddresses(&data.Pages[i])
+	}
+}
+
+// rootRelativizeAddresses converts every address field a post carries.
+func (e *Exporter) rootRelativizeAddresses(post *models.WordPressPost) {
+	post.Link = e.rootRelativeURL(post.Link)
+	post.SEO.CanonicalURL = e.rootRelativeURL(post.SEO.CanonicalURL)
+
+	for i := range post.SEO.Hreflangs {
+		post.SEO.Hreflangs[i].Href = e.rootRelativeURL(post.SEO.Hreflangs[i].Href)
+	}
+}
+
+// rootRelativeURL strips scheme and host from a same-host address, preserving
+// query and fragment. A URL on a foreign host is returned unchanged — an
+// external canonical or hreflang alternate must keep pointing where it points.
+func (e *Exporter) rootRelativeURL(rawURL string) string {
+	if rawURL == "" || !e.config.IsSameHost(rawURL) {
+		return rawURL
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Path == "" {
+		return rawURL
+	}
+
+	relative := parsed.Path
+	if parsed.RawQuery != "" {
+		relative += "?" + parsed.RawQuery
+	}
+	if parsed.Fragment != "" {
+		relative += "#" + parsed.Fragment
+	}
+
+	return relative
 }
 
 // escapeYAML escapes special characters for YAML

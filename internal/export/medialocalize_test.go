@@ -128,6 +128,122 @@ func TestLocalizeMediaURLWithoutRewriter(t *testing.T) {
 	assert.Equal(t, raw, e.localizeMediaURL(raw))
 }
 
+// linkFixture carries every address field --link-style touches, plus one on a
+// foreign host that must survive untouched.
+func linkFixture() *models.ExportData {
+	return &models.ExportData{
+		Posts: []models.WordPressPost{
+			{
+				ID:    1,
+				Slug:  "swimming",
+				Title: models.RenderedContent{Rendered: "Swimming"},
+				Link:  "https://hawanas.com/2010/07/21/389/",
+				SEO: models.SEOData{
+					CanonicalURL: "https://hawanas.com/2010/07/21/389/",
+					Hreflangs: []models.HreflangLink{
+						{Lang: "en", Href: "https://hawanas.com/2010/07/21/389/"},
+						{Lang: "pl", Href: "https://partner.example.org/pl/389/"},
+					},
+				},
+			},
+		},
+	}
+}
+
+func linkConfig(style string) *config.Config {
+	return &config.Config{
+		URL:           "https://hawanas.com",
+		Output:        "out",
+		Format:        "markdown",
+		DownloadMedia: false,
+		LinkStyle:     style,
+	}
+}
+
+// TestLinkStyleRoot covers the root-relative address form asked for in #11.
+func TestLinkStyleRoot(t *testing.T) {
+	e := NewExporter(linkConfig("root"))
+	data := linkFixture()
+
+	e.updateLinkPaths(data)
+
+	assert.Equal(t, "/2010/07/21/389/", data.Posts[0].Link)
+	assert.Equal(t, "/2010/07/21/389/", data.Posts[0].SEO.CanonicalURL)
+	assert.Equal(t, "/2010/07/21/389/", data.Posts[0].SEO.Hreflangs[0].Href)
+	assert.Equal(t, "https://partner.example.org/pl/389/", data.Posts[0].SEO.Hreflangs[1].Href,
+		"an hreflang alternate on a foreign host must keep pointing where it points")
+}
+
+// TestLinkStyleAbsoluteIsDefault pins that the default leaves addresses alone,
+// matching the position stated in #13.
+func TestLinkStyleAbsoluteIsDefault(t *testing.T) {
+	e := NewExporter(linkConfig("absolute"))
+	data := linkFixture()
+
+	e.updateLinkPaths(data)
+
+	assert.Equal(t, "https://hawanas.com/2010/07/21/389/", data.Posts[0].Link)
+	assert.Equal(t, "https://hawanas.com/2010/07/21/389/", data.Posts[0].SEO.CanonicalURL)
+}
+
+// TestLinkStyleRootAppliesToPages covers the pages slice, not just posts.
+func TestLinkStyleRootAppliesToPages(t *testing.T) {
+	e := NewExporter(linkConfig("root"))
+	data := linkFixture()
+	data.Pages = data.Posts
+	data.Posts = nil
+
+	e.updateLinkPaths(data)
+
+	assert.Equal(t, "/2010/07/21/389/", data.Pages[0].Link)
+}
+
+// TestRootRelativeURLPreservesQueryAndFragment pins that a root-relative address
+// keeps everything after the path.
+func TestRootRelativeURLPreservesQueryAndFragment(t *testing.T) {
+	e := NewExporter(linkConfig("root"))
+
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{"plain", "https://hawanas.com/a/b/", "/a/b/"},
+		{"query", "https://hawanas.com/a/?page=2", "/a/?page=2"},
+		{"fragment", "https://hawanas.com/a/#top", "/a/#top"},
+		{"query and fragment", "https://hawanas.com/a/?page=2#top", "/a/?page=2#top"},
+		{"already relative", "/a/b/", "/a/b/"},
+		{"foreign host", "https://other.example/a/", "https://other.example/a/"},
+		{"empty", "", ""},
+		{"host only", "https://hawanas.com", "https://hawanas.com"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, e.rootRelativeURL(tt.raw))
+		})
+	}
+}
+
+// TestLinkStyleRootWrittenToFrontMatter covers the flag end to end.
+func TestLinkStyleRootWrittenToFrontMatter(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := linkConfig("root")
+	cfg.Output = tmpDir
+
+	e := NewExporter(cfg)
+	data := linkFixture()
+
+	require.NoError(t, cfg.EnsureOutputDir())
+	e.updateLinkPaths(data)
+	require.NoError(t, e.exportMarkdown(data))
+
+	written := readExportedPost(t, tmpDir)
+
+	assert.Contains(t, written, `link: "/2010/07/21/389/"`)
+	assert.NotContains(t, written, `link: "https://hawanas.com`)
+}
+
 // exportMarkdownWithoutDownloads runs the markdown export path minus the media
 // download step, which would otherwise reach the network. It mirrors the
 // rewriting condition in Export.

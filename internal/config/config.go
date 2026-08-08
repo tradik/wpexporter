@@ -74,7 +74,11 @@ type Config struct {
 	KeepOriginalURLs  bool   `mapstructure:"keep_original_urls" json:"keep_original_urls"` // Don't convert media URLs to local paths
 	// MediaPathStyle selects the form of rewritten media paths in exported content:
 	// "root" (/media/...) resolves from any URL depth, "relative" (media/...) only at the site root.
-	MediaPathStyle    string         `mapstructure:"media_path_style" json:"media_path_style"`
+	MediaPathStyle string `mapstructure:"media_path_style" json:"media_path_style"`
+	// LinkStyle selects the form of same-host address fields (link, canonical_url,
+	// hreflangs): "absolute" keeps the source URL, "root" emits a root-relative path
+	// so the content is not pinned to the retired host.
+	LinkStyle         string         `mapstructure:"link_style" json:"link_style"`
 	NoTags            bool           `mapstructure:"no_tags" json:"no_tags"`                                   // Skip exporting tags
 	Quiet             bool           `mapstructure:"quiet" json:"quiet"`                                       // Suppress all output
 	NoIDs             bool           `mapstructure:"no_ids" json:"no_ids"`                                     // Exclude numeric IDs from frontmatter
@@ -130,17 +134,18 @@ func DefaultConfig() *Config {
 		NoUsers:           false,
 		PathFilter:        "",
 		AssistedCrawl:     false,
-		RateLimit:         0,      // No rate limiting by default
-		Resume:            false,  // Don't resume by default
-		CrawlContent:      false,  // Don't crawl empty content by default
-		SkipEmptyContent:  false,  // Don't skip empty content by default
-		FlatHTML:          false,  // Don't flatten HTML by default
-		NoTags:            false,  // Don't skip tags by default
-		Cache:             false,  // Caching disabled by default
-		CacheTTL:          "24h",  // 24 hour cache TTL by default
-		CacheDir:          "",     // Will default to ~/.wpexporter/cache
-		CacheClear:        false,  // Don't clear cache by default
-		MediaPathStyle:    "root", // Root-relative media paths resolve from any URL depth
+		RateLimit:         0,          // No rate limiting by default
+		Resume:            false,      // Don't resume by default
+		CrawlContent:      false,      // Don't crawl empty content by default
+		SkipEmptyContent:  false,      // Don't skip empty content by default
+		FlatHTML:          false,      // Don't flatten HTML by default
+		NoTags:            false,      // Don't skip tags by default
+		Cache:             false,      // Caching disabled by default
+		CacheTTL:          "24h",      // 24 hour cache TTL by default
+		CacheDir:          "",         // Will default to ~/.wpexporter/cache
+		CacheClear:        false,      // Don't clear cache by default
+		MediaPathStyle:    "root",     // Root-relative media paths resolve from any URL depth
+		LinkStyle:         "absolute", // Addresses of the source site stay absolute unless asked otherwise
 	}
 }
 
@@ -318,6 +323,10 @@ func (c *Config) Validate() error {
 
 	if c.MediaPathStyle != "" && c.MediaPathStyle != "root" && c.MediaPathStyle != "relative" {
 		return fmt.Errorf("media_path_style must be one of: root, relative")
+	}
+
+	if c.LinkStyle != "" && c.LinkStyle != "absolute" && c.LinkStyle != "root" {
+		return fmt.Errorf("link_style must be one of: absolute, root")
 	}
 
 	return nil

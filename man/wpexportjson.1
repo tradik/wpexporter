@@ -66,6 +66,13 @@ Form of rewritten media paths in exported content:
 (default) emits root\-relative paths such as \fI/media/images/123_photo.jpg\fR, which resolve identically from any URL depth;
 .B relative
 emits \fImedia/images/123_photo.jpg\fR, correct only for content served from the site root (pre\-1.7.9 behaviour).
+.TP
+.BR \-\-link\-style " " \fISTYLE\fR
+Form of the address fields \fBlink\fR, \fBcanonical_url\fR and \fBhreflangs\fR:
+.B absolute
+(default) keeps the source URL;
+.B root
+emits a root\-relative path such as \fI/2010/07/21/389/\fR, which preserves each URL (and its search ranking) when the site is rebuilt at the same paths on a new host. Only same\-host addresses are converted; an alternate or canonical on a different host is left untouched.
 .SS "HTML Processing"
 .TP
 .BR \-\-flat\-html

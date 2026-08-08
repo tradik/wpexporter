@@ -878,6 +878,33 @@ func TestValidateMediaPathStyle(t *testing.T) {
 	}
 }
 
+// TestValidateLinkStyle ensures only the documented link styles are accepted.
+func TestValidateLinkStyle(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.URL = "https://example.com"
+	cfg.Output = "out"
+
+	for _, style := range []string{"absolute", "root", ""} {
+		cfg.LinkStyle = style
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("Validate() rejected link_style %q: %v", style, err)
+		}
+	}
+
+	cfg.LinkStyle = "relative"
+	if err := cfg.Validate(); err == nil {
+		t.Error("Validate() should reject link_style relative")
+	}
+}
+
+// TestDefaultConfigLinkStyle pins the default: addresses of the source site stay
+// absolute unless the operator asks otherwise.
+func TestDefaultConfigLinkStyle(t *testing.T) {
+	if got := DefaultConfig().LinkStyle; got != "absolute" {
+		t.Errorf("DefaultConfig().LinkStyle = %q, want absolute", got)
+	}
+}
+
 // TestDefaultConfigMediaPathStyle pins the default to root-relative paths, which
 // resolve identically from any URL depth.
 func TestDefaultConfigMediaPathStyle(t *testing.T) {

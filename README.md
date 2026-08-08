@@ -288,6 +288,7 @@ wpexportjson export --config config.yaml
 <tr><td><code>--relevant-media-only</code></td><td>Download only featured images and media linked in content (images, PDFs, videos, etc.)</td><td><code>false</code></td></tr>
 <tr><td><code>--exclude-media-types</code></td><td>Media types to skip (comma-separated: images,videos,audio,documents,archives,pdf,gif)</td><td>-</td></tr>
 <tr><td><code>--media-path-style</code></td><td>Form of rewritten media paths: <code>root</code> (<code>/media/…</code>, resolves at any URL depth) or <code>relative</code> (<code>media/…</code>)</td><td><code>root</code></td></tr>
+<tr><td><code>--link-style</code></td><td>Form of <code>link</code>/<code>canonical_url</code>/<code>hreflangs</code>: <code>absolute</code> (source URL) or <code>root</code> (root-relative path)</td><td><code>absolute</code></td></tr>
 <tr><td><code>--concurrent</code></td><td>Concurrent downloads</td><td><code>5</code></td></tr>
 <tr><td><code>--zip</code></td><td>Create ZIP archive of export</td><td><code>false</code></td></tr>
 <tr><td><code>--no-files</code></td><td>Remove export files after creating ZIP (requires --zip)</td><td><code>false</code></td></tr>
@@ -889,9 +890,28 @@ imports media from the live site).
 | `excerpt` | ✅ | assets |
 | `featured_image` | ✅ | asset |
 | `og_image` | ✅ *when it resolves* | asset — but an og:image on a CDN or third-party host isn't a downloaded attachment, so it stays absolute |
-| `canonical_url` | ❌ | address of the source site, not an asset — a consumer needs it to derive the target URL |
-| `link` | ❌ | as above |
-| `hreflangs[].href` | ❌ | as above |
+| `canonical_url` | ⚙️ `--link-style` | address of the source site, not an asset |
+| `link` | ⚙️ `--link-style` | as above |
+| `hreflangs[].href` | ⚙️ `--link-style` | as above |
+
+### 🔗 Address Fields: `--link-style`
+
+`link`, `canonical_url` and `hreflangs[].href` are **addresses of the source site, not assets**, so
+they are governed separately from media:
+
+| Value | Emitted | When to use |
+|-------|---------|-------------|
+| `absolute` *(default)* | `https://example.com/2010/07/21/389/` | You need the original URL — to derive the target URL yourself, or because the old site stays up |
+| `root` | `/2010/07/21/389/` | You are rebuilding the site **at the same paths**. Preserves each URL (and its search ranking) on the new host without pinning content to the old one |
+
+```bash
+# Rebuilding at the same paths on a new host
+wpexportjson export --url https://example.com -f markdown --link-style root
+```
+
+Only **same-host** addresses are converted. An hreflang alternate or canonical pointing at a
+different host keeps pointing where it points. Query strings and fragments are preserved
+(`/a/?page=2#top`).
 
 ### 📷 Size Variants
 

@@ -34,6 +34,12 @@ relevant_media_only: false
 # - relative: "media/images/123_photo.jpg"  - only correct at the site root
 media_path_style: "root"
 
+# Form of the address fields link / canonical_url / hreflangs (json/markdown formats)
+# - absolute: "https://example.com/2010/07/21/389/" - keeps the source URL (default)
+# - root:     "/2010/07/21/389/"                    - for rebuilding at the same paths
+# Only same-host addresses are converted; foreign hosts are left untouched.
+link_style: "absolute"
+
 # Preserve original WordPress URLs instead of rewriting them to local paths
 keep_original_urls: false
 
