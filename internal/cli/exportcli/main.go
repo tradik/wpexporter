@@ -80,6 +80,7 @@ var (
 	skipEmptyContent  bool
 	flatHTML          bool
 	basicHTML         bool
+	ssgSections       bool
 	keepOriginalURLs  bool
 	mediaPathStyle    string
 	linkStyle         string
@@ -205,6 +206,8 @@ func init() {
 	exportCmd.Flags().BoolVar(&skipEmptyContent, "skip-empty-content", false, "skip posts/pages with empty content")
 	exportCmd.Flags().BoolVar(&flatHTML, "flat-html", false, "convert HTML to Markdown (Bricks Builder support)")
 	exportCmd.Flags().BoolVar(&basicHTML, "basic-html", false, "clean HTML to basic elements (tables, lists, links - for Shopify)")
+	exportCmd.Flags().BoolVar(&ssgSections, "ssg-sections", false,
+		"markdown: emit ## Excerpt/## Content sections and omit the duplicate body H1 (for ssg)")
 	exportCmd.Flags().StringVar(&preserveClasses, "preserve-classes", "",
 		"CSS classes to preserve from HTML processing (comma-separated, use with --flat-html or --basic-html)")
 	exportCmd.Flags().StringVar(&preserveIDs, "preserve-ids", "",
@@ -420,6 +423,9 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("basic-html") {
 		cfg.BasicHTML = basicHTML
+	}
+	if cmd.Flags().Changed("ssg-sections") {
+		cfg.SSGSections = ssgSections
 	}
 	if cmd.Flags().Changed("keep-original-urls") {
 		cfg.KeepOriginalURLs = keepOriginalURLs

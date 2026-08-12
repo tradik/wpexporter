@@ -71,6 +71,7 @@ type Config struct {
 	SkipEmptyContent  bool   `mapstructure:"skip_empty_content" json:"skip_empty_content"` // Skip posts/pages with empty content
 	FlatHTML          bool   `mapstructure:"flat_html" json:"flat_html"`                   // Convert HTML to Markdown
 	BasicHTML         bool   `mapstructure:"basic_html" json:"basic_html"`                 // Clean HTML to basic elements
+	SSGSections       bool   `mapstructure:"ssg_sections" json:"ssg_sections"`             // markdown: emit ## Excerpt/## Content sections
 	KeepOriginalURLs  bool   `mapstructure:"keep_original_urls" json:"keep_original_urls"` // Don't convert media URLs to local paths
 	// MediaPathStyle selects the form of rewritten media paths in exported content:
 	// "root" (/media/...) resolves from any URL depth, "relative" (media/...) only at the site root.
