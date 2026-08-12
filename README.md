@@ -325,6 +325,7 @@ wpexportjson export --config config.yaml
 <tr><td><code>--path-filter</code></td><td>Filter posts/pages by URL path pattern (e.g., /fr/arts/)</td><td>-</td></tr>
 <tr><td><code>--flat-html</code></td><td>Convert HTML to Markdown (Bricks Builder, Elementor support)</td><td><code>false</code></td></tr>
 <tr><td><code>--basic-html</code></td><td>Clean HTML to basic elements (tables, lists, links - for Shopify)</td><td><code>false</code></td></tr>
+<tr><td><code>--ssg-sections</code></td><td>Markdown: emit <code>## Excerpt</code>/<code>## Content</code> sections and omit the duplicate body H1 (for ssg)</td><td><code>false</code></td></tr>
 <tr><td><code>--preserve-classes</code></td><td>CSS classes to preserve from HTML processing (comma-separated, supports wildcards like <code>klaviyo-form-*</code>)</td><td>-</td></tr>
 <tr><td><code>--preserve-ids</code></td><td>Element IDs to preserve from HTML processing (comma-separated, supports wildcards)</td><td>-</td></tr>
 <tr><td><code>--assisted-crawl</code></td><td>Crawl URLs to extract SEO metadata (title, description, og tags)</td><td><code>false</code></td></tr>
@@ -386,6 +387,40 @@ wpexportjson export --url https://example.com --rate-limit 500 -f markdown
 # Resume interrupted export (checkpoint is saved automatically)
 wpexportjson export --url https://example.com --resume -f markdown
 ```
+
+### Site-level marketing metadata
+
+`--assisted-crawl` also reads the home page once and records the site's marketing
+wiring into `metadata.json` under `marketing`, so a migration can configure the
+target instead of re-entering it by hand:
+
+```json
+{
+  "marketing": {
+    "verification": {
+      "google-site-verification": "abc123",
+      "facebook-domain-verification": "fb456"
+    },
+    "social_profiles": {
+      "facebook": "https://facebook.com/example",
+      "instagram": "https://instagram.com/example"
+    },
+    "og_site_name": "Example Site",
+    "og_image": "https://example.com/wp-content/uploads/2024/05/social.jpg",
+    "twitter_site": "@example",
+    "favicon": "https://example.com/favicon-192x192.png",
+    "apple_touch_icon": "https://example.com/apple-touch-icon.png",
+    "theme_color": "#0f172a"
+  }
+}
+```
+
+Favicon, apple-touch-icon and logo are read from the document's `<link rel=...>`
+tags (the largest declared favicon size wins), social profiles from `<header>` and
+`<footer>` links, and relative paths are resolved to absolute URLs. Everything is
+best-effort: a value the site does not declare is omitted rather than invented.
+Tracking identifiers (GA4, GTM, Meta Pixel, Hotjar, Clarity, …) are recorded
+separately under `analytics`.
 
 ## Resume / Checkpoint Feature
 

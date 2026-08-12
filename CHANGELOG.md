@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.1] - 2026-08-13
+
+Markdown/SSG export fixes reported while migrating live sites, plus site-level
+marketing metadata. Closes #19, #20, #21, #22, #23, #24.
+
+### Added
+- **Site-level marketing metadata (#24)**, written to `metadata.json` under
+  `marketing` when `--assisted-crawl` is used. The crawler fetches the home page once
+  and records verification tokens (`google-site-verification`,
+  `facebook-domain-verification`, `msvalidate.01`, `yandex-verification`, …), social
+  defaults (`og:site_name`, default `og:image`, `twitter:site`), social profile links
+  found in `<header>`/`<footer>` keyed by network, brand assets (favicon — largest
+  declared size wins, apple-touch-icon, logo) and `theme-color`. Relative references
+  resolve against the page, so the values are usable without knowing the source host.
+  Best-effort throughout: an undeclared field is omitted, never invented. The same
+  fetch also feeds analytics detection, so a GTM container present only on the home
+  page is no longer missed.
+- **`--ssg-sections` (#20)** for `-f markdown`: emits `## Excerpt` / `## Content`
+  body markers — which is what ssg's parser reads — and omits the leading `# Title`
+  H1 that otherwise duplicates the frontmatter title. The frontmatter `excerpt:` key
+  is kept for other consumers. Default output is unchanged.
+
+### Fixed
+- **Orphaned Gutenberg block tags in markdown (#21).** The converter matched literal
+  `<h2>`/`<p>`/`<ul>` only, so `<h2 class="wp-block-heading">` and friends kept their
+  opening tag while their closing tag was stripped — every CommonMark renderer then
+  treated the line as raw HTML and printed the `**` and `- ` markers literally. Block
+  conversion is now attribute-aware. Self-contained elements (`<img>`, `<figure>`,
+  `<a>`) are still passed through as complete HTML, which is valid in Markdown and
+  what the SSG format and the media rewriter expect.
+- **Entities in frontmatter text fields (#23).** `title.rendered` is rendered HTML and
+  legitimately contains entities (`Domowe Kino &#8211; Warszawa`), which consumers put
+  verbatim into `<title>`, meta descriptions and feeds. Title, author and taxonomy
+  names are now flattened to plain text (excerpt already was), and the body H1 decodes
+  too.
+- **In-content images missed by `--relevant-media-only` (#22).** `data.Media` feeds
+  both the downloader and the URL-rewriter index, so an image the filter failed to
+  recognize was neither downloaded nor rewritable and kept its absolute
+  `wp-content` URL. The filter now also reads `srcset` and `data-src` (Gutenberg
+  figures, lazy-loading themes), and matches size/`-scaled`-insensitively, so content
+  embedding `photo-1024x768.jpg` matches an attachment whose `source_url` is
+  `photo-scaled.jpg`. The rewriter additionally indexes the un-`-scaled` name.
+- **Snap exports to `/tmp` silently vanished (#19).** A strictly confined snap gets a
+  private `/tmp`, so `-o /tmp/...` wrote a complete export into
+  `/tmp/snap-private-tmp/snap.wpexporter/tmp/...` — root-owned and invisible — while
+  reporting success. The run now fails before the export starts, naming the real
+  destination and suggesting a path under `$HOME`.
+
 ## [1.8.0] - 2026-08-08
 
 ### Added
