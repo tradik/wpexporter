@@ -620,6 +620,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
+	// Fail before the export rather than after: a snap writing to /tmp reports
+	// success into a private namespace the user cannot reach (issue #19).
+	if err := snapPrivateTmpError(cfg.Output); err != nil {
+		return err
+	}
+
 	// Check output directory permissions before starting expensive operations
 	if err := checkOutputPermissions(cfg.Output); err != nil {
 		return fmt.Errorf("output directory check failed: %w", err)
@@ -1086,6 +1092,37 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// snapPrivateTmpError reports that a snap-confined run cannot usefully write to
+// /tmp, or nil when the combination does not apply.
+//
+// A strictly confined snap gets a private mount namespace for /tmp, so an export
+// written there lands in /tmp/snap-private-tmp/snap.<name>/tmp/... — root-owned and
+// invisible from the user's shell. Without this check the export reports success
+// and the output simply is not where it says it is (issue #19).
+func snapPrivateTmpError(outputPath string) error {
+	snapName := os.Getenv("SNAP_NAME")
+	if os.Getenv("SNAP") == "" && snapName == "" {
+		return nil // not running inside a snap
+	}
+
+	abs, err := filepath.Abs(outputPath)
+	if err != nil {
+		return nil // unresolvable path is the permission check's problem, not ours
+	}
+	if abs != "/tmp" && !strings.HasPrefix(abs, "/tmp/") {
+		return nil
+	}
+
+	if snapName == "" {
+		snapName = "wpexporter"
+	}
+
+	return fmt.Errorf(
+		"output path %q is unusable from a snap: /tmp is private to the snap, so the export would land in "+
+			"/tmp/snap-private-tmp/snap.%s/tmp and be invisible outside it.\n"+
+			"Export somewhere under your home directory instead, for example -o ~/export", abs, snapName)
 }
 
 // checkOutputPermissions verifies we can write to the output directory
