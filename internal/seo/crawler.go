@@ -778,6 +778,18 @@ func (c *Crawler) EnrichPostsWithContent(posts []models.WordPressPost) []models.
 
 // extractPageContent fetches a URL and extracts the main content from HTML
 func (c *Crawler) extractPageContent(pageURL string) string {
+	html := c.fetchHTML(pageURL)
+	if html == "" {
+		return ""
+	}
+
+	// Extract main content area
+	return c.extractMainContent(html)
+}
+
+// fetchHTML retrieves a page's HTML, or "" when it cannot be read. The body is
+// size-limited, and credentials are attached only for the configured host.
+func (c *Crawler) fetchHTML(pageURL string) string {
 	if pageURL == "" {
 		return ""
 	}
@@ -790,9 +802,7 @@ func (c *Crawler) extractPageContent(pageURL string) string {
 		return ""
 	}
 
-	// Set user agent
 	req.Header.Set("User-Agent", c.config.UserAgent)
-
 	c.applyAuth(req, pageURL)
 
 	resp, err := c.httpClient.Do(req)
@@ -813,12 +823,7 @@ func (c *Crawler) extractPageContent(pageURL string) string {
 		return ""
 	}
 
-	html := string(body)
-
-	// Extract main content area
-	content := c.extractMainContent(html)
-
-	return content
+	return string(body)
 }
 
 // extractMainContent extracts the main content from HTML

@@ -298,6 +298,13 @@ func exportMetadataJSON(data *models.ExportData) ([]byte, error) {
 		metadata["analytics"] = data.Analytics
 	}
 
+	// Site-level marketing wiring (verification tokens, social profiles and
+	// defaults, favicon/logo/theme color) so a migration can configure the target
+	// instead of re-entering it by hand (#24).
+	if data.Marketing != nil && !data.Marketing.IsEmpty() {
+		metadata["marketing"] = data.Marketing
+	}
+
 	if len(data.Menus) > 0 {
 		metadata["menus"] = data.Menus
 	}

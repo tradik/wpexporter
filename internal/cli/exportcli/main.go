@@ -758,8 +758,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 			cfg.PathFilter, len(posts), originalPosts, len(pages), originalPages)
 	}
 
-	// Tracking identifiers are a property of the site, collected while crawling.
-	var siteAnalytics *models.Analytics
+	// Tracking identifiers and marketing wiring are properties of the site rather
+	// than of any one post, collected while crawling.
+	var (
+		siteAnalytics *models.Analytics
+		siteMarketing *models.SiteMarketing
+	)
 
 	// Crawl URLs for SEO data and/or content
 	if cfg.AssistedCrawl && cfg.CrawlContent {
@@ -773,6 +777,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if len(pages) > 0 {
 			pages = crawler.EnrichPostsWithSEOAndContent(pages)
 		}
+		siteMarketing = crawler.SiteMarketing(homePageURL(siteInfo, cfg))
 		siteAnalytics = crawler.Analytics()
 		logln("SEO metadata and content extraction complete")
 	} else if cfg.AssistedCrawl {
@@ -786,6 +791,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if len(pages) > 0 {
 			pages = crawler.EnrichPostsWithSEO(pages)
 		}
+		siteMarketing = crawler.SiteMarketing(homePageURL(siteInfo, cfg))
 		siteAnalytics = crawler.Analytics()
 		logln("SEO metadata extraction complete")
 	} else if cfg.CrawlContent {
@@ -1000,6 +1006,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		Users:      users,
 		Menus:      menus,
 		Analytics:  siteAnalytics,
+		Marketing:  siteMarketing,
 		Stats: models.ExportStats{
 			TotalPosts:      len(posts),
 			TotalPages:      len(pages),
@@ -1092,6 +1099,21 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// homePageURL returns the address to read site-level marketing metadata from:
+// the site's declared home URL, falling back to the configured URL.
+func homePageURL(site *models.SiteInfo, cfg *config.Config) string {
+	if site != nil {
+		if site.HomeURL != "" {
+			return site.HomeURL
+		}
+		if site.URL != "" {
+			return site.URL
+		}
+	}
+
+	return cfg.URL
 }
 
 // snapPrivateTmpError reports that a snap-confined run cannot usefully write to
