@@ -1,6 +1,7 @@
 package media
 
 import (
+	"path"
 	"regexp"
 	"strings"
 
@@ -40,74 +41,16 @@ func (f *Filter) FilterRelevantMedia(
 	pages []models.WordPressPost,
 	allMedia []models.WordPressMedia,
 ) []models.WordPressMedia {
-	relevantIDs := make(map[int]bool)
-	relevantURLs := make(map[string]bool)
-	relevantPaths := make(map[string]bool) // Fallback matching by path suffix (e.g., "2024/01/file.pdf")
+	refs := newMediaRefs()
 
-	// Regex to extract image URLs from HTML content
-	imgPattern := regexp.MustCompile(`<img[^>]+src\s*=\s*["']([^"']+)["']`)
-	// Regex to extract link URLs from HTML content
-	linkPattern := regexp.MustCompile(`<a[^>]+href\s*=\s*["']([^"']+)["']`)
-
-	// Collect featured media IDs and content media from posts
 	for _, post := range posts {
-		if post.FeaturedMedia > 0 {
-			relevantIDs[post.FeaturedMedia] = true
-		}
-		// Extract images from <img> tags
-		urls := f.extractURLs(post.Content.Rendered, imgPattern)
-		for _, url := range urls {
-			relevantURLs[url] = true
-			relevantPaths[f.extractPathSuffix(url)] = true
-		}
-		// Extract media links from <a> tags
-		linkURLs := f.extractMediaLinks(post.Content.Rendered, linkPattern)
-		for _, url := range linkURLs {
-			relevantURLs[url] = true
-			relevantPaths[f.extractPathSuffix(url)] = true
-		}
-		// Also check excerpt
-		excerptURLs := f.extractURLs(post.Excerpt.Rendered, imgPattern)
-		for _, url := range excerptURLs {
-			relevantURLs[url] = true
-			relevantPaths[f.extractPathSuffix(url)] = true
-		}
-		excerptLinkURLs := f.extractMediaLinks(post.Excerpt.Rendered, linkPattern)
-		for _, url := range excerptLinkURLs {
-			relevantURLs[url] = true
-			relevantPaths[f.extractPathSuffix(url)] = true
-		}
+		f.collectRefs(refs, post)
+	}
+	for _, page := range pages {
+		f.collectRefs(refs, page)
 	}
 
-	// Collect featured media IDs and content media from pages
-	for _, page := range pages {
-		if page.FeaturedMedia > 0 {
-			relevantIDs[page.FeaturedMedia] = true
-		}
-		// Extract images from <img> tags
-		urls := f.extractURLs(page.Content.Rendered, imgPattern)
-		for _, url := range urls {
-			relevantURLs[url] = true
-			relevantPaths[f.extractPathSuffix(url)] = true
-		}
-		// Extract media links from <a> tags
-		linkURLs := f.extractMediaLinks(page.Content.Rendered, linkPattern)
-		for _, url := range linkURLs {
-			relevantURLs[url] = true
-			relevantPaths[f.extractPathSuffix(url)] = true
-		}
-		// Also check excerpt
-		excerptURLs := f.extractURLs(page.Excerpt.Rendered, imgPattern)
-		for _, url := range excerptURLs {
-			relevantURLs[url] = true
-			relevantPaths[f.extractPathSuffix(url)] = true
-		}
-		excerptLinkURLs := f.extractMediaLinks(page.Excerpt.Rendered, linkPattern)
-		for _, url := range excerptLinkURLs {
-			relevantURLs[url] = true
-			relevantPaths[f.extractPathSuffix(url)] = true
-		}
-	}
+	relevantIDs, relevantURLs, relevantPaths, relevantKeys := refs.ids, refs.urls, refs.paths, refs.keys
 
 	// Filter media to only include relevant items
 	var filtered []models.WordPressMedia
@@ -125,6 +68,12 @@ func (f *Filter) FilterRelevantMedia(
 		// Check if media path suffix matches (handles CDN/different domains)
 		mediaPath := f.extractPathSuffix(media.SourceURL)
 		if mediaPath != "" && relevantPaths[mediaPath] {
+			filtered = append(filtered, media)
+			continue
+		}
+		// Size/-scaled-insensitive match: content may embed photo-1024x768.jpg while
+		// the attachment's source_url is photo-scaled.jpg (#22).
+		if key := f.canonicalMediaKey(media.SourceURL); key != "" && relevantKeys[key] {
 			filtered = append(filtered, media)
 			continue
 		}
@@ -149,6 +98,107 @@ func (f *Filter) FilterRelevantMedia(
 	}
 
 	return filtered
+}
+
+// mediaRefs accumulates every way a post can point at an attachment.
+type mediaRefs struct {
+	ids   map[int]bool
+	urls  map[string]bool
+	paths map[string]bool
+	keys  map[string]bool // size/-scaled-insensitive attachment keys
+}
+
+func newMediaRefs() *mediaRefs {
+	return &mediaRefs{
+		ids:   make(map[int]bool),
+		urls:  make(map[string]bool),
+		paths: make(map[string]bool),
+		keys:  make(map[string]bool),
+	}
+}
+
+var (
+	// refImgSrcPattern matches an <img> src. Gutenberg also emits srcset and, with
+	// lazy-loading plugins, data-src — both are collected so an image embedded in a
+	// figure block is recognized however the theme wrote it (#22).
+	refImgSrcPattern  = regexp.MustCompile(`(?i)<img[^>]+\bsrc\s*=\s*["']([^"']+)["']`)
+	refDataSrcPattern = regexp.MustCompile(`(?i)<img[^>]+\bdata-src\s*=\s*["']([^"']+)["']`)
+	refSrcsetPattern  = regexp.MustCompile(`(?i)\b(?:data-)?srcset\s*=\s*["']([^"']+)["']`)
+	refLinkPattern    = regexp.MustCompile(`(?i)<a[^>]+href\s*=\s*["']([^"']+)["']`)
+)
+
+// collectRefs records every attachment reference a post carries: its featured
+// media id, plus the images and media links in its content and excerpt.
+func (f *Filter) collectRefs(refs *mediaRefs, post models.WordPressPost) {
+	if post.FeaturedMedia > 0 {
+		refs.ids[post.FeaturedMedia] = true
+	}
+
+	for _, html := range []string{post.Content.Rendered, post.Excerpt.Rendered} {
+		if html == "" {
+			continue
+		}
+		for _, pattern := range []*regexp.Regexp{refImgSrcPattern, refDataSrcPattern} {
+			f.addRefs(refs, f.extractURLs(html, pattern))
+		}
+		f.addRefs(refs, f.extractSrcsetURLs(html))
+		f.addRefs(refs, f.extractMediaLinks(html, refLinkPattern))
+	}
+}
+
+// addRefs registers each URL under every form the matcher checks.
+func (f *Filter) addRefs(refs *mediaRefs, urls []string) {
+	for _, url := range urls {
+		refs.urls[url] = true
+		if suffix := f.extractPathSuffix(url); suffix != "" {
+			refs.paths[suffix] = true
+		}
+		if key := f.canonicalMediaKey(url); key != "" {
+			refs.keys[key] = true
+		}
+	}
+}
+
+// extractSrcsetURLs pulls every candidate URL out of the srcset attributes in
+// html. A srcset is a comma-separated list of "<url> <descriptor>" pairs.
+func (f *Filter) extractSrcsetURLs(html string) []string {
+	var urls []string
+	seen := make(map[string]bool)
+
+	for _, match := range refSrcsetPattern.FindAllStringSubmatch(html, -1) {
+		for _, candidate := range strings.Split(match[1], ",") {
+			fields := strings.Fields(candidate)
+			if len(fields) == 0 {
+				continue
+			}
+			if url := fields[0]; !seen[url] {
+				seen[url] = true
+				urls = append(urls, url)
+			}
+		}
+	}
+
+	return urls
+}
+
+// sizeOrScaledSuffix matches WordPress' generated-variant suffixes: "-1024x768"
+// for a registered size and "-scaled" for the large-upload rescale.
+var sizeOrScaledSuffix = regexp.MustCompile(`(?i)-(?:\d{1,5}x\d{1,5}|scaled)$`)
+
+// canonicalMediaKey reduces a URL to the attachment it belongs to: the uploads-path
+// suffix with any size or "-scaled" marker removed. `photo-1024x768.jpg`,
+// `photo-scaled.jpg` and `photo.jpg` therefore share one key, so an image embedded
+// at a size the media registry does not list still matches its attachment (#22).
+func (f *Filter) canonicalMediaKey(urlStr string) string {
+	suffix := f.extractPathSuffix(urlStr)
+	if suffix == "" {
+		return ""
+	}
+
+	ext := path.Ext(suffix)
+	base := strings.TrimSuffix(suffix, ext)
+
+	return sizeOrScaledSuffix.ReplaceAllString(base, "") + ext
 }
 
 // extractPathSuffix extracts the path after "uploads/" for WordPress-style matching
