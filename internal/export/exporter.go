@@ -465,7 +465,7 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 	// Front matter
 	builder.WriteString("---\n")
 	builder.WriteString(fmt.Sprintf("id: %d\n", post.ID))
-	builder.WriteString(fmt.Sprintf("title: \"%s\"\n", e.escapeYAML(post.Title.Rendered)))
+	builder.WriteString(fmt.Sprintf("title: \"%s\"\n", e.escapeYAML(plainText(post.Title.Rendered))))
 	builder.WriteString(fmt.Sprintf("slug: \"%s\"\n", post.Slug))
 	builder.WriteString(fmt.Sprintf("date: %s\n", post.Date.Format("2006-01-02T15:04:05Z07:00")))
 	builder.WriteString(fmt.Sprintf("modified: %s\n", post.Modified.Format("2006-01-02T15:04:05Z07:00")))
@@ -475,7 +475,7 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 
 	if post.Author > 0 {
 		if name, ok := e.userMap[post.Author]; ok && name != "" {
-			builder.WriteString(fmt.Sprintf("author: \"%s\"\n", e.escapeYAML(name)))
+			builder.WriteString(fmt.Sprintf("author: \"%s\"\n", e.escapeYAML(plainText(name))))
 		}
 		if !e.config.NoIDs {
 			builder.WriteString(fmt.Sprintf("author_id: %d\n", post.Author))
@@ -503,7 +503,7 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 		if len(categoryNames) > 0 {
 			builder.WriteString("categories:\n")
 			for _, name := range categoryNames {
-				builder.WriteString(fmt.Sprintf("  - \"%s\"\n", e.escapeYAML(name)))
+				builder.WriteString(fmt.Sprintf("  - \"%s\"\n", e.escapeYAML(plainText(name))))
 			}
 		}
 		// Output IDs unless --no-ids
@@ -527,7 +527,7 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 		if len(tagNames) > 0 {
 			builder.WriteString("tags:\n")
 			for _, name := range tagNames {
-				builder.WriteString(fmt.Sprintf("  - \"%s\"\n", e.escapeYAML(name)))
+				builder.WriteString(fmt.Sprintf("  - \"%s\"\n", e.escapeYAML(plainText(name))))
 			}
 		}
 		// Output IDs unless --no-ids
@@ -544,18 +544,34 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 
 	// Excerpt in frontmatter, reduced to plain text: the theme's "Continue
 	// reading" anchor is navigation rather than content and otherwise ends up in
-	// <meta name="description">.
-	if excerptText := plainTextExcerpt(post.Excerpt.Rendered); excerptText != "" {
+	// <meta name="description">. Kept even with --ssg-sections so consumers that
+	// read the frontmatter key still get it.
+	excerptText := plainTextExcerpt(post.Excerpt.Rendered)
+	if excerptText != "" {
 		builder.WriteString(fmt.Sprintf("excerpt: \"%s\"\n", e.escapeYAML(excerptText)))
 	}
 
 	builder.WriteString("---\n\n")
 
-	// Title
-	builder.WriteString(fmt.Sprintf("# %s\n\n", post.Title.Rendered))
+	body := e.convertHTMLToMarkdown(post.Content.Rendered)
 
-	// Content
-	builder.WriteString(e.convertHTMLToMarkdown(post.Content.Rendered))
+	if e.config.SSGSections {
+		// ssg fills page.Excerpt/page.Content from these section markers, not from
+		// the frontmatter key; the frontmatter title becomes the page heading, so a
+		// body `# Title` would render a second H1 (issue #20).
+		if excerptText != "" {
+			builder.WriteString("## Excerpt\n\n")
+			builder.WriteString(excerptText)
+			builder.WriteString("\n\n")
+		}
+		builder.WriteString("## Content\n\n")
+		builder.WriteString(body)
+	} else {
+		// Title as a leading H1 for plain-Markdown consumers; entities decoded so
+		// the heading renders text, not `&#8211;` (issue #23).
+		builder.WriteString(fmt.Sprintf("# %s\n\n", plainText(post.Title.Rendered)))
+		builder.WriteString(body)
+	}
 
 	return builder.String()
 }
@@ -689,68 +705,12 @@ func (e *Exporter) escapeYAML(s string) string {
 	return s
 }
 
-// convertHTMLToMarkdown performs basic HTML to Markdown conversion
+// convertHTMLToMarkdown converts a post's rendered HTML to Markdown. The
+// implementation lives in htmlToMarkdown (markdown.go); it is attribute-aware and
+// strips any leftover tags so Gutenberg block markup does not survive half-converted
+// (issue #21).
 func (e *Exporter) convertHTMLToMarkdown(html string) string {
-	// Basic HTML to Markdown conversion
-	// This is a simplified version - for production use, consider using a proper HTML to Markdown library
-
-	md := html
-
-	// Headers
-	md = strings.ReplaceAll(md, "<h1>", "# ")
-	md = strings.ReplaceAll(md, "</h1>", "\n\n")
-	md = strings.ReplaceAll(md, "<h2>", "## ")
-	md = strings.ReplaceAll(md, "</h2>", "\n\n")
-	md = strings.ReplaceAll(md, "<h3>", "### ")
-	md = strings.ReplaceAll(md, "</h3>", "\n\n")
-	md = strings.ReplaceAll(md, "<h4>", "#### ")
-	md = strings.ReplaceAll(md, "</h4>", "\n\n")
-	md = strings.ReplaceAll(md, "<h5>", "##### ")
-	md = strings.ReplaceAll(md, "</h5>", "\n\n")
-	md = strings.ReplaceAll(md, "<h6>", "###### ")
-	md = strings.ReplaceAll(md, "</h6>", "\n\n")
-
-	// Bold and italic
-	md = strings.ReplaceAll(md, "<strong>", "**")
-	md = strings.ReplaceAll(md, "</strong>", "**")
-	md = strings.ReplaceAll(md, "<b>", "**")
-	md = strings.ReplaceAll(md, "</b>", "**")
-	md = strings.ReplaceAll(md, "<em>", "*")
-	md = strings.ReplaceAll(md, "</em>", "*")
-	md = strings.ReplaceAll(md, "<i>", "*")
-	md = strings.ReplaceAll(md, "</i>", "*")
-
-	// Paragraphs
-	md = strings.ReplaceAll(md, "<p>", "")
-	md = strings.ReplaceAll(md, "</p>", "\n\n")
-
-	// Line breaks
-	md = strings.ReplaceAll(md, "<br>", "\n")
-	md = strings.ReplaceAll(md, "<br/>", "\n")
-	md = strings.ReplaceAll(md, "<br />", "\n")
-
-	// Lists
-	md = strings.ReplaceAll(md, "<ul>", "")
-	md = strings.ReplaceAll(md, "</ul>", "\n")
-	md = strings.ReplaceAll(md, "<ol>", "")
-	md = strings.ReplaceAll(md, "</ol>", "\n")
-	md = strings.ReplaceAll(md, "<li>", "- ")
-	md = strings.ReplaceAll(md, "</li>", "\n")
-
-	// Code
-	md = strings.ReplaceAll(md, "<code>", "`")
-	md = strings.ReplaceAll(md, "</code>", "`")
-	md = strings.ReplaceAll(md, "<pre>", "```\n")
-	md = strings.ReplaceAll(md, "</pre>", "\n```")
-
-	// Clean up extra whitespace
-	md = strings.ReplaceAll(md, "\n\n\n", "\n\n")
-	md = strings.TrimSpace(md)
-
-	// The exported file is UTF-8, so typographic entities are noise that would
-	// otherwise survive into the rendered page. The HTML-significant ones stay
-	// encoded — decoding them would turn escaped markup into live markup.
-	return decodeTypographicEntities(md)
+	return htmlToMarkdown(html)
 }
 
 // exportShopify exports data as Shopify-compatible CSV

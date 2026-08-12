@@ -138,6 +138,13 @@ func (d *Downloader) buildURLIndex(mediaItems []models.WordPressMedia) *urlIndex
 		localPath := d.localMediaPath(d.generateFilename(media, parsedURL))
 		index.add(key, localPath, toInt(media.MediaDetails.Width))
 
+		// WordPress rescales large uploads and reports the "-scaled" file as
+		// source_url, while content often embeds the original name. Index that name
+		// too, or the in-content URL resolves to nothing and stays absolute (#22).
+		if unscaled := stripScaledSuffix(key); unscaled != key {
+			index.add(unscaled, localPath, toInt(media.MediaDetails.Width))
+		}
+
 		for _, size := range media.MediaDetails.Sizes {
 			if size.SourceURL == "" {
 				continue
@@ -154,6 +161,24 @@ func (d *Downloader) buildURLIndex(mediaItems []models.WordPressMedia) *urlIndex
 	}
 
 	return index
+}
+
+// scaledSuffixPattern matches the "-scaled" marker WordPress appends when it
+// rescales an oversized upload.
+var scaledSuffixPattern = regexp.MustCompile(`(?i)-scaled$`)
+
+// stripScaledSuffix returns key with a trailing "-scaled" removed from the stem,
+// or key unchanged when there is none.
+func stripScaledSuffix(key string) string {
+	ext := path.Ext(key)
+	stem := strings.TrimSuffix(key, ext)
+
+	stripped := scaledSuffixPattern.ReplaceAllString(stem, "")
+	if stripped == stem {
+		return key
+	}
+
+	return stripped + ext
 }
 
 // add records one rendition under both its exact path and its size-stripped base.

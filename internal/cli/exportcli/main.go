@@ -80,6 +80,7 @@ var (
 	skipEmptyContent  bool
 	flatHTML          bool
 	basicHTML         bool
+	ssgSections       bool
 	keepOriginalURLs  bool
 	mediaPathStyle    string
 	linkStyle         string
@@ -205,6 +206,8 @@ func init() {
 	exportCmd.Flags().BoolVar(&skipEmptyContent, "skip-empty-content", false, "skip posts/pages with empty content")
 	exportCmd.Flags().BoolVar(&flatHTML, "flat-html", false, "convert HTML to Markdown (Bricks Builder support)")
 	exportCmd.Flags().BoolVar(&basicHTML, "basic-html", false, "clean HTML to basic elements (tables, lists, links - for Shopify)")
+	exportCmd.Flags().BoolVar(&ssgSections, "ssg-sections", false,
+		"markdown: emit ## Excerpt/## Content sections and omit the duplicate body H1 (for ssg)")
 	exportCmd.Flags().StringVar(&preserveClasses, "preserve-classes", "",
 		"CSS classes to preserve from HTML processing (comma-separated, use with --flat-html or --basic-html)")
 	exportCmd.Flags().StringVar(&preserveIDs, "preserve-ids", "",
@@ -421,6 +424,9 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	if cmd.Flags().Changed("basic-html") {
 		cfg.BasicHTML = basicHTML
 	}
+	if cmd.Flags().Changed("ssg-sections") {
+		cfg.SSGSections = ssgSections
+	}
 	if cmd.Flags().Changed("keep-original-urls") {
 		cfg.KeepOriginalURLs = keepOriginalURLs
 	}
@@ -614,6 +620,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
+	// Fail before the export rather than after: a snap writing to /tmp reports
+	// success into a private namespace the user cannot reach (issue #19).
+	if err := snapPrivateTmpError(cfg.Output); err != nil {
+		return err
+	}
+
 	// Check output directory permissions before starting expensive operations
 	if err := checkOutputPermissions(cfg.Output); err != nil {
 		return fmt.Errorf("output directory check failed: %w", err)
@@ -746,8 +758,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 			cfg.PathFilter, len(posts), originalPosts, len(pages), originalPages)
 	}
 
-	// Tracking identifiers are a property of the site, collected while crawling.
-	var siteAnalytics *models.Analytics
+	// Tracking identifiers and marketing wiring are properties of the site rather
+	// than of any one post, collected while crawling.
+	var (
+		siteAnalytics *models.Analytics
+		siteMarketing *models.SiteMarketing
+	)
 
 	// Crawl URLs for SEO data and/or content
 	if cfg.AssistedCrawl && cfg.CrawlContent {
@@ -761,6 +777,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if len(pages) > 0 {
 			pages = crawler.EnrichPostsWithSEOAndContent(pages)
 		}
+		siteMarketing = crawler.SiteMarketing(homePageURL(siteInfo, cfg))
 		siteAnalytics = crawler.Analytics()
 		logln("SEO metadata and content extraction complete")
 	} else if cfg.AssistedCrawl {
@@ -774,6 +791,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if len(pages) > 0 {
 			pages = crawler.EnrichPostsWithSEO(pages)
 		}
+		siteMarketing = crawler.SiteMarketing(homePageURL(siteInfo, cfg))
 		siteAnalytics = crawler.Analytics()
 		logln("SEO metadata extraction complete")
 	} else if cfg.CrawlContent {
@@ -988,6 +1006,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		Users:      users,
 		Menus:      menus,
 		Analytics:  siteAnalytics,
+		Marketing:  siteMarketing,
 		Stats: models.ExportStats{
 			TotalPosts:      len(posts),
 			TotalPages:      len(pages),
@@ -1080,6 +1099,52 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// homePageURL returns the address to read site-level marketing metadata from:
+// the site's declared home URL, falling back to the configured URL.
+func homePageURL(site *models.SiteInfo, cfg *config.Config) string {
+	if site != nil {
+		if site.HomeURL != "" {
+			return site.HomeURL
+		}
+		if site.URL != "" {
+			return site.URL
+		}
+	}
+
+	return cfg.URL
+}
+
+// snapPrivateTmpError reports that a snap-confined run cannot usefully write to
+// /tmp, or nil when the combination does not apply.
+//
+// A strictly confined snap gets a private mount namespace for /tmp, so an export
+// written there lands in /tmp/snap-private-tmp/snap.<name>/tmp/... — root-owned and
+// invisible from the user's shell. Without this check the export reports success
+// and the output simply is not where it says it is (issue #19).
+func snapPrivateTmpError(outputPath string) error {
+	snapName := os.Getenv("SNAP_NAME")
+	if os.Getenv("SNAP") == "" && snapName == "" {
+		return nil // not running inside a snap
+	}
+
+	abs, err := filepath.Abs(outputPath)
+	if err != nil {
+		return nil // unresolvable path is the permission check's problem, not ours
+	}
+	if abs != "/tmp" && !strings.HasPrefix(abs, "/tmp/") {
+		return nil
+	}
+
+	if snapName == "" {
+		snapName = "wpexporter"
+	}
+
+	return fmt.Errorf(
+		"output path %q is unusable from a snap: /tmp is private to the snap, so the export would land in "+
+			"/tmp/snap-private-tmp/snap.%s/tmp and be invisible outside it.\n"+
+			"Export somewhere under your home directory instead, for example -o ~/export", abs, snapName)
 }
 
 // checkOutputPermissions verifies we can write to the output directory

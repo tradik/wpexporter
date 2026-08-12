@@ -86,6 +86,39 @@ type SEOData struct {
 // Analytics holds tracking identifiers found in a site's pages. They are a
 // property of the site rather than of any one post, and an operator rebuilding
 // elsewhere needs them to carry the same measurement over.
+// SiteMarketing carries the site-level SEO/marketing wiring a migration has to
+// re-create: search-console ownership proofs, social identity and defaults, and
+// the brand assets a target platform asks for. Everything is best-effort — a field
+// absent from the home page is omitted rather than invented.
+type SiteMarketing struct {
+	// Verification holds ownership-proof tokens keyed by their meta name, e.g.
+	// "google-site-verification", "facebook-domain-verification", "msvalidate.01",
+	// "yandex-verification".
+	Verification map[string]string `json:"verification,omitempty"`
+	// SocialProfiles lists profile URLs found in the page's header/footer, keyed by
+	// network ("facebook", "instagram", "linkedin", "youtube", "x", "tiktok").
+	SocialProfiles map[string]string `json:"social_profiles,omitempty"`
+	// OGSiteName, OGImage and TwitterSite are the site-wide social defaults.
+	OGSiteName  string `json:"og_site_name,omitempty"`
+	OGImage     string `json:"og_image,omitempty"`
+	TwitterSite string `json:"twitter_site,omitempty"`
+	// Favicon, AppleTouchIcon and Logo are brand assets declared in the document
+	// head (<link rel="icon">, <link rel="apple-touch-icon">, JSON-LD/og logo).
+	Favicon        string `json:"favicon,omitempty"`
+	AppleTouchIcon string `json:"apple_touch_icon,omitempty"`
+	Logo           string `json:"logo,omitempty"`
+	// ThemeColor is the browser UI color declared by <meta name="theme-color">.
+	ThemeColor string `json:"theme_color,omitempty"`
+}
+
+// IsEmpty reports whether nothing was detected, so the export can omit the object
+// rather than emit one full of empty fields.
+func (m SiteMarketing) IsEmpty() bool {
+	return len(m.Verification) == 0 && len(m.SocialProfiles) == 0 &&
+		m.OGSiteName == "" && m.OGImage == "" && m.TwitterSite == "" &&
+		m.Favicon == "" && m.AppleTouchIcon == "" && m.Logo == "" && m.ThemeColor == ""
+}
+
 type Analytics struct {
 	GA4                 []string `json:"ga4,omitempty"`                   // G-XXXXXXXXXX
 	UniversalAnalytics  []string `json:"universal_analytics,omitempty"`   // UA-XXXXXX-Y
@@ -288,6 +321,7 @@ type ExportData struct {
 	Users      []WordPressUser      `json:"users"`
 	Menus      []WordPressMenu      `json:"menus,omitempty"`
 	Analytics  *Analytics           `json:"analytics,omitempty"`
+	Marketing  *SiteMarketing       `json:"marketing,omitempty"`
 	ExportedAt time.Time            `json:"exported_at"`
 	Stats      ExportStats          `json:"stats"`
 }
