@@ -36,7 +36,7 @@ var builtinTypes = map[string]bool{
 }
 
 // bookkeepingPrefixes mark types a plugin registers to store its own settings
-// rather than the site's content. Their entries are serialised configuration,
+// rather than the site's content. Their entries are serialized configuration,
 // not something a visitor ever read.
 var bookkeepingPrefixes = []string{
 	"elementor_", "rank_math_", "aam_", "rm_", "wpforms_", "acf-", "jet-",

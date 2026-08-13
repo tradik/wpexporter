@@ -111,7 +111,7 @@ type SiteMarketing struct {
 	ThemeColor string `json:"theme_color,omitempty"`
 	// Colors is the theme's palette by role ("primary", "secondary", "accent",
 	// "text", "background", "link"), read from the CSS custom properties the
-	// page declares. A migration that carries the content and loses the colours
+	// page declares. A migration that carries the content and loses the colors
 	// arrives in the target's defaults; these are what the site actually used
 	// (#27).
 	Colors map[string]string `json:"colors,omitempty"`

@@ -24,7 +24,7 @@ const typesResponse = `{
   "no_rest_base":      {"slug":"no_rest_base","name":"Hidden"}
 }`
 
-func newTestClient(t *testing.T, handler http.HandlerFunc) (*Client, *httptest.Server) {
+func newTestClient(t *testing.T, handler http.HandlerFunc) *Client {
 	t.Helper()
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
@@ -32,11 +32,11 @@ func newTestClient(t *testing.T, handler http.HandlerFunc) (*Client, *httptest.S
 	if err != nil {
 		t.Fatal(err)
 	}
-	return client, server
+	return client
 }
 
 func TestGetPostTypes(t *testing.T) {
-	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/wp-json/wp/v2/types" {
 			t.Errorf("unexpected path %s", r.URL.Path)
 		}
@@ -67,14 +67,14 @@ func TestGetPostTypes(t *testing.T) {
 }
 
 func TestGetPostTypes_Errors(t *testing.T) {
-	client, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+	client := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 	})
 	if _, err := client.GetPostTypes(); err == nil {
 		t.Error("a non-200 response must be an error")
 	}
 
-	client, _ = newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+	client = newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("not json"))
 	})
 	if _, err := client.GetPostTypes(); err == nil {
@@ -83,7 +83,7 @@ func TestGetPostTypes_Errors(t *testing.T) {
 }
 
 func TestCustomPostTypes(t *testing.T) {
-	client, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+	client := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(typesResponse))
 	})
 	types, err := client.GetPostTypes()
@@ -115,7 +115,7 @@ func TestCustomPostTypes(t *testing.T) {
 
 func TestGetCustomPosts(t *testing.T) {
 	calls := 0
-	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		if r.URL.Query().Get("page") == "1" {
 			_, _ = w.Write([]byte(`[{"id":1,"slug":"wms","title":{"rendered":"WMS"}}]`))
@@ -137,7 +137,7 @@ func TestGetCustomPosts(t *testing.T) {
 }
 
 func TestGetCustomPosts_Error(t *testing.T) {
-	client, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+	client := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	})
 	if _, err := client.GetCustomPosts("cpt_services"); err == nil {

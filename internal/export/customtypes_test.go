@@ -109,7 +109,7 @@ func TestCustomTypesAreLocalizedLikePages(t *testing.T) {
 	data.CustomTypes[0].Posts[0].Content.Rendered =
 		`<img src="https://magnavalor.eu/wp-content/uploads/2024/03/wms.jpg">`
 
-	// The export's own host, so the address fields are recognised as same-site.
+	// The export's own host, so the address fields are recognized as same-site.
 	cfg := &config.Config{
 		URL: "https://magnavalor.eu", Output: tmpDir, Format: "ssg",
 		DownloadMedia: true, LinkStyle: "root",

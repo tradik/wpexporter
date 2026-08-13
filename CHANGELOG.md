@@ -52,6 +52,20 @@ colours, and pages whose markup rendered as visible text. Closes #26, #27, #28.
   Content already exported with an older version can be repaired in place with
   `ssg repair --fix` (ssg 1.8.31+), which reports the same defect during every
   build.
+- **The snap reported the wrong version.** `wpexporter --version` inside the 1.8.1
+  snap printed `1.8.0`. The snap build stamped `-X main.Version=…`, but 1.8.0 moved
+  the build identity to `internal/version` and left the commands as thin wrappers
+  that no longer declare `Version` — and the linker ignores `-X` for a symbol that
+  does not exist, silently and without an error, so every snap since 1.8.0 shipped
+  whatever default that package carried. The package version was always correct
+  (`snap list` showed 1.8.1); only the binary's self-report was stale. Release
+  tarballs and Homebrew were unaffected — they build through the Makefile, which
+  already stamped the right package.
+
+  The Docker image now stamps its binaries too; previously it passed no version
+  flags at all. A test asserts that every build file stamps `internal/version` and
+  that the package default matches the `VERSION` file, since neither half of this
+  failure produces a build error.
 
 ## [1.8.1] - 2026-08-13
 

@@ -64,7 +64,7 @@ func TestExtractPalette_IgnoresNonColours(t *testing.T) {
 		t.Errorf("short hex should survive, got %q", palette["background"])
 	}
 	if palette["link"] != "rgba(12, 34, 56, 0.5)" {
-		t.Errorf("functional colour should survive, got %q", palette["link"])
+		t.Errorf("functional color should survive, got %q", palette["link"])
 	}
 }
 
@@ -93,11 +93,11 @@ func TestExtractPalette_NothingDeclared(t *testing.T) {
 	if palette := ExtractPalette("<html><head></head></html>"); palette != nil {
 		t.Errorf("a page with no stylesheet should yield nothing, got %v", palette)
 	}
-	// Custom properties that are not colours at all: still nothing.
+	// Custom properties that are not colors at all: still nothing.
 	if palette := ExtractPalette(`<style>:root{--gap: 12px;}</style>`); palette != nil {
-		t.Errorf("non-colour properties should yield nothing, got %v", palette)
+		t.Errorf("non-color properties should yield nothing, got %v", palette)
 	}
-	// Colour properties under names no role maps to: still nothing.
+	// Color properties under names no role maps to: still nothing.
 	if palette := ExtractPalette(`<style>:root{--sidebar-shadow: #010203;}</style>`); palette != nil {
 		t.Errorf("unmapped names should yield nothing, got %v", palette)
 	}
