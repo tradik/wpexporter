@@ -35,6 +35,10 @@ func (e *Exporter) exportSSG(data *models.ExportData) error {
 		return fmt.Errorf("failed to export pages: %w", err)
 	}
 
+	if err := e.exportSSGCustomTypes(data.CustomTypes); err != nil {
+		return fmt.Errorf("failed to export custom post types: %w", err)
+	}
+
 	if err := e.exportMetadata(data); err != nil {
 		return fmt.Errorf("failed to export metadata: %w", err)
 	}
@@ -74,22 +78,51 @@ func (e *Exporter) exportSSGPosts(data *models.ExportData) error {
 // keeps the site's information architecture visible in the file tree.
 func (e *Exporter) exportSSGPages(pages []models.WordPressPost) error {
 	for _, page := range pages {
-		nested := pageURLPath(page)
-
-		dir := filepath.Join(e.config.Output, "pages")
-		filename := e.generateMarkdownFilename(page)
-
-		if len(nested) > 0 {
-			dir = filepath.Join(dir, filepath.FromSlash(path.Join(nested[:len(nested)-1]...)))
-			filename = nested[len(nested)-1] + ".md"
-		}
-
+		dir, filename := ssgPageLocation(e.config.Output, page, e.generateMarkdownFilename(page))
 		if err := e.writeSSGDocument(page, dir, filename, "page"); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// exportSSGCustomTypes writes a theme's own content types alongside the pages,
+// nested by their published URL exactly as pages are (#28).
+//
+// They land under pages/ rather than in a directory of their own because that
+// is where a generator looks for URL-addressable content, and their SEO-visible
+// addresses are the whole point of carrying them over: /services/wms/ stays
+// /services/wms/. The document keeps its WordPress type in front matter, so a
+// theme can still tell a Service from a Page.
+func (e *Exporter) exportSSGCustomTypes(sets []models.CustomTypeSet) error {
+	for _, set := range sets {
+		for _, entry := range set.Posts {
+			dir, filename := ssgPageLocation(e.config.Output, entry, e.generateMarkdownFilename(entry))
+			if err := e.writeSSGDocument(entry, dir, filename, set.Slug); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// ssgPageLocation resolves the directory and filename that mirror a document's
+// published URL. Shared by pages and custom post types, which are addressed the
+// same way.
+func ssgPageLocation(output string, post models.WordPressPost, defaultName string) (dir, filename string) {
+	nested := pageURLPath(post)
+
+	dir = filepath.Join(output, "pages")
+	filename = defaultName
+
+	if len(nested) > 0 {
+		dir = filepath.Join(dir, filepath.FromSlash(path.Join(nested[:len(nested)-1]...)))
+		filename = nested[len(nested)-1] + ".md"
+	}
+
+	return dir, filename
 }
 
 // pageURLPath splits a page's link into its path segments, falling back to the
@@ -307,6 +340,13 @@ func exportMetadataJSON(data *models.ExportData) ([]byte, error) {
 
 	if len(data.Menus) > 0 {
 		metadata["menus"] = data.Menus
+	}
+
+	// Which content types the site publishes beyond posts and pages, and what
+	// each holds. A consumer reading only metadata.json still learns that a
+	// Services section exists (#28).
+	if len(data.CustomTypes) > 0 {
+		metadata["custom_types"] = data.CustomTypes
 	}
 
 	return json.MarshalIndent(metadata, "", "  ")

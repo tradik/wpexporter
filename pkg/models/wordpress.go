@@ -109,12 +109,18 @@ type SiteMarketing struct {
 	Logo           string `json:"logo,omitempty"`
 	// ThemeColor is the browser UI color declared by <meta name="theme-color">.
 	ThemeColor string `json:"theme_color,omitempty"`
+	// Colors is the theme's palette by role ("primary", "secondary", "accent",
+	// "text", "background", "link"), read from the CSS custom properties the
+	// page declares. A migration that carries the content and loses the colours
+	// arrives in the target's defaults; these are what the site actually used
+	// (#27).
+	Colors map[string]string `json:"colors,omitempty"`
 }
 
 // IsEmpty reports whether nothing was detected, so the export can omit the object
 // rather than emit one full of empty fields.
 func (m SiteMarketing) IsEmpty() bool {
-	return len(m.Verification) == 0 && len(m.SocialProfiles) == 0 &&
+	return len(m.Verification) == 0 && len(m.SocialProfiles) == 0 && len(m.Colors) == 0 &&
 		m.OGSiteName == "" && m.OGImage == "" && m.TwitterSite == "" &&
 		m.Favicon == "" && m.AppleTouchIcon == "" && m.Logo == "" && m.ThemeColor == ""
 }
@@ -320,10 +326,23 @@ type ExportData struct {
 	Tags       []WordPressTag       `json:"tags"`
 	Users      []WordPressUser      `json:"users"`
 	Menus      []WordPressMenu      `json:"menus,omitempty"`
-	Analytics  *Analytics           `json:"analytics,omitempty"`
-	Marketing  *SiteMarketing       `json:"marketing,omitempty"`
-	ExportedAt time.Time            `json:"exported_at"`
-	Stats      ExportStats          `json:"stats"`
+	// CustomTypes carries the entries of every custom post type discovered on
+	// the site, one set per type (#28).
+	CustomTypes []CustomTypeSet `json:"custom_types,omitempty"`
+	Analytics   *Analytics      `json:"analytics,omitempty"`
+	Marketing   *SiteMarketing  `json:"marketing,omitempty"`
+	ExportedAt  time.Time       `json:"exported_at"`
+	Stats       ExportStats     `json:"stats"`
+}
+
+// CustomTypeSet is one custom post type and everything published under it. The
+// slug is the WordPress type name ("cpt_services"), Name its human label
+// ("Services") and RestBase the collection it was fetched from.
+type CustomTypeSet struct {
+	Slug     string          `json:"slug"`
+	Name     string          `json:"name"`
+	RestBase string          `json:"rest_base"`
+	Posts    []WordPressPost `json:"posts"`
 }
 
 // SiteInfo represents WordPress site information
@@ -342,15 +361,20 @@ type SiteInfo struct {
 
 // ExportStats represents export statistics
 type ExportStats struct {
-	TotalPosts      int `json:"total_posts"`
-	TotalPages      int `json:"total_pages"`
-	TotalProducts   int `json:"total_products"`
-	TotalMedia      int `json:"total_media"`
-	TotalCategories int `json:"total_categories"`
-	TotalTags       int `json:"total_tags"`
-	TotalUsers      int `json:"total_users"`
-	MediaDownloaded int `json:"media_downloaded"`
-	BruteForceFound int `json:"brute_force_found"`
+	TotalPosts int `json:"total_posts"`
+	TotalPages int `json:"total_pages"`
+	// TotalCustomPosts counts entries of custom post types — a theme's
+	// Services, Portfolio or Team entries are content the site published, and
+	// an export that reported only posts and pages made their absence
+	// invisible (#28).
+	TotalCustomPosts int `json:"total_custom_posts"`
+	TotalProducts    int `json:"total_products"`
+	TotalMedia       int `json:"total_media"`
+	TotalCategories  int `json:"total_categories"`
+	TotalTags        int `json:"total_tags"`
+	TotalUsers       int `json:"total_users"`
+	MediaDownloaded  int `json:"media_downloaded"`
+	BruteForceFound  int `json:"brute_force_found"`
 }
 
 // WooCommerceProduct represents a WooCommerce product

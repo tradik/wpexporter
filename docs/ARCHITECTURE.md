@@ -103,6 +103,9 @@ type Client struct {
 - Handles pagination automatically
 - Supports concurrent requests
 - Error handling and retries
+- Discovers custom post types from `/wp/v2/types` (`posttypes.go`) and fetches
+  their entries, excluding WordPress internals, plugin bookkeeping types and a
+  theme's saved layouts/templates
 
 #### xmlrpc Package
 ```go
@@ -334,11 +337,14 @@ export/
 │   └── ...
 ├── pages/               # Individual page files
 │   ├── 2024-01-01-page-title.md
+│   ├── cpt_services/    # One directory per custom post type
+│   │   └── wms-implementation.md
 │   └── ...
 ├── media/               # Downloaded media files
 │   ├── 1_image.jpg
 │   └── ...
-└── metadata.json        # Categories, tags, users
+└── metadata.json        # Categories, tags, users, marketing (incl. theme
+                         # palette), custom_types
 ```
 
 ## Concurrency Architecture

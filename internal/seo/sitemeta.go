@@ -102,6 +102,9 @@ func extractSiteMarketing(html, baseURL string) models.SiteMarketing {
 
 	extractIcons(html, base, &marketing)
 	marketing.SocialProfiles = extractSocialProfiles(html)
+	// The theme's palette, declared as CSS custom properties in the page's own
+	// stylesheets: the one part of the look a migration can carry verbatim (#27).
+	marketing.Colors = ExtractPalette(html)
 
 	// A site that declares no explicit logo still usually has an og:image standing
 	// in for one; recording it as the logo would be a guess, so it is left alone.

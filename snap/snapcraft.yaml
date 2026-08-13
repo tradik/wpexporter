@@ -1,6 +1,6 @@
 name: wpexporter
 base: core22
-version: "1.8.0"
+version: "1.8.2"
 title: wpexporter
 summary: Export WordPress content to JSON, Markdown, Shopify, and 14+ formats
 description: |
@@ -44,7 +44,13 @@ parts:
       VERSION=$(test -f VERSION && echo "v$(tr -d '[:space:]' < VERSION)" || git describe --tags --always --dirty 2>/dev/null || echo "v0.0.0")
       BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
       GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-      LDFLAGS="-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT} -s -w"
+      # Stamp internal/version, not main: the commands became thin wrappers in
+      # 1.8.0 and no longer declare their own Version. The linker ignores -X for a
+      # symbol that does not exist, silently and without an error, so the snap
+      # shipped whatever default internal/version carried — 1.8.1's snap reported
+      # itself as 1.8.0.
+      VERSION_PKG="github.com/tradik/wpexporter/internal/version"
+      LDFLAGS="-X ${VERSION_PKG}.Version=${VERSION} -X ${VERSION_PKG}.BuildTime=${BUILD_TIME} -X ${VERSION_PKG}.GitCommit=${GIT_COMMIT} -s -w"
 
       go build -ldflags "${LDFLAGS}" -o ${CRAFT_PART_INSTALL}/bin/wpexportjson ./cmd/wpexportjson
       go build -ldflags "${LDFLAGS}" -o ${CRAFT_PART_INSTALL}/bin/wpxmlrpc ./cmd/wpxmlrpc
