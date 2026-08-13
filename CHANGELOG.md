@@ -5,6 +5,68 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.2] - 2026-08-13
+
+Everything a migration was quietly losing: the theme's own content types, its
+colours, and pages whose markup rendered as visible text. Closes #26, #27, #28.
+
+### Added
+- **Custom post types (#28)**. A WordPress site is rarely just posts and pages:
+  themes and plugins register their own types — Services, Portfolio, Team,
+  Testimonials — and those entries are published content with their own URLs. The
+  export now discovers them from `/wp/v2/types` and fetches every entry, with the
+  same SEO crawl, media localisation and link rewriting the pages get. They land
+  under `pages/<type-slug>/` (markdown) or nested by their published URL (`-f ssg`),
+  keeping the addresses a migration must preserve, and their WordPress type travels
+  in front matter. `metadata.json` gains a `custom_types` block and
+  `stats.total_custom_posts`.
+
+  WordPress internals (templates, patterns, navigation, fonts), plugin bookkeeping
+  (`elementor_*`, `rank_math_*`, `acf-*`, `jet-*`, …) and a theme's saved page
+  construction (anything named `*layout*`, `*template*`, `*block*`, `*section*`,
+  `*popup*`, `*widget*`) are excluded: they are markup a visitor met inside other
+  pages, not documents. `--no-custom-types` turns the whole thing off;
+  `--custom-types a,b` narrows it to named slugs. The export summary lists every
+  type it found and how many entries each holds.
+- **Theme palette (#27)**, written to `metadata.json` under `marketing.colors`
+  when `--assisted-crawl` is used. Colours are read from the CSS custom properties
+  the page declares — a theme's own variables first, then block-editor presets
+  (`--wp--preset--color--*`), then the page builder's globals
+  (`--e-global-color-*`) — and mapped to roles: `primary`, `secondary`, `accent`,
+  `text`, `background`, `link`. Only literal colour values are recorded; a `var()`
+  reference or a gradient is dropped rather than carried to a stylesheet where it
+  would mean nothing. This is the one part of a site's look a migration can carry
+  verbatim, and it was previously lost entirely.
+
+### Fixed
+- **Page-builder markup rendered as literal text (#26)**. Elementor, WPBakery and
+  Divi indent their nested markup with tabs, and the converter turns `</p>` into a
+  blank line — which ends the surrounding HTML block per CommonMark. Every
+  following tab-indented line was then four columns deep, i.e. an indented code
+  block, so visitors read `</div>` in monospace down the middle of the page. The
+  converter now strips leading whitespace outside fenced code blocks, where it
+  never carried meaning: this converter emits flat list markers and flat
+  blockquotes, so the only indentation in its output was the source HTML's own
+  pretty-printing. Indentation inside a `<pre>`-derived fence is untouched.
+
+  Content already exported with an older version can be repaired in place with
+  `ssg repair --fix` (ssg 1.8.31+), which reports the same defect during every
+  build.
+- **The snap reported the wrong version.** `wpexporter --version` inside the 1.8.1
+  snap printed `1.8.0`. The snap build stamped `-X main.Version=…`, but 1.8.0 moved
+  the build identity to `internal/version` and left the commands as thin wrappers
+  that no longer declare `Version` — and the linker ignores `-X` for a symbol that
+  does not exist, silently and without an error, so every snap since 1.8.0 shipped
+  whatever default that package carried. The package version was always correct
+  (`snap list` showed 1.8.1); only the binary's self-report was stale. Release
+  tarballs and Homebrew were unaffected — they build through the Makefile, which
+  already stamped the right package.
+
+  The Docker image now stamps its binaries too; previously it passed no version
+  flags at all. A test asserts that every build file stamps `internal/version` and
+  that the package default matches the `VERSION` file, since neither half of this
+  failure produces a build error.
+
 ## [1.8.1] - 2026-08-13
 
 Markdown/SSG export fixes reported while migrating live sites, plus site-level

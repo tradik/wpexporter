@@ -79,9 +79,46 @@ func htmlToMarkdown(input string) string {
 	md = mdBrRe.ReplaceAllString(md, "\n")
 
 	md = mdBlankLinesRe.ReplaceAllString(md, "\n\n")
+	md = dedentOutsideCodeFences(md)
 	md = strings.TrimSpace(md)
 
 	// UTF-8 output, so typographic entities are noise; HTML-significant ones stay
 	// encoded (decoding them would turn escaped markup into live markup).
 	return decodeTypographicEntities(md)
+}
+
+// dedentOutsideCodeFences strips the leading whitespace of every line that is
+// not inside a fenced code block (issue #26).
+//
+// Page builders — Elementor, WPBakery, Divi — indent their nested markup with
+// tabs, and `</p>` above converts to a blank line, which ends the surrounding
+// HTML block per CommonMark. Every following builder line then starts with a
+// tab, i.e. four columns of indentation, so the renderer reads `</div>` as an
+// INDENTED CODE BLOCK and prints the closing tags to the visitor as monospaced
+// text. Removing the indentation keeps those lines HTML blocks instead.
+//
+// Nothing meaningful is lost: this converter never emits indentation itself —
+// list items are flat `- ` markers and blockquotes flat `> ` — so the only
+// leading whitespace in the output is the source HTML's own pretty-printing.
+// Fenced blocks (from `<pre>`) keep their indentation, which is the one place
+// it carries meaning.
+func dedentOutsideCodeFences(md string) string {
+	lines := strings.Split(md, "\n")
+	inFence := false
+
+	for i, line := range lines {
+		trimmed := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmed, "```") {
+			// The fence marker itself must sit at column 0 to open or close.
+			lines[i] = trimmed
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		lines[i] = trimmed
+	}
+
+	return strings.Join(lines, "\n")
 }

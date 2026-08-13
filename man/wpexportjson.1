@@ -1,4 +1,4 @@
-.TH WPEXPORTJSON 1 "August 2026" "wpexportjson 1.8.0" "User Commands"
+.TH WPEXPORTJSON 1 "August 2026" "wpexportjson 1.8.2" "User Commands"
 .SH NAME
 wpexportjson \- WordPress content export tool (REST API)
 .SH SYNOPSIS
@@ -37,6 +37,12 @@ Skip exporting blog posts
 .TP
 .BR \-\-no\-pages
 Skip exporting pages
+.TP
+.BR \-\-no\-custom\-types
+Skip the custom post types a theme or plugin registered (Services, Portfolio, Team, ...). They are exported by default: they are content the site published, and an export without them loses whole sections silently. WordPress internals, plugin bookkeeping types and a theme's saved layouts/templates are never exported.
+.TP
+.BR \-\-custom\-types " " \fISLUGS\fR
+Export only these custom post types (comma\-separated slugs, e.g. \fBcpt_services,cpt_portfolio\fR)
 .TP
 .BR \-\-no\-products
 Skip exporting WooCommerce products

@@ -46,7 +46,9 @@ The three tools are also installed as standalone binaries, which behave identica
 - 🌐 **CMS Migration**: Export to [WordPress](https://wordpress.org/), [Drupal](https://www.drupal.org/), [Wix](https://www.wix.com/), [Squarespace](https://www.squarespace.com/), [Webflow](https://webflow.com/), [Weebly](https://www.weebly.com/)
 - 📝 **Headless CMS Support**: Export to [Ghost](https://ghost.org/), [Strapi](https://strapi.io/), [Contentful](https://www.contentful.com/) JSON formats
 - 🛍️ **WooCommerce Support**: Detects and exports WooCommerce products automatically
-- 🧹 **Content Filtering**: Control what to export with `--no-posts`, `--no-pages`, and `--no-products` flags
+- 🧩 **Custom Post Types**: Discovers the types a theme or plugin registered (Services, Portfolio, Team, …) and exports their entries alongside pages — no flag needed
+- 🎨 **Theme Palette**: `--assisted-crawl` records the site's own colours (primary/secondary/accent/text/background/link) from its CSS custom properties
+- 🧹 **Content Filtering**: Control what to export with `--no-posts`, `--no-pages`, `--no-products`, and `--no-custom-types` flags
 - 🖼️ **Media Download**: Downloads images and videos with content
 - ⚡ **Concurrent Processing**: Fast parallel downloads and processing
 - 📊 **Progress Tracking**: Real-time progress bars and status updates
@@ -319,6 +321,8 @@ wpexportjson export --config config.yaml
 <tr><td><code>--no-posts</code></td><td>Skip exporting blog posts</td><td><code>false</code></td></tr>
 <tr><td><code>--no-pages</code></td><td>Skip exporting pages</td><td><code>false</code></td></tr>
 <tr><td><code>--no-products</code></td><td>Skip exporting WooCommerce products</td><td><code>false</code></td></tr>
+<tr><td><code>--no-custom-types</code></td><td>Skip the custom post types a theme or plugin registered</td><td><code>false</code></td></tr>
+<tr><td><code>--custom-types</code></td><td>Export only these custom types (comma-separated slugs, e.g. <code>cpt_services,cpt_portfolio</code>)</td><td>-</td></tr>
 <tr><td><code>--no-users</code></td><td>Skip exporting users</td><td><code>false</code></td></tr>
 <tr><td><code>--no-tags</code></td><td>Skip exporting tags</td><td><code>false</code></td></tr>
 <tr><td><code>--no-menus</code></td><td>Skip exporting navigation menus (they need authentication; see below)</td><td><code>false</code></td></tr>

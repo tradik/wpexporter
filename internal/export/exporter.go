@@ -159,12 +159,39 @@ func (e *Exporter) exportMarkdown(data *models.ExportData) error {
 		return fmt.Errorf("failed to export pages: %w", err)
 	}
 
+	// Export the theme's own content types, one directory per type, so a
+	// consumer sees Services as Services rather than as untyped pages (#28).
+	if err := e.exportCustomTypesMarkdown(data.CustomTypes); err != nil {
+		return fmt.Errorf("failed to export custom post types: %w", err)
+	}
+
 	// Export metadata
 	if err := e.exportMetadata(data); err != nil {
 		return fmt.Errorf("failed to export metadata: %w", err)
 	}
 
 	fmt.Printf("Export completed: %s\n", e.config.Output)
+	return nil
+}
+
+// exportCustomTypesMarkdown writes each custom post type under pages/, in a
+// directory named after the WordPress type slug: pages/cpt_services/wms.md.
+//
+// Under pages/ because that is where a consumer looks for URL-addressable
+// content — a generator reading this export walks pages/ recursively and would
+// never find a top-level cpt_services/ — and in its own directory so the type
+// stays visible as itself rather than dissolving into the page list (#28).
+func (e *Exporter) exportCustomTypesMarkdown(sets []models.CustomTypeSet) error {
+	for _, set := range sets {
+		dir := filepath.Join(e.config.Output, "pages", sanitizePathSegment(set.Slug))
+		if err := os.MkdirAll(dir, 0750); err != nil {
+			return fmt.Errorf("failed to create %s directory: %w", set.Slug, err)
+		}
+		if err := e.exportPostsMarkdown(set.Posts, dir, set.Slug); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -607,6 +634,14 @@ func (e *Exporter) updateMediaPaths(data *models.ExportData) {
 	for i := range data.Pages {
 		e.localizePostMedia(&data.Pages[i])
 	}
+
+	// Custom post types carry the same images as everything else; skipping them
+	// would leave a Services entry pointing at the old host (#28).
+	for t := range data.CustomTypes {
+		for i := range data.CustomTypes[t].Posts {
+			e.localizePostMedia(&data.CustomTypes[t].Posts[i])
+		}
+	}
 }
 
 // localizePostMedia localizes every attachment reference a post carries: body
@@ -652,6 +687,14 @@ func (e *Exporter) updateLinkPaths(data *models.ExportData) {
 
 	for i := range data.Pages {
 		e.rootRelativizeAddresses(&data.Pages[i])
+	}
+
+	// A custom type's entries are addressed like pages, and their SEO-visible
+	// URLs are exactly what the migration has to preserve (#28).
+	for t := range data.CustomTypes {
+		for i := range data.CustomTypes[t].Posts {
+			e.rootRelativizeAddresses(&data.CustomTypes[t].Posts[i])
+		}
 	}
 
 	// Menu links must match the exported permalinks, or the rebuilt navigation

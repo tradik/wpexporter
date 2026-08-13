@@ -59,20 +59,26 @@ type Config struct {
 	NoPosts           bool   `mapstructure:"no_posts" json:"no_posts"`
 	NoPages           bool   `mapstructure:"no_pages" json:"no_pages"`
 	NoProducts        bool   `mapstructure:"no_products" json:"no_products"`
-	NoUsers           bool   `mapstructure:"no_users" json:"no_users"`
-	PathFilter        string `mapstructure:"path_filter" json:"path_filter"`
-	AssistedCrawl     bool   `mapstructure:"assisted_crawl" json:"assisted_crawl"`
-	AuthUser          string `mapstructure:"auth_user" json:"auth_user"`
-	AuthPass          string `mapstructure:"auth_pass" json:"auth_pass"`
-	AuthToken         string `mapstructure:"auth_token" json:"auth_token"`
-	RateLimit         int    `mapstructure:"rate_limit" json:"rate_limit"`                 // Milliseconds delay between API requests
-	Resume            bool   `mapstructure:"resume" json:"resume"`                         // Resume from checkpoint if available
-	CrawlContent      bool   `mapstructure:"crawl_content" json:"crawl_content"`           // Crawl empty content pages
-	SkipEmptyContent  bool   `mapstructure:"skip_empty_content" json:"skip_empty_content"` // Skip posts/pages with empty content
-	FlatHTML          bool   `mapstructure:"flat_html" json:"flat_html"`                   // Convert HTML to Markdown
-	BasicHTML         bool   `mapstructure:"basic_html" json:"basic_html"`                 // Clean HTML to basic elements
-	SSGSections       bool   `mapstructure:"ssg_sections" json:"ssg_sections"`             // markdown: emit ## Excerpt/## Content sections
-	KeepOriginalURLs  bool   `mapstructure:"keep_original_urls" json:"keep_original_urls"` // Don't convert media URLs to local paths
+	// NoCustomTypes skips the custom post types a theme or plugin registered
+	// (Services, Portfolio, Team, …). They ship by default: they are content the
+	// site published, and an export without them loses whole sections silently
+	// (#28). CustomTypes narrows the export to the named type slugs.
+	NoCustomTypes    bool     `mapstructure:"no_custom_types" json:"no_custom_types"`
+	CustomTypes      []string `mapstructure:"custom_types" json:"custom_types"`
+	NoUsers          bool     `mapstructure:"no_users" json:"no_users"`
+	PathFilter       string   `mapstructure:"path_filter" json:"path_filter"`
+	AssistedCrawl    bool     `mapstructure:"assisted_crawl" json:"assisted_crawl"`
+	AuthUser         string   `mapstructure:"auth_user" json:"auth_user"`
+	AuthPass         string   `mapstructure:"auth_pass" json:"auth_pass"`
+	AuthToken        string   `mapstructure:"auth_token" json:"auth_token"`
+	RateLimit        int      `mapstructure:"rate_limit" json:"rate_limit"`                 // Milliseconds delay between API requests
+	Resume           bool     `mapstructure:"resume" json:"resume"`                         // Resume from checkpoint if available
+	CrawlContent     bool     `mapstructure:"crawl_content" json:"crawl_content"`           // Crawl empty content pages
+	SkipEmptyContent bool     `mapstructure:"skip_empty_content" json:"skip_empty_content"` // Skip posts/pages with empty content
+	FlatHTML         bool     `mapstructure:"flat_html" json:"flat_html"`                   // Convert HTML to Markdown
+	BasicHTML        bool     `mapstructure:"basic_html" json:"basic_html"`                 // Clean HTML to basic elements
+	SSGSections      bool     `mapstructure:"ssg_sections" json:"ssg_sections"`             // markdown: emit ## Excerpt/## Content sections
+	KeepOriginalURLs bool     `mapstructure:"keep_original_urls" json:"keep_original_urls"` // Don't convert media URLs to local paths
 	// MediaPathStyle selects the form of rewritten media paths in exported content:
 	// "root" (/media/...) resolves from any URL depth, "relative" (media/...) only at the site root.
 	MediaPathStyle string `mapstructure:"media_path_style" json:"media_path_style"`
@@ -139,6 +145,7 @@ func DefaultConfig() *Config {
 		NoPosts:           false,
 		NoPages:           false,
 		NoProducts:        false,
+		NoCustomTypes:     false, // a theme's own content types ship by default (#28)
 		NoUsers:           false,
 		PathFilter:        "",
 		AssistedCrawl:     false,

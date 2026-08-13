@@ -118,6 +118,70 @@ func TestGenerateMarkdownContent_SSGSections(t *testing.T) {
 	}
 }
 
+// TestHTMLToMarkdown_PageBuilderIndentation covers issue #26: Elementor's nested
+// markup is tab-indented, and the blank line `</p>` leaves behind ends the HTML
+// block. Every following tab-indented line would then read as an indented code
+// block and print the closing tags to the visitor as monospaced text.
+func TestHTMLToMarkdown_PageBuilderIndentation(t *testing.T) {
+	in := "<div class=\"elementor-widget-wrap\">\n" +
+		"\t\t\t\t<div class=\"elementor-widget-container\">\n" +
+		"\t\t\t\t\t\t<p>Our logistics consulting services.</p>\n" +
+		"\t\t\t\t\t\t<p>We specialize in KPI systems.</p>\n" +
+		"\t\t\t\t</div>\n" +
+		"\t\t</div>\n" +
+		"\t\t</section>"
+
+	out := htmlToMarkdown(in)
+
+	for _, line := range strings.Split(out, "\n") {
+		if line != strings.TrimLeft(line, " \t") {
+			t.Errorf("indented line would render as a code block: %q\nfull output:\n%s", line, out)
+		}
+	}
+	// The markup itself still ships — only its indentation goes.
+	for _, want := range []string{`<div class="elementor-widget-wrap">`, "</section>", "We specialize in KPI systems."} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in output:\n%s", want, out)
+		}
+	}
+}
+
+// TestHTMLToMarkdown_KeepsCodeBlockIndentation confirms the dedent stops at a
+// fenced block: indentation inside <pre> is the code's own and must survive.
+func TestHTMLToMarkdown_KeepsCodeBlockIndentation(t *testing.T) {
+	in := "<div>\n\t<pre>func main() {\n\tprintln(\"hi\")\n}</pre>\n\t</div>"
+
+	out := htmlToMarkdown(in)
+
+	if !strings.Contains(out, "\tprintln(\"hi\")") {
+		t.Errorf("code indentation was stripped:\n%s", out)
+	}
+	if !strings.Contains(out, "```") {
+		t.Errorf("<pre> should convert to a fence:\n%s", out)
+	}
+	if strings.Contains(out, "\t</div>") {
+		t.Errorf("markup outside the fence should be dedented:\n%s", out)
+	}
+}
+
+// TestDedentOutsideCodeFences_UnclosedFence confirms an unbalanced fence (a
+// <pre> the source never closed) does not swallow the rest of the document into
+// a permanent "inside a fence" state for the lines above it.
+func TestDedentOutsideCodeFences_UnclosedFence(t *testing.T) {
+	out := dedentOutsideCodeFences("\t<div>\n\t```\n\tstill code\n")
+
+	lines := strings.Split(out, "\n")
+	if lines[0] != "<div>" {
+		t.Errorf("line before the fence should be dedented, got %q", lines[0])
+	}
+	if lines[1] != "```" {
+		t.Errorf("fence marker must sit at column 0, got %q", lines[1])
+	}
+	if lines[2] != "\tstill code" {
+		t.Errorf("fenced line should keep its indentation, got %q", lines[2])
+	}
+}
+
 // TestGenerateMarkdownContent_DefaultKeepsH1 confirms the default markdown output
 // still emits the # Title H1 (only --ssg-sections drops it).
 func TestGenerateMarkdownContent_DefaultKeepsH1(t *testing.T) {

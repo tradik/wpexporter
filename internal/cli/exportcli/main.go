@@ -67,6 +67,8 @@ var (
 	noPosts           bool
 	noPages           bool
 	noProducts        bool
+	noCustomTypes     bool
+	customTypes       string
 	noUsers           bool
 	pathFilter        string
 	assistedCrawl     bool
@@ -127,6 +129,8 @@ Content Filters:
       --no-posts              Skip blog posts
       --no-pages              Skip pages
       --no-products           Skip WooCommerce products
+      --no-custom-types       Skip theme/plugin post types (Services, Portfolio, …)
+      --custom-types string   Export only these custom types (comma-separated slugs)
       --no-users              Skip users
       --no-tags               Skip tags
       --no-menus              Skip navigation menus
@@ -192,6 +196,10 @@ func init() {
 	exportCmd.Flags().BoolVar(&noPosts, "no-posts", false, "skip exporting blog posts")
 	exportCmd.Flags().BoolVar(&noPages, "no-pages", false, "skip exporting pages")
 	exportCmd.Flags().BoolVar(&noProducts, "no-products", false, "skip exporting WooCommerce products")
+	exportCmd.Flags().BoolVar(&noCustomTypes, "no-custom-types", false,
+		"skip the custom post types a theme or plugin registered (Services, Portfolio, …)")
+	exportCmd.Flags().StringVar(&customTypes, "custom-types", "",
+		"export only these custom post types (comma-separated slugs, e.g. cpt_services,cpt_portfolio)")
 	exportCmd.Flags().BoolVar(&noUsers, "no-users", false, "skip exporting users")
 	exportCmd.Flags().StringVar(&authUser, "auth-user", "", "username for Basic Auth")
 	exportCmd.Flags().StringVar(&authPass, "auth-pass", "", "password for Basic Auth")
@@ -341,6 +349,12 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("no-products") {
 		cfg.NoProducts = noProducts
+	}
+	if cmd.Flags().Changed("no-custom-types") {
+		cfg.NoCustomTypes = noCustomTypes
+	}
+	if cmd.Flags().Changed("custom-types") {
+		cfg.CustomTypes = splitCommaList(customTypes)
 	}
 	if cmd.Flags().Changed("no-users") {
 		cfg.NoUsers = noUsers
@@ -747,6 +761,11 @@ func runExport(cmd *cobra.Command, args []string) error {
 		logln("Skipping products (--no-products)")
 	}
 
+	// The types a theme or plugin registered: Services, Portfolio, Team — content
+	// the site published that posts and pages alone never covered (#28). Fetched
+	// here so the SEO crawl below enriches them like everything else.
+	customTypes := fetchCustomTypes(apiClient, cfg)
+
 	// Apply path filter if specified
 	if cfg.PathFilter != "" {
 		pathFilter := filter.NewPathFilter(cfg.PathFilter)
@@ -777,6 +796,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if len(pages) > 0 {
 			pages = crawler.EnrichPostsWithSEOAndContent(pages)
 		}
+		enrichCustomTypes(customTypes, crawler.EnrichPostsWithSEOAndContent)
 		siteMarketing = crawler.SiteMarketing(homePageURL(siteInfo, cfg))
 		siteAnalytics = crawler.Analytics()
 		logln("SEO metadata and content extraction complete")
@@ -791,6 +811,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if len(pages) > 0 {
 			pages = crawler.EnrichPostsWithSEO(pages)
 		}
+		enrichCustomTypes(customTypes, crawler.EnrichPostsWithSEO)
 		siteMarketing = crawler.SiteMarketing(homePageURL(siteInfo, cfg))
 		siteAnalytics = crawler.Analytics()
 		logln("SEO metadata extraction complete")
@@ -805,6 +826,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if len(pages) > 0 {
 			pages = crawler.EnrichPostsWithContent(pages)
 		}
+		enrichCustomTypes(customTypes, crawler.EnrichPostsWithContent)
 	}
 
 	// Skip posts/pages with empty content if enabled
@@ -996,26 +1018,28 @@ func runExport(cmd *cobra.Command, args []string) error {
 
 	// Create export data
 	exportData := &models.ExportData{
-		Site:       *siteInfo,
-		Posts:      posts,
-		Pages:      pages,
-		Products:   products,
-		Media:      media,
-		Categories: categories,
-		Tags:       tags,
-		Users:      users,
-		Menus:      menus,
-		Analytics:  siteAnalytics,
-		Marketing:  siteMarketing,
+		Site:        *siteInfo,
+		Posts:       posts,
+		Pages:       pages,
+		Products:    products,
+		Media:       media,
+		Categories:  categories,
+		Tags:        tags,
+		Users:       users,
+		Menus:       menus,
+		CustomTypes: customTypes,
+		Analytics:   siteAnalytics,
+		Marketing:   siteMarketing,
 		Stats: models.ExportStats{
-			TotalPosts:      len(posts),
-			TotalPages:      len(pages),
-			TotalProducts:   len(products),
-			TotalMedia:      len(media),
-			TotalCategories: len(categories),
-			TotalTags:       len(tags),
-			TotalUsers:      len(users),
-			BruteForceFound: bruteForceFound,
+			TotalPosts:       len(posts),
+			TotalPages:       len(pages),
+			TotalCustomPosts: countCustomPosts(customTypes),
+			TotalProducts:    len(products),
+			TotalMedia:       len(media),
+			TotalCategories:  len(categories),
+			TotalTags:        len(tags),
+			TotalUsers:       len(users),
+			BruteForceFound:  bruteForceFound,
 		},
 	}
 
@@ -1051,6 +1075,11 @@ func runExport(cmd *cobra.Command, args []string) error {
 	logf("Site: %s (%s)\n", siteInfo.Name, siteInfo.URL)
 	logf("Posts: %d\n", len(posts))
 	logf("Pages: %d\n", len(pages))
+	// One line per custom type: "Services: 48" says more than a total, and the
+	// absence of a type a user expected is the point of reporting them (#28).
+	for _, set := range customTypes {
+		logf("%s (%s): %d\n", set.Name, set.Slug, len(set.Posts))
+	}
 	logf("Products: %d\n", len(products))
 	logf("Media: %d\n", len(media))
 	logf("Categories: %d\n", len(categories))

@@ -9,12 +9,12 @@ package version
 
 // Values are overridden at build time via:
 //
-//	-X github.com/tradik/wpexporter/internal/version.Version=v1.8.0
+//	-X github.com/tradik/wpexporter/internal/version.Version=v1.8.2
 //
 // The defaults are what a `go install` build reports, so they are kept in step
 // with the VERSION file rather than left at a placeholder.
 var (
-	Version   = "1.8.0"
+	Version   = "1.8.2"
 	BuildTime = "unknown"
 	GitCommit = "unknown"
 )
