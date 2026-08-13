@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.3] - 2026-08-13
+
+### Fixed
+- **Media referenced by content but absent from the library was never downloaded
+  (#30).** The downloader and the URL rewriter both worked from `/wp/v2/media`, and
+  three kinds of file never appear there: page-builder renditions (Elementor writes
+  its own crops to `uploads/elementor/thumbs/` with no attachment record),
+  attachments whose record was deleted while the file is still served, and brand
+  assets declared only in the document head. Content kept pointing at all three, so
+  an export that reported success left the migrated site hotlinking the source host
+  — and losing those images the day it was retired.
+
+  A salvage pass now collects the same-host asset URLs the index cannot resolve —
+  from content, excerpt, every SEO field and the marketing block — fetches them, and
+  registers them so the ordinary rewrite reaches them. Only same-host URLs with an
+  asset extension are followed: a CDN image is somebody else's file, and a page
+  address is not media. Salvaged names carry a short hash of their source path,
+  because Elementor repeats basenames across directories; the hash is derived from
+  the path, so re-exporting does not duplicate anything. A URL that no longer
+  resolves is skipped rather than failing the export, leaving it absolute as before.
+  `--exclude-media-types` is honored.
+- **Only `og:image` was localized among the metadata fields (#30).**
+  `twitter:image`, the `meta` map (`msapplication-TileImage` and friends) and the
+  JSON-LD blocks kept absolute URLs even for files that had been downloaded, as did
+  the marketing block's favicon, apple-touch-icon and logo — which sit in the head
+  of every page. All of them are rewritten now. Page addresses inside JSON-LD pass
+  through untouched, since the rewriter only replaces what resolves to an exported
+  attachment.
+
 ## [1.8.2] - 2026-08-13
 
 Everything a migration was quietly losing: the theme's own content types, its

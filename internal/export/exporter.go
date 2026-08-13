@@ -627,6 +627,12 @@ func (e *Exporter) updateMediaPaths(data *models.ExportData) {
 	// O(media) and would otherwise be repeated for each post.
 	e.rewriter = e.downloader.NewURLRewriter(data.Media)
 
+	// Fetch what the library never listed, before anything is rewritten, so the
+	// pass below resolves those references too (#30).
+	e.salvageUnlistedMedia(data)
+
+	e.localizeMarketing(data.Marketing)
+
 	for i := range data.Posts {
 		e.localizePostMedia(&data.Posts[i])
 	}
@@ -655,7 +661,98 @@ func (e *Exporter) updateMediaPaths(data *models.ExportData) {
 func (e *Exporter) localizePostMedia(post *models.WordPressPost) {
 	post.Content.Rendered = e.rewriter.Rewrite(post.Content.Rendered)
 	post.Excerpt.Rendered = e.rewriter.Rewrite(post.Excerpt.Rendered)
-	post.SEO.OGImage = e.rewriter.Rewrite(post.SEO.OGImage)
+	e.localizeSEOMedia(&post.SEO)
+}
+
+// localizeSEOMedia rewrites every attachment reference the crawled metadata
+// carries. og:image was the only one handled before, so twitter:image, the meta
+// map (msapplication-TileImage and the like) and the JSON-LD blocks kept pointing
+// at the source host even for files that had been downloaded (#30).
+//
+// The rewriter replaces only what resolves to an exported attachment, so the page
+// addresses that also appear in JSON-LD pass through untouched.
+func (e *Exporter) localizeSEOMedia(seo *models.SEOData) {
+	seo.OGImage = e.rewriter.Rewrite(seo.OGImage)
+	seo.TwitterImage = e.rewriter.Rewrite(seo.TwitterImage)
+
+	for key, value := range seo.Meta {
+		seo.Meta[key] = e.rewriter.Rewrite(value)
+	}
+
+	for i, block := range seo.JSONLD {
+		seo.JSONLD[i] = e.rewriter.Rewrite(block)
+	}
+}
+
+// localizeMarketing rewrites the site-wide brand assets. They sit in the head of
+// every page, so leaving them absolute makes the whole migrated site depend on the
+// source host serving its favicon (#30).
+func (e *Exporter) localizeMarketing(marketing *models.SiteMarketing) {
+	if marketing == nil {
+		return
+	}
+
+	marketing.OGImage = e.rewriter.Rewrite(marketing.OGImage)
+	marketing.Favicon = e.rewriter.Rewrite(marketing.Favicon)
+	marketing.AppleTouchIcon = e.rewriter.Rewrite(marketing.AppleTouchIcon)
+	marketing.Logo = e.rewriter.Rewrite(marketing.Logo)
+}
+
+// salvageUnlistedMedia fetches the same-host assets that content and metadata
+// reference but /wp/v2/media never listed — page-builder renditions, deleted
+// attachments, brand assets — and registers them so the rewrite pass below
+// resolves them like any other attachment (#30).
+func (e *Exporter) salvageUnlistedMedia(data *models.ExportData) {
+	collector := e.rewriter.NewAssetCollector()
+
+	scanPost := func(post *models.WordPressPost) {
+		collector.Scan(post.Content.Rendered)
+		collector.Scan(post.Excerpt.Rendered)
+		collector.Scan(post.SEO.OGImage)
+		collector.Scan(post.SEO.TwitterImage)
+		for _, value := range post.SEO.Meta {
+			collector.Scan(value)
+		}
+		for _, block := range post.SEO.JSONLD {
+			collector.Scan(block)
+		}
+	}
+
+	for i := range data.Posts {
+		scanPost(&data.Posts[i])
+	}
+	for i := range data.Pages {
+		scanPost(&data.Pages[i])
+	}
+	for t := range data.CustomTypes {
+		for i := range data.CustomTypes[t].Posts {
+			scanPost(&data.CustomTypes[t].Posts[i])
+		}
+	}
+
+	if data.Marketing != nil {
+		collector.Scan(data.Marketing.OGImage)
+		collector.Scan(data.Marketing.Favicon)
+		collector.Scan(data.Marketing.AppleTouchIcon)
+		collector.Scan(data.Marketing.Logo)
+	}
+
+	targets := collector.Assets()
+	if len(targets) == 0 {
+		return
+	}
+
+	if !e.config.Quiet {
+		fmt.Printf("Salvaging %d media files referenced but not in the media library...\n", len(targets))
+	}
+
+	saved := e.downloader.SalvageAssets(e.rewriter, targets)
+
+	if !e.config.Quiet {
+		fmt.Printf("Salvaged %d/%d files\n", saved, len(targets))
+	}
+
+	data.Stats.MediaDownloaded += saved
 }
 
 // localizeMediaURL localizes a single attachment URL, leaving it untouched when

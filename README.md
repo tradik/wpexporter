@@ -1042,6 +1042,16 @@ WordPress host is retired.
 | `https://example.com/wp-content/uploads/2025/01/photo-300x200.jpg` | `/media/images/123_photo-300x200.jpg` |
 | `https://example.com/wp-content/uploads/2025/01/photo-150x150.jpg` | `/media/images/123_photo-150x150.jpg` |
 
+**Files the media library does not list are salvaged.** Page-builder renditions
+(`uploads/elementor/thumbs/…`), attachments whose record was deleted while the file is still
+served, and brand assets declared only in the document head never appear in `/wp/v2/media` —
+so without this they stayed absolute and the migrated site hotlinked the source host. Every
+same-host asset URL that content, SEO metadata or the marketing block references and the
+library cannot account for is fetched into `media/<kind>/` under a name prefixed with a short
+hash of its source path (page builders repeat basenames across directories). A URL on a
+foreign host is left alone — it is somebody else's file — and one that no longer resolves is
+skipped rather than failing the export.
+
 **Matching is scheme- and host-insensitive.** WordPress stores `post_content` with whatever URL
 form was current when the post was written, while the REST API reports `source_url` in the site's
 present-day form. All of these resolve to the same exported file:
