@@ -136,3 +136,38 @@ func TestCustomTypesEmptyIsANoOp(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, string(raw), "custom_types")
 }
+
+// TestMarketingAssetURLs lists the brand assets that must travel with the
+// export; a favicon still served by the old host outlives the migration on
+// every page (#30).
+func TestMarketingAssetURLs(t *testing.T) {
+	got := marketingAssetURLs(&models.SiteMarketing{
+		Favicon: "https://x.test/f.png", AppleTouchIcon: "https://x.test/a.png",
+		OGImage: "https://x.test/o.png", Logo: "https://x.test/l.png",
+	})
+	assert.Len(t, got, 4)
+	assert.Contains(t, got, "https://x.test/f.png")
+	assert.Nil(t, marketingAssetURLs(nil))
+}
+
+// TestLocalizeMarketing rewrites those assets to their exported paths.
+func TestLocalizeMarketing(t *testing.T) {
+	cfg := &config.Config{URL: "https://magnavalor.eu", Output: t.TempDir(), Format: "ssg", DownloadMedia: true}
+	e := NewExporter(cfg)
+	e.rewriter = e.downloader.NewURLRewriter([]models.WordPressMedia{{
+		ID:        7,
+		SourceURL: "https://magnavalor.eu/wp-content/uploads/2024/03/logo.webp",
+		MimeType:  "image/webp",
+	}})
+
+	marketing := &models.SiteMarketing{
+		OGImage: "https://magnavalor.eu/wp-content/uploads/2024/03/logo.webp",
+		Favicon: "https://cdn.other.net/icon.png",
+	}
+	e.localizeMarketing(marketing)
+
+	assert.Equal(t, "/media/images/7_logo.webp", marketing.OGImage)
+	// A third-party asset is somebody else's file and stays where it is.
+	assert.Equal(t, "https://cdn.other.net/icon.png", marketing.Favicon)
+	e.localizeMarketing(nil) // must not panic
+}

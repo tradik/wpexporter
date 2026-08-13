@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.8.2] - 2026-08-13
 
 Everything a migration was quietly losing: the theme's own content types, its
-colours, and pages whose markup rendered as visible text. Closes #26, #27, #28.
+colours, its images, and pages whose markup rendered as visible text.
+Closes #26, #27, #28, #30.
 
 ### Added
 - **Custom post types (#28)**. A WordPress site is rarely just posts and pages:
@@ -39,6 +40,26 @@ colours, and pages whose markup rendered as visible text. Closes #26, #27, #28.
   verbatim, and it was previously lost entirely.
 
 ### Fixed
+- **Media the content points at but the library does not list (#30)**. Elementor
+  writes its own crops to `/wp-content/uploads/elementor/thumbs/`, deleted
+  attachments are still served, and the site's favicon, apple-touch-icon and
+  `og:image` are absolute source-host URLs in the `<head>` of every page. None of
+  them appear in `/wp/v2/media`, so none were downloaded or rewritten: a
+  "complete" export of one site still fetched **325 images from the live
+  WordPress**, and would have lost them the day that host was retired.
+
+  The export now collects the same-host media URLs the rewriter cannot resolve —
+  from content, excerpt, every SEO field and the marketing block — downloads them
+  into `media/<kind>/` under a short stable hash prefix (page builders repeat
+  basenames across directories), and registers them so the ordinary rewrite pass
+  reaches them. Rewriting also covers `twitter_image`, the `meta` map and the
+  `json_ld` blocks, which kept absolute URLs even for files that *were*
+  downloaded; page addresses inside JSON-LD are untouched, since only what
+  resolves to an exported attachment is replaced. Third-party and CDN URLs stay
+  absolute — they are somebody else's files.
+
+  The same site now exports with **zero** absolute media URLs, and with
+  `--relevant-media-only` weighs 12 MB instead of 197 MB.
 - **Page-builder markup rendered as literal text (#26)**. Elementor, WPBakery and
   Divi indent their nested markup with tabs, and the converter turns `</p>` into a
   blank line — which ends the surrounding HTML block per CommonMark. Every

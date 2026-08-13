@@ -49,7 +49,7 @@ The three tools are also installed as standalone binaries, which behave identica
 - 🧩 **Custom Post Types**: Discovers the types a theme or plugin registered (Services, Portfolio, Team, …) and exports their entries alongside pages — no flag needed
 - 🎨 **Theme Palette**: `--assisted-crawl` records the site's own colours (primary/secondary/accent/text/background/link) from its CSS custom properties
 - 🧹 **Content Filtering**: Control what to export with `--no-posts`, `--no-pages`, `--no-products`, and `--no-custom-types` flags
-- 🖼️ **Media Download**: Downloads images and videos with content
+- 🖼️ **Media Download**: Downloads images and videos with content, including files the media library does not list (page-builder crops, deleted attachments, brand assets) so the export stops depending on the source host
 - ⚡ **Concurrent Processing**: Fast parallel downloads and processing
 - 📊 **Progress Tracking**: Real-time progress bars and status updates
 - 🛠️ **Configurable**: Flexible configuration options via CLI or config file

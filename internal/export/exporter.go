@@ -630,7 +630,7 @@ func (e *Exporter) updateMediaPaths(data *models.ExportData) {
 	// Files the content points at that no attachment record covers — a page
 	// builder's own cropped renditions, an inline background, an attachment
 	// somebody deleted. Without this they stay absolute and the migrated site
-	// keeps fetching them from the host it was migrated off (#29).
+	// keeps fetching them from the host it was migrated off (#30).
 	e.localizeOrphanMedia(data)
 
 	for i := range data.Posts {
@@ -656,7 +656,12 @@ func (e *Exporter) localizeOrphanMedia(data *models.ExportData) {
 	var texts []string
 	collect := func(posts []models.WordPressPost) {
 		for _, post := range posts {
-			texts = append(texts, post.Content.Rendered, post.Excerpt.Rendered)
+			texts = append(texts, post.Content.Rendered, post.Excerpt.Rendered,
+				post.SEO.OGImage, post.SEO.TwitterImage)
+			for _, value := range post.SEO.Meta {
+				texts = append(texts, value)
+			}
+			texts = append(texts, post.SEO.JSONLD...)
 		}
 	}
 	collect(data.Posts)
@@ -664,6 +669,10 @@ func (e *Exporter) localizeOrphanMedia(data *models.ExportData) {
 	for _, set := range data.CustomTypes {
 		collect(set.Posts)
 	}
+	// The site's brand assets are media too, and they are what every page's
+	// <head> points at: a favicon still served by the old host outlives the
+	// migration on every single page.
+	texts = append(texts, marketingAssetURLs(data.Marketing)...)
 
 	orphans := e.rewriter.UnresolvedURLs(texts...)
 	if len(orphans) == 0 {
@@ -675,10 +684,31 @@ func (e *Exporter) localizeOrphanMedia(data *models.ExportData) {
 
 	mapping := e.downloader.DownloadOrphans(orphans)
 	e.rewriter.AddOrphans(mapping)
+	e.localizeMarketing(data.Marketing)
 
 	if !e.config.Quiet {
 		fmt.Printf("Localized %d/%d of them\n", len(mapping), len(orphans))
 	}
+}
+
+// marketingAssetURLs lists the brand assets recorded for the site, so they are
+// downloaded like any other media the content points at.
+func marketingAssetURLs(marketing *models.SiteMarketing) []string {
+	if marketing == nil {
+		return nil
+	}
+	return []string{marketing.Favicon, marketing.AppleTouchIcon, marketing.OGImage, marketing.Logo}
+}
+
+// localizeMarketing rewrites the site's brand assets to their exported paths.
+func (e *Exporter) localizeMarketing(marketing *models.SiteMarketing) {
+	if marketing == nil {
+		return
+	}
+	marketing.Favicon = e.rewriter.Rewrite(marketing.Favicon)
+	marketing.AppleTouchIcon = e.rewriter.Rewrite(marketing.AppleTouchIcon)
+	marketing.OGImage = e.rewriter.Rewrite(marketing.OGImage)
+	marketing.Logo = e.rewriter.Rewrite(marketing.Logo)
 }
 
 // localizePostMedia localizes every attachment reference a post carries: body
@@ -693,6 +723,17 @@ func (e *Exporter) localizePostMedia(post *models.WordPressPost) {
 	post.Content.Rendered = e.rewriter.Rewrite(post.Content.Rendered)
 	post.Excerpt.Rendered = e.rewriter.Rewrite(post.Excerpt.Rendered)
 	post.SEO.OGImage = e.rewriter.Rewrite(post.SEO.OGImage)
+	// The social and structured-data fields name the same files, and a share
+	// card pointing at the retired host is as broken as a missing <img> (#30).
+	// The rewriter only replaces what resolves to an exported attachment, so the
+	// page addresses inside JSON-LD pass through untouched.
+	post.SEO.TwitterImage = e.rewriter.Rewrite(post.SEO.TwitterImage)
+	for key, value := range post.SEO.Meta {
+		post.SEO.Meta[key] = e.rewriter.Rewrite(value)
+	}
+	for i, block := range post.SEO.JSONLD {
+		post.SEO.JSONLD[i] = e.rewriter.Rewrite(block)
+	}
 }
 
 // localizeMediaURL localizes a single attachment URL, leaving it untouched when

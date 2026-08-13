@@ -1,6 +1,6 @@
 package media
 
-// Media referenced by content but absent from the media library (#29).
+// Media referenced by content but absent from the media library (#30).
 //
 // The library is not the whole story. Elementor writes its own cropped
 // renditions to /wp-content/uploads/elementor/thumbs/, page builders inline

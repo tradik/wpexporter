@@ -140,6 +140,13 @@ type Config struct {
 - File-based configuration
 - Validation and defaults
 
+#### media Package
+- Downloads the media library concurrently and rewrites every reference to it
+- `orphans.go` covers what the library does NOT list — page-builder crops
+  (`elementor/thumbs/…`), deleted attachments, and the site's brand assets —
+  by downloading the same-host URLs the rewriter cannot resolve, so an export
+  stops depending on the source host
+
 #### export Package
 ```go
 type Exporter struct {
