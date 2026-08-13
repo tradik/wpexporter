@@ -48,7 +48,7 @@ func TestBuildFilesStampThisPackage(t *testing.T) {
 		deadPath = "main.Version"
 	)
 
-	for _, name := range []string{"Makefile", "snap/snapcraft.yaml"} {
+	for _, name := range []string{"Makefile", "snap/snapcraft.yaml", "Dockerfile"} {
 		content := repoFile(t, name)
 
 		if strings.Contains(content, deadPath) {
