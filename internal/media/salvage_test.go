@@ -159,11 +159,19 @@ func TestSalvageDistinguishesRepeatedBasenames(t *testing.T) {
 func TestSalvageIsStableAcrossRuns(t *testing.T) {
 	key := "/wp-content/uploads/elementor/thumbs/post-52-copyright.jpg"
 
-	if salvageRelativePath(key) != salvageRelativePath(key) {
-		t.Error("salvage path must be deterministic")
+	first := salvageRelativePath(key)
+	second := salvageRelativePath(strings.Clone(key))
+
+	if first != second {
+		t.Errorf("salvage path must be deterministic: %q vs %q", first, second)
 	}
-	if got := salvageRelativePath(key); !strings.HasPrefix(got, "images/") {
-		t.Errorf("salvageRelativePath(%q) = %q, want it under images/", key, got)
+	if !strings.HasPrefix(first, "images/") {
+		t.Errorf("salvageRelativePath(%q) = %q, want it under images/", key, first)
+	}
+	// A different source path must not produce the same name, or Elementor's
+	// repeated basenames overwrite each other.
+	if other := salvageRelativePath("/wp-content/uploads/elementor/thumbs/b/post-52-copyright.jpg"); other == first {
+		t.Errorf("distinct sources collided on %q", first)
 	}
 }
 
