@@ -627,6 +627,12 @@ func (e *Exporter) updateMediaPaths(data *models.ExportData) {
 	// O(media) and would otherwise be repeated for each post.
 	e.rewriter = e.downloader.NewURLRewriter(data.Media)
 
+	// Files the content points at that no attachment record covers — a page
+	// builder's own cropped renditions, an inline background, an attachment
+	// somebody deleted. Without this they stay absolute and the migrated site
+	// keeps fetching them from the host it was migrated off (#29).
+	e.localizeOrphanMedia(data)
+
 	for i := range data.Posts {
 		e.localizePostMedia(&data.Posts[i])
 	}
@@ -641,6 +647,37 @@ func (e *Exporter) updateMediaPaths(data *models.ExportData) {
 		for i := range data.CustomTypes[t].Posts {
 			e.localizePostMedia(&data.CustomTypes[t].Posts[i])
 		}
+	}
+}
+
+// localizeOrphanMedia downloads and indexes the media the content references
+// but the library does not list, so the ordinary rewrite pass reaches them too.
+func (e *Exporter) localizeOrphanMedia(data *models.ExportData) {
+	var texts []string
+	collect := func(posts []models.WordPressPost) {
+		for _, post := range posts {
+			texts = append(texts, post.Content.Rendered, post.Excerpt.Rendered)
+		}
+	}
+	collect(data.Posts)
+	collect(data.Pages)
+	for _, set := range data.CustomTypes {
+		collect(set.Posts)
+	}
+
+	orphans := e.rewriter.UnresolvedURLs(texts...)
+	if len(orphans) == 0 {
+		return
+	}
+	if !e.config.Quiet {
+		fmt.Printf("Downloading %d media file(s) referenced by content but not in the library...\n", len(orphans))
+	}
+
+	mapping := e.downloader.DownloadOrphans(orphans)
+	e.rewriter.AddOrphans(mapping)
+
+	if !e.config.Quiet {
+		fmt.Printf("Localized %d/%d of them\n", len(mapping), len(orphans))
 	}
 }
 
