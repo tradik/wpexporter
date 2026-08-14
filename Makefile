@@ -126,6 +126,10 @@ vet: ## Run go vet
 sec: ## Run gosec security scanner
 	@echo "${BLUE}Running gosec security scanner...${RESET}"
 	@mkdir -p $(BUILD_DIR)
+	@# Removed rather than overwritten: `go build -o` refuses a target it cannot
+	@# recognise as its own output, so one interrupted build would otherwise
+	@# leave `make sec` failing on a stale file until someone deleted it by hand.
+	@rm -f $(GOSEC_BIN)
 	@$(GOCMD) -C tools build -o "$(CURDIR)/$(GOSEC_BIN)" github.com/securego/gosec/v2/cmd/gosec
 	@$(GOSEC_BIN) -exclude=$(GOSEC_EXCLUDE) ./...
 

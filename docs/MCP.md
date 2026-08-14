@@ -38,3 +38,9 @@
 | `get_post` | Get a specific post by ID |
 | `list_categories` | List all categories |
 | `list_media` | List media files |
+
+`export_site` writes the same tree the CLI does, reader comments included, and
+reports the counts back to the caller — an agent has no console to read warnings
+from, so `stats.comments` is where a site whose comment route is closed shows up
+as a zero. `noPosts`, `noPages`, `noProducts` and `noComments` switch a
+collection off, matching the `--no-…` flags in [the CLI reference](CLI.md).

@@ -85,6 +85,16 @@ The comments a site's readers left it. Closes #35.
   every SBOM and vulnerability report taken of this tool.
 
 ### Fixed
+- **The MCP `export_site` tool dropped comments too.** Everything above fixed the
+  CLI; an agent exporting a site over MCP still lost every comment, which is the
+  same #35 through a different door — and the door with no console to print a
+  warning to. `export_site` now fetches them, honours a new `noComments`
+  argument alongside `noPosts`/`noPages`/`noProducts`, and reports
+  `stats.comments`, so a site whose comment route is closed reads as a zero
+  rather than as silence. Collecting the site's data moved into
+  `collectExportData`, which states in one place what is fatal (posts, pages)
+  and what is optional by installation (products, media, comments).
+
 - **`make sec` now runs the scanner CI runs.** It called whatever `gosec`
   happened to be on `PATH` — and when there was none it printed an install hint
   and exited successfully, so `make check` reported a clean security pass having

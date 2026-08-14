@@ -173,6 +173,11 @@ func GetTools() []Tool {
 						Description: "Skip exporting WooCommerce products",
 						Default:     false,
 					},
+					"noComments": {
+						Type:        "boolean",
+						Description: "Skip exporting reader comments",
+						Default:     false,
+					},
 					"pathFilter": {
 						Type:        schemaTypeString,
 						Description: "Filter content by URL path pattern",
@@ -339,6 +344,9 @@ func configFromArgs(args map[string]interface{}) *config.Config {
 	if noProducts, ok := args["noProducts"].(bool); ok {
 		cfg.NoProducts = noProducts
 	}
+	if noComments, ok := args["noComments"].(bool); ok {
+		cfg.NoComments = noComments
+	}
 	if pathFilter, ok := args["pathFilter"].(string); ok {
 		cfg.PathFilter = pathFilter
 	}
@@ -498,6 +506,80 @@ func handleListPages(args map[string]interface{}) (*CallToolResult, error) {
 	}, nil
 }
 
+// collectExportData reads everything the export writes: the site itself, the
+// collections the caller did not switch off, and the counts the metadata block
+// states.
+//
+// Posts and pages are the export, so failing to read either fails the run. The
+// rest of a WordPress site is optional by installation — products need
+// WooCommerce, media a download pass, comments an enabled REST route — and a
+// refusal there leaves that collection empty instead of ending the export. An
+// MCP client has no console to read a warning from; an empty collection and a
+// zero count are the report.
+func collectExportData(client *api.Client, cfg *config.Config) (*models.ExportData, error) {
+	siteInfo, err := client.GetSiteInfo()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get site info: %w", err)
+	}
+
+	var posts []models.WordPressPost
+	if !cfg.NoPosts {
+		if posts, err = client.GetPosts(); err != nil {
+			return nil, fmt.Errorf("failed to get posts: %w", err)
+		}
+	}
+
+	var pages []models.WordPressPost
+	if !cfg.NoPages {
+		if pages, err = client.GetPages(); err != nil {
+			return nil, fmt.Errorf("failed to get pages: %w", err)
+		}
+	}
+
+	var products []models.WooCommerceProduct
+	if !cfg.NoProducts {
+		products, _ = client.GetProducts()
+	}
+
+	var media []models.WordPressMedia
+	if cfg.DownloadMedia {
+		media, _ = client.GetMedia()
+	}
+
+	// Reader comments ship like every other collection (#35). An export driven
+	// over MCP would otherwise drop them exactly as the CLI used to.
+	var comments []models.WordPressComment
+	if !cfg.NoComments {
+		comments, _ = client.GetComments()
+	}
+
+	categories, _ := client.GetCategories()
+	tags, _ := client.GetTags()
+	users, _ := client.GetUsers()
+
+	return &models.ExportData{
+		Site:       *siteInfo,
+		Posts:      posts,
+		Pages:      pages,
+		Products:   products,
+		Media:      media,
+		Categories: categories,
+		Tags:       tags,
+		Users:      users,
+		Comments:   comments,
+		Stats: models.ExportStats{
+			TotalPosts:      len(posts),
+			TotalPages:      len(pages),
+			TotalProducts:   len(products),
+			TotalMedia:      len(media),
+			TotalCategories: len(categories),
+			TotalTags:       len(tags),
+			TotalUsers:      len(users),
+			TotalComments:   len(comments),
+		},
+	}, nil
+}
+
 // handleExportSite performs a full site export
 func handleExportSite(args map[string]interface{}) (*CallToolResult, error) {
 	cfg := configFromArgs(args)
@@ -529,60 +611,9 @@ func handleExportSite(args map[string]interface{}) (*CallToolResult, error) {
 	// Collect data
 	startTime := time.Now()
 
-	siteInfo, err := client.GetSiteInfo()
+	exportData, err := collectExportData(client, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get site info: %w", err)
-	}
-
-	var posts []models.WordPressPost
-	if !cfg.NoPosts {
-		posts, err = client.GetPosts()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get posts: %w", err)
-		}
-	}
-
-	var pages []models.WordPressPost
-	if !cfg.NoPages {
-		pages, err = client.GetPages()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get pages: %w", err)
-		}
-	}
-
-	var products []models.WooCommerceProduct
-	if !cfg.NoProducts {
-		products, _ = client.GetProducts()
-	}
-
-	var media []models.WordPressMedia
-	if cfg.DownloadMedia {
-		media, _ = client.GetMedia()
-	}
-
-	categories, _ := client.GetCategories()
-	tags, _ := client.GetTags()
-	users, _ := client.GetUsers()
-
-	// Create export data
-	exportData := &models.ExportData{
-		Site:       *siteInfo,
-		Posts:      posts,
-		Pages:      pages,
-		Products:   products,
-		Media:      media,
-		Categories: categories,
-		Tags:       tags,
-		Users:      users,
-		Stats: models.ExportStats{
-			TotalPosts:      len(posts),
-			TotalPages:      len(pages),
-			TotalProducts:   len(products),
-			TotalMedia:      len(media),
-			TotalCategories: len(categories),
-			TotalTags:       len(tags),
-			TotalUsers:      len(users),
-		},
+		return nil, err
 	}
 
 	// Export
@@ -595,19 +626,21 @@ func handleExportSite(args map[string]interface{}) (*CallToolResult, error) {
 	// Get absolute path
 	absOutput, _ := filepath.Abs(cfg.Output)
 
+	stats := exportData.Stats
 	result := map[string]interface{}{
 		"status":   "success",
 		"output":   absOutput,
 		"format":   cfg.Format,
 		"duration": duration.String(),
 		"stats": map[string]int{
-			"posts":      len(posts),
-			"pages":      len(pages),
-			"products":   len(products),
-			"media":      len(media),
-			"categories": len(categories),
-			"tags":       len(tags),
-			"users":      len(users),
+			"posts":      stats.TotalPosts,
+			"pages":      stats.TotalPages,
+			"products":   stats.TotalProducts,
+			"media":      stats.TotalMedia,
+			"categories": stats.TotalCategories,
+			"tags":       stats.TotalTags,
+			"users":      stats.TotalUsers,
+			"comments":   stats.TotalComments,
 		},
 	}
 
