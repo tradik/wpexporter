@@ -31,7 +31,7 @@ func (e *Exporter) exportSSG(data *models.ExportData) error {
 		return fmt.Errorf("failed to export posts: %w", err)
 	}
 
-	if err := e.exportSSGPages(data.Pages); err != nil {
+	if err := e.exportSSGPages(data); err != nil {
 		return fmt.Errorf("failed to export pages: %w", err)
 	}
 
@@ -41,6 +41,10 @@ func (e *Exporter) exportSSG(data *models.ExportData) error {
 
 	if err := e.exportMetadata(data); err != nil {
 		return fmt.Errorf("failed to export metadata: %w", err)
+	}
+
+	if err := e.exportComments(data.Comments); err != nil {
+		return fmt.Errorf("failed to export comments: %w", err)
 	}
 
 	if !e.config.Quiet {
@@ -76,13 +80,25 @@ func (e *Exporter) exportSSGPosts(data *models.ExportData) error {
 // exportSSGPages writes each page nested to mirror its URL, so a page at
 // /baby-water-instructor/cost/ becomes pages/baby-water-instructor/cost.md and
 // keeps the site's information architecture visible in the file tree.
-func (e *Exporter) exportSSGPages(pages []models.WordPressPost) error {
-	for _, page := range pages {
+// Two pages can still want one file here — a site whose links are missing
+// falls back to slugs — so the placement is shared with the markdown format and
+// the count of what was written is stated rather than assumed (#38).
+func (e *Exporter) exportSSGPages(data *models.ExportData) error {
+	placement := newPagePlacement()
+
+	for _, page := range data.Pages {
 		dir, filename := ssgPageLocation(e.config.Output, page, e.generateMarkdownFilename(page))
+		filename = placement.claim(dir, filename, page.ID)
+
 		if err := e.writeSSGDocument(page, dir, filename, "page"); err != nil {
 			return err
 		}
+
+		placement.recordWrite()
 	}
+
+	data.Stats.PagesWritten = placement.written
+	e.reportCollisions(placement)
 
 	return nil
 }
@@ -290,6 +306,13 @@ func (e *Exporter) buildLookupMaps(data *models.ExportData) {
 	e.userMap = make(map[int]string, len(data.Users))
 	for _, user := range data.Users {
 		e.userMap[user.ID] = user.Name
+	}
+
+	// Pages by ID, so a child document can name its parent by slug as well as
+	// by number: an ID is meaningless on the far side of a migration (#38).
+	e.pageSlugs = make(map[int]string, len(data.Pages))
+	for _, page := range data.Pages {
+		e.pageSlugs[page.ID] = page.Slug
 	}
 
 	e.mediaMap = make(map[int]string, len(data.Media))

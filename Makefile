@@ -57,7 +57,19 @@ VERSION_VARS := -X $(VERSION_PKG).Version=$(VERSION) -X $(VERSION_PKG).BuildTime
 LDFLAGS := -ldflags "$(VERSION_VARS) -s -w"
 PROD_LDFLAGS := -ldflags "$(VERSION_VARS) -s -w -extldflags '-static'"
 
-.PHONY: help build clean test test-coverage deps run install dev lint vet sec check format build-prod release package packages docker-build docker-push version tag snap
+# Security scanner. gosec is a pinned tool dependency of the separate tools/
+# module, so `make sec` builds the same binary CI does — every transitive
+# version fixed by tools/go.sum — instead of whatever an ambient
+# `go install …@latest` last left on PATH. The exclusions are the CI list, kept
+# here so a local run and the pipeline can never disagree about what passes:
+#   G703 path traversal   the tool writes where the operator told it to
+#   G704 SSRF             it fetches the WordPress URL the operator gave it
+#   G117 secret patterns  auth tokens are configuration, not leaked credentials
+#   G122 filepath.Walk    the TOCTOU window is acceptable while zipping an export
+GOSEC_BIN := $(BUILD_DIR)/gosec
+GOSEC_EXCLUDE := G703,G704,G117,G122
+
+.PHONY: help build clean test test-coverage deps run install dev lint vet sec check format build-prod release package packages docker-build docker-push version tag snap site site-serve site-check site-clean
 
 help: ## Show this help message
 	@grep -h -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-40s\033[0m %s\n", $$1, $$2}'
@@ -113,11 +125,13 @@ vet: ## Run go vet
 
 sec: ## Run gosec security scanner
 	@echo "${BLUE}Running gosec security scanner...${RESET}"
-	@if command -v gosec >/dev/null 2>&1; then \
-		gosec ./...; \
-	else \
-		echo "${YELLOW}gosec not installed. Install with: go install github.com/securego/gosec/v2/cmd/gosec@latest${RESET}"; \
-	fi
+	@mkdir -p $(BUILD_DIR)
+	@# Removed rather than overwritten: `go build -o` refuses a target it cannot
+	@# recognise as its own output, so one interrupted build would otherwise
+	@# leave `make sec` failing on a stale file until someone deleted it by hand.
+	@rm -f $(GOSEC_BIN)
+	@$(GOCMD) -C tools build -o "$(CURDIR)/$(GOSEC_BIN)" github.com/securego/gosec/v2/cmd/gosec
+	@$(GOSEC_BIN) -exclude=$(GOSEC_EXCLUDE) ./...
 
 check: vet lint sec test ## Run all checks (vet, lint, security, tests)
 	@echo "${GREEN}All checks passed${RESET}"
@@ -302,6 +316,39 @@ install-tools: ## Install development tools
 	$(GOGET) github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	$(GOGET) github.com/securego/gosec/v2/cmd/gosec@latest
 	@echo "${GREEN}Development tools installed${RESET}"
+
+# ── Documentation site ────────────────────────────────────────────────────────
+# https://wpexporter.tradik.com/ — this repository's docs/ folder rendered with
+# the bundled ssgtheme (templates/ssgtheme), configured by ./docs-site.yaml. No
+# content is copied: content_sources reads docs/ in place, so editing a guide and
+# rebuilding is the whole workflow.
+#
+# Needs SSG on PATH — `sudo snap install ssg`, or see https://ssg.tradik.com/install/.
+SSG := ssg
+SITE_CONFIG := docs-site.yaml
+SITE_DIR := .site
+
+site: ## 📚 Build the documentation site into .site/
+	@command -v $(SSG) >/dev/null 2>&1 || { echo "${RED}ssg not found on PATH — see https://ssg.tradik.com/install/${RESET}"; exit 1; }
+	@echo "${BLUE}📚 Building documentation site...${RESET}"
+	@$(SSG) --config $(SITE_CONFIG)
+	@echo "${GREEN}✅ Documentation site generated in $(SITE_DIR)/${RESET}"
+
+site-serve: ## 🌐 Build the docs site and serve it on http://127.0.0.1:8888, rebuilding on change
+	@command -v $(SSG) >/dev/null 2>&1 || { echo "${RED}ssg not found on PATH — see https://ssg.tradik.com/install/${RESET}"; exit 1; }
+	@echo "${BLUE}🌐 Serving documentation site on http://127.0.0.1:8888 ...${RESET}"
+	@$(SSG) --config $(SITE_CONFIG) --watch --http
+
+site-check: ## 🔗 Build the docs site the way CI does — a dead internal link fails
+	@command -v $(SSG) >/dev/null 2>&1 || { echo "${RED}ssg not found on PATH — see https://ssg.tradik.com/install/${RESET}"; exit 1; }
+	@echo "${BLUE}🔗 Building documentation site with strict link checking...${RESET}"
+	@$(SSG) --config $(SITE_CONFIG) --check-links=strict
+	@echo "${GREEN}✅ No broken internal links${RESET}"
+
+site-clean: ## 🧹 Remove the generated documentation site
+	@echo "${YELLOW}Cleaning documentation site...${RESET}"
+	@rm -rf $(SITE_DIR)
+	@echo "${GREEN}Clean complete${RESET}"
 
 ci: deps test lint security-scan ## Run CI pipeline locally
 	@echo "${GREEN}CI pipeline completed successfully${RESET}"

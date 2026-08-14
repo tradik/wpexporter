@@ -276,8 +276,8 @@ The XML-RPC client can be used programmatically:
 package main
 
 import (
-    "github.com/tradik/wpexportjson/internal/config"
-    "github.com/tradik/wpexportjson/internal/xmlrpc"
+    "github.com/tradik/wpexporter/internal/config"
+    "github.com/tradik/wpexporter/internal/xmlrpc"
 )
 
 func main() {
@@ -300,6 +300,6 @@ func main() {
 
 ## Support and Contributing
 
-- Report issues: [GitHub Issues](https://github.com/tradik/wpexportjson/issues)
+- Report issues: [GitHub Issues](https://github.com/tradik/wpexporter/issues)
 - Documentation: [Project README](../README.md)
 - Contributing: See [Contributing Guidelines](../CONTRIBUTING.md)

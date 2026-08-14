@@ -24,7 +24,7 @@ body{--wp--preset--color--primary: #0693e3;--wp--preset--color--secondary: #cf2e
 </head><body></body></html>`
 
 func TestExtractPalette_ThemeVariablesBeatBuilderDefaults(t *testing.T) {
-	palette := ExtractPalette(elementorPage)
+	palette := ExtractPalette(elementorPage, "")
 
 	want := map[string]string{
 		"primary":    "#7b2ff7", // the theme's own, not Elementor's factory blue
@@ -53,7 +53,7 @@ func TestExtractPalette_IgnoresNonColours(t *testing.T) {
 		--color-link: rgba(12, 34, 56, 0.5);
 	}</style>`
 
-	palette := ExtractPalette(html)
+	palette := ExtractPalette(html, "")
 
 	for _, role := range []string{"primary", "secondary", "text"} {
 		if v, ok := palette[role]; ok {
@@ -73,7 +73,7 @@ func TestExtractPalette_OnlyReadsStyleBlocks(t *testing.T) {
 	// palette and must not be picked up.
 	html := `<p>--color-primary: #ff0000;</p><div style="--color-primary:#00ff00">x</div>`
 
-	if palette := ExtractPalette(html); palette != nil {
+	if palette := ExtractPalette(html, ""); palette != nil {
 		t.Errorf("nothing outside <style> is a palette, got %v", palette)
 	}
 }
@@ -84,21 +84,21 @@ func TestExtractPalette_FirstDeclarationWins(t *testing.T) {
 	html := `<style>:root{--color-primary:#111111}
 		@media (min-width:900px){:root{--color-primary:#222222}}</style>`
 
-	if got := ExtractPalette(html)["primary"]; got != "#111111" {
+	if got := ExtractPalette(html, "")["primary"]; got != "#111111" {
 		t.Errorf("primary = %q, want the first declaration", got)
 	}
 }
 
 func TestExtractPalette_NothingDeclared(t *testing.T) {
-	if palette := ExtractPalette("<html><head></head></html>"); palette != nil {
+	if palette := ExtractPalette("<html><head></head></html>", ""); palette != nil {
 		t.Errorf("a page with no stylesheet should yield nothing, got %v", palette)
 	}
 	// Custom properties that are not colors at all: still nothing.
-	if palette := ExtractPalette(`<style>:root{--gap: 12px;}</style>`); palette != nil {
+	if palette := ExtractPalette(`<style>:root{--gap: 12px;}</style>`, ""); palette != nil {
 		t.Errorf("non-color properties should yield nothing, got %v", palette)
 	}
 	// Color properties under names no role maps to: still nothing.
-	if palette := ExtractPalette(`<style>:root{--sidebar-shadow: #010203;}</style>`); palette != nil {
+	if palette := ExtractPalette(`<style>:root{--sidebar-shadow: #010203;}</style>`, ""); palette != nil {
 		t.Errorf("unmapped names should yield nothing, got %v", palette)
 	}
 }

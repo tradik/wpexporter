@@ -61,6 +61,11 @@ extract_meta: "all"
 # without credentials the export warns and carries on without them.
 no_menus: false
 
+# Skip exporting reader comments. They ship by default from /wp/v2/comments,
+# which a public WordPress serves without authentication (approved comments
+# only), into comments.json addressed by the page URL each belongs to.
+no_comments: false
+
 # Number of concurrent downloads
 concurrent: 5
 

@@ -47,6 +47,10 @@ Makefile
 air.toml
 .air.toml
 
+# The gosec tool module. It is a separate Go module that nothing in the image
+# imports, and its dependency tree is larger than the application's own.
+tools/
+
 # CI/CD
 .github/
 .gitlab-ci.yml
@@ -64,3 +68,10 @@ prime/
 
 # Audit reports
 audit/
+
+# Documentation site (docs-site.yaml is already covered by *.yaml above). The
+# image ships binaries, not the website.
+.site/
+.ssg-cache/
+templates/
+assets/

@@ -1,0 +1,220 @@
+# Documentation site for wpexporter — https://wpexporter.tradik.com/
+#
+# Built with SSG (https://ssg.tradik.com/) and the bundled ssgtheme in
+# templates/ssgtheme, which is the same theme, tokens and design system the SSG
+# site itself runs on.
+#
+# Deliberately NOT named .ssg.yaml: that filename is auto-detected by every ssg
+# invocation in this directory, so a config describing THIS site would hijack any
+# other build run from a checkout — including an `-f ssg` export a contributor is
+# testing. Always pass it explicitly:
+#
+#   make site        # build into .site/
+#   make site-serve  # build and serve on http://127.0.0.1:8888
+#
+# There is no content/<source>/ tree: the pages ARE this repository's docs/
+# Markdown, pulled in through content_sources. Editing a guide and pushing it is
+# the whole publishing workflow — nothing is copied or generated into a second
+# location that could drift.
+template: ssgtheme
+domain: wpexporter.tradik.com
+output_dir: .site
+
+content_sources:
+  - path: docs
+    type: page
+    category: Documentation
+
+# Guides cross-link each other as ARCHITECTURE.md, which only resolves in a
+# repository view; rewrite_md_links turns those into the built page URLs (anchors
+# included), and strip_md_link_text drops the ".md" from the visible link text
+# ("see ARCHITECTURE" instead of "see ARCHITECTURE.md").
+rewrite_md_links: true
+strip_md_link_text: true
+
+# The guides also link to repository files the site never publishes. Point those
+# at GitHub instead of 404ing. CONTRIBUTING.md does not exist yet, so its link
+# goes to the README section that currently carries those instructions.
+link_rewrites:
+  "../README.md": "https://github.com/tradik/wpexporter/blob/main/README.md"
+  "../CONTRIBUTING.md": "https://github.com/tradik/wpexporter#contributing"
+  "../CHANGELOG.md": "https://github.com/tradik/wpexporter/blob/main/CHANGELOG.md"
+  "../man/": "https://github.com/tradik/wpexporter/tree/main/man/"
+  "../config.example.yaml": "https://github.com/tradik/wpexporter/blob/main/config.example.yaml"
+check_links: warn
+shortcode_errors: strict
+
+# docs/*.md have no "## Excerpt" section; derive one from the opening paragraph so
+# cards and meta descriptions are not blank.
+auto_excerpt: true
+
+# Nine guide cards on the home page — three rows of three — before the
+# "20 guides in total" line. The default is six, which showed a third of the set.
+home_pages_limit: 9
+
+pretty_html: true
+sitemap_off: false
+robots_off: false
+search_index: true
+
+# Markdown for agents: publish index.md + page.md next to every page, a
+# text/markdown <head> alternate, and a root llms.txt. Agents and LLMs that read
+# Markdown get the authored source directly — fitting for a tool that ships its
+# own MCP server.
+markdown_publish: true
+
+# Explicit crawler policy. The AI crawlers are welcomed because the published
+# Markdown/llms.txt above is written precisely for them; Google reads the standard
+# HTML regardless.
+robots_rules:
+  - user_agent: "*"
+    allow: ["/"]
+  - user_agent: GPTBot
+    allow: ["/"]
+  - user_agent: OAI-SearchBot
+    allow: ["/"]
+  - user_agent: Google-Extended
+    allow: ["/"]
+
+# seo injects JSON-LD (WebPage / WebSite + BreadcrumbList) alongside the theme's
+# own OpenGraph; schema adds a site-wide publisher to every page.
+seo: true
+schema:
+  publisher:
+    "@type": Organization
+    name: wpexporter
+    url: https://wpexporter.tradik.com/
+
+# Emit routes.json so the route contract ships with the site.
+route_manifest: true
+
+# Code blocks: Chroma syntax highlighting with line numbers, and Mermaid diagrams
+# rendered from ```mermaid fences (docs/ARCHITECTURE.md is nothing but diagrams;
+# the runtime is injected only on pages that use one).
+highlight: true
+highlight_style: github-dark
+highlight_line_numbers: true
+mermaid: true
+# Diagrams are transparent by default, so on the dark code chrome they are hard to
+# read; box each one on a white panel with the light "neutral" theme.
+mermaid_theme: neutral
+mermaid_background: "#ffffff"
+
+# Content-address CSS/JS names, so a changed asset arrives under a new URL.
+#
+# Without this the generated _headers still marks /css/* and /js/* immutable for a
+# year, and `immutable` tells the browser not even to revalidate — so a stylesheet
+# edit stays invisible to anyone who visited before. A content hash in the name is
+# the way out: the URL changes, so the stale copy is simply not requested.
+fingerprint: true
+
+headers:
+  # `immutable` is deliberately NOT used, even though the names now carry a
+  # content hash. _headers matches by path pattern, not by what was actually
+  # served, so the rule also lands on a 404 fallback for a path under /css/. Ask
+  # for an asset in the window before a deploy has propagated and the edge pins
+  # that HTML page under the asset URL — for a year, unrevalidatable. A day-long
+  # cache keeps virtually all the benefit while leaving any poisoned entry to
+  # expire on its own. must-revalidate is the part that bites: Cloudflare Pages
+  # rewrites max-age on static assets but preserves the directives.
+  /css/*:
+    Cache-Control: "public, max-age=86400, must-revalidate"
+  /js/*:
+    Cache-Control: "public, max-age=86400, must-revalidate"
+
+variables:
+  # Brand mark and hero photograph, both resolved inside assets/ and resized at
+  # build time. Uncomment each once the file is in place — see assets/README.md
+  # for what the theme expects. Unset means a plain hero and a wordmark-only
+  # header, which is why the site builds today without either.
+  # logo: logo.png
+  # hero_image: hero.jpg
+
+  github_repo: tradik/wpexporter # enables the header star count
+  repository_url: https://github.com/tradik/wpexporter
+
+  # Header version chip. Committed as the current release; the Docs Site workflow
+  # rewrites it from the VERSION file before building, so a release bump reaches
+  # the site even when this line lags behind.
+  version: "1.8.5"
+
+  # No `gtag` and no `gtm_id`: this site ships no analytics, so it also needs no
+  # consent banner. Add either variable (and cookie_consent alongside it) if that
+  # ever changes — the theme renders both Consent-Mode-v2-aware.
+
+  # Horizontal "exports natively to" strip on the home page.
+  #
+  # The marks are the official monochrome brand paths from Simple Icons
+  # (github.com/simple-icons, CC0-1.0). They are data, not drawings: reproducing a
+  # company's mark from memory gets the proportions wrong, which misrepresents the
+  # brand worse than showing no mark at all. Each brand remains its owner's
+  # trademark; naming them to say "this exports there" is nominative use. Weebly
+  # has no Simple Icons entry, so it rides as a name without a mark rather than as
+  # an invented one. All Simple Icons paths use a 24x24 viewBox.
+  marquee:
+    title: "Exports natively to"
+    items:
+      - name: "Shopify"
+        icon: "M15.337 23.979l7.216-1.561s-2.604-17.613-2.625-17.73c-.018-.116-.114-.192-.211-.192s-1.929-.136-1.929-.136-1.275-1.274-1.439-1.411c-.045-.037-.075-.057-.121-.074l-.914 21.104h.023zM11.71 11.305s-.81-.424-1.774-.424c-1.447 0-1.504.906-1.504 1.141 0 1.232 3.24 1.715 3.24 4.629 0 2.295-1.44 3.76-3.406 3.76-2.354 0-3.54-1.465-3.54-1.465l.646-2.086s1.245 1.066 2.28 1.066c.675 0 .975-.545.975-.932 0-1.619-2.654-1.694-2.654-4.359-.034-2.237 1.571-4.416 4.827-4.416 1.257 0 1.875.361 1.875.361l-.945 2.715-.02.01zM11.17.83c.136 0 .271.038.405.135-.984.465-2.064 1.639-2.508 3.992-.656.213-1.293.405-1.889.578C7.697 3.75 8.951.84 11.17.84V.83zm1.235 2.949v.135c-.754.232-1.583.484-2.394.736.466-1.777 1.333-2.645 2.085-2.971.193.501.309 1.176.309 2.1zm.539-2.234c.694.074 1.141.867 1.429 1.755-.349.114-.735.231-1.158.366v-.252c0-.752-.096-1.371-.271-1.871v.002zm2.992 1.289c-.02 0-.06.021-.078.021s-.289.075-.714.21c-.423-1.233-1.176-2.37-2.508-2.37h-.115C12.135.209 11.669 0 11.265 0 8.159 0 6.675 3.877 6.21 5.846c-1.194.365-2.063.636-2.16.674-.675.213-.694.232-.772.87-.075.462-1.83 14.063-1.83 14.063L15.009 24l.927-21.166z"
+      - name: "Magento"
+        icon: "M12 24l-4.455-2.572v-12l2.97-1.715v12.001l1.485.902 1.485-.902V7.713l2.971 1.715v12L12 24zM22.391 6v12l-2.969 1.714V7.713L12 3.43 4.574 7.713v12.001L1.609 18V6L12 0l10.391 6z"
+      - name: "PrestaShop"
+        icon: "M11.558 1.034C5.174 1.034 0 6.21 0 12.592c0 1.258.201 2.47.574 3.597l.002-.007a12.415 12.415 0 01.53-1.787l.011-.03c.085-.222.179-.442.277-.66l.084-.181c.08-.171.165-.34.253-.507.036-.068.07-.136.108-.203.02-.038.044-.073.064-.11.094-.166.19-.332.29-.493l.075-.114c.125-.195.256-.386.393-.573l.035-.05c.144-.193.295-.38.451-.563l.1-.118c.155-.177.315-.35.481-.517l.099-.097a10.321 10.321 0 01.546-.503c.74-2.48 3.005-4.285 5.686-4.285 1.079 0 2.152.31 3.071.873a6.017 6.017 0 012.211 2.407l.007.015.04.074v.003l.004.002a9.925 9.925 0 011.567 1.198c.04.037.081.071.12.109.002 0 .006.005.007.006l-.002-.006-.001-.004v-.003l.042-.084c.377-2.384 1.43-4.102 2.67-4.102.934 0 1.762.975 2.276 2.476l.005.016.001.002c.145.158.287.331.424.521l.007.01.021.067-.02-.078c-1.542-4.569-5.863-7.857-10.952-7.857zM9.927 5.477C7.586 5.52 5.34 7.132 4.574 9.365l-.012.034a10.14 10.14 0 011.315-.895c2.806-1.656 6.479-1.646 9.278.016-.895-1.653-2.631-2.819-4.5-3.004a5.14 5.14 0 00-.728-.039zm9.834.5a1.36 1.36 0 00-.39.067c-1.265.562-1.719 2.073-2.031 3.303l-.016.072c.365-.62.808-1.215 1.396-1.642.835-.687 2.105-.655 2.916.053.308.326.141.008.031-.22-.342-.75-1.025-1.653-1.906-1.634zM21.67 7.98zm-9.32.335l-1.07 3.27-.002.005-.006.002-4.498 1.112h-.009l4.456 1.087c.105.11.227.205.36.28h.002c.042.024.085.045.129.065l.01.005c.041.018.083.033.126.047l.021.008c.04.013.08.023.12.032l.033.008a1.677 1.677 0 00.318.033 1.546 1.546 0 001.43-.948c.08-.186.123-.39.123-.604v-.011l-.001-.012c-.001-.054-.004-.107-.01-.16l-.001-.002a1.506 1.506 0 00-.026-.153l-.001-.004a1.511 1.511 0 00-.096-.288v-.003a1.521 1.521 0 00-.348-.49v-.003zm3.148.626c.048 1.008.036 2.046-.1 3.057-.17 2.018-1.19 3.798-1.972 5.616l-.03.08-.035.086c1.51-1.522 3.17-3.04 3.969-5.082.383-.636.118-1.342-.115-1.976-.17-.877-1.069-1.278-1.717-1.781zm6.172.572l-.588 2.688a1.764 1.764 0 00-.047.2c-.002.02-.007.04-.01.06a1.76 1.76 0 00-.016.222l-.002.031h.003c0 .628.297 1.136.663 1.137a.41.41 0 00.182-.045l.027-.015a.537.537 0 00.07-.047c.013-.01.024-.022.036-.033a.752.752 0 00.137-.168l.03-.054a1.23 1.23 0 00.052-.108l.017-.04c.02-.053.038-.108.053-.166l.002-.002.001-.003.404-.451-.407-.456v.001l-.02-.063zm-4.381.856c.69 1.716.85 3.707.091 5.43-.49 1.368-1.587 2.463-1.874 3.905.73.115 1.468.176 2.21.186 2.166.029 4.332-.42 6.284-1.365-2.04-2.869-4.121-5.755-6.711-8.156zm-4.948.977a.583.583 0 110 1.166.583.583 0 010-1.166zm9.352.37c.138 0 .249.19.249.426s-.111.426-.249.426c-.137 0-.248-.19-.248-.426 0-.235.11-.426.248-.426zm-4.044.184c-.016.112-.033.209-.05.29l-.006.023c-.01.05-.022.094-.033.128-.48 1.417-1.275 2.52-2.36 3.697-.147.16-.301.32-.459.484a58.883 58.883 0 01-1.196 1.205c-.112.11-.259.261-.425.436-.103.287-.22.61-.318.95-.044-.016-.086-.031-.131-.049-2.108-.815-3.519-1.904-3.519-1.904s1.086 1.414 2.915 2.74c.177.129.351.24.522.339-.075 1.194.452 2.34 2.83 2.682a4.81 4.81 0 001.228.008l-.01-.029a.062.062 0 00-.004-.01s-.167-.133-.379-.377a3.842 3.842 0 01-.584-.897 3.382 3.382 0 01-.266-.862 3.176 3.176 0 01-.006-.972c.017-.12.04-.241.072-.366.093-.374.255-.772.507-1.192l.002-.003.241-.404c1.103-1.86 1.797-3.275 1.506-5.441a8.943 8.943 0 00-.078-.476zm4.668.576zm.013.203l.003.036v.01c0 .013-.003.025-.003.038 0-.014.003-.028.003-.043 0-.014-.002-.026-.003-.04zm-.012.275v.001l-.002.01-.002.014.004-.025zm1.353 5.928c-2.553 1.138-5.44 1.44-8.192 1.007-.14 1.108.384 2.218 1.214 2.93l.012.01c2.703-.433 4.975-2.168 6.966-3.946z"
+      - name: "WordPress (WXR)"
+        icon: "M21.469 6.825c.84 1.537 1.318 3.3 1.318 5.175 0 3.979-2.156 7.456-5.363 9.325l3.295-9.527c.615-1.54.82-2.771.82-3.864 0-.405-.026-.78-.07-1.11m-7.981.105c.647-.03 1.232-.105 1.232-.105.582-.075.514-.93-.067-.899 0 0-1.755.135-2.88.135-1.064 0-2.85-.15-2.85-.15-.585-.03-.661.855-.075.885 0 0 .54.061 1.125.09l1.68 4.605-2.37 7.08L5.354 6.9c.649-.03 1.234-.1 1.234-.1.585-.075.516-.93-.065-.896 0 0-1.746.138-2.874.138-.2 0-.438-.008-.69-.015C4.911 3.15 8.235 1.215 12 1.215c2.809 0 5.365 1.072 7.286 2.833-.046-.003-.091-.009-.141-.009-1.06 0-1.812.923-1.812 1.914 0 .89.513 1.643 1.06 2.531.411.72.89 1.643.89 2.977 0 .915-.354 1.994-.821 3.479l-1.075 3.585-3.9-11.61.001.014zM12 22.784c-1.059 0-2.081-.153-3.048-.437l3.237-9.406 3.315 9.087c.024.053.05.101.078.149-1.12.393-2.325.609-3.582.609M1.211 12c0-1.564.336-3.05.935-4.39L7.29 21.709C3.694 19.96 1.212 16.271 1.211 12M12 0C5.385 0 0 5.385 0 12s5.385 12 12 12 12-5.385 12-12S18.615 0 12 0"
+      - name: "Drupal"
+        icon: "M15.78 5.113C14.09 3.425 12.48 1.815 11.998 0c-.48 1.815-2.09 3.425-3.778 5.113-2.534 2.53-5.405 5.4-5.405 9.702a9.184 9.185 0 1018.368 0c0-4.303-2.871-7.171-5.405-9.702M6.72 16.954c-.563-.019-2.64-3.6 1.215-7.416l2.55 2.788a.218.218 0 01-.016.325c-.61.625-3.204 3.227-3.527 4.126-.066.186-.164.18-.222.177M12 21.677a3.158 3.158 0 01-3.158-3.159 3.291 3.291 0 01.787-2.087c.57-.696 2.37-2.655 2.37-2.655s1.774 1.988 2.367 2.649a3.09 3.09 0 01.792 2.093A3.158 3.158 0 0112 21.677m6.046-5.123c-.068.15-.223.398-.431.405-.371.014-.411-.177-.686-.583-.604-.892-5.864-6.39-6.848-7.455-.866-.935-.122-1.595.223-1.94C10.736 6.547 12 5.285 12 5.285s3.766 3.574 5.336 6.016c1.57 2.443 1.029 4.556.71 5.253"
+      - name: "Ghost"
+        icon: "M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm.256 2.313c2.47.005 5.116 2.008 5.898 2.962l.244.3c1.64 1.994 3.569 4.34 3.569 6.966 0 3.719-2.98 5.808-6.158 7.508-1.433.766-2.98 1.508-4.748 1.508-4.543 0-8.366-3.569-8.366-8.112 0-.706.17-1.425.342-2.15.122-.515.244-1.033.307-1.549.548-4.539 2.967-6.795 8.422-7.408a4.29 4.29 0 01.49-.026Z"
+      - name: "Strapi"
+        icon: "M8.32 0c-3.922 0-5.882 0-7.1 1.219C0 2.438 0 4.399 0 8.32v7.36c0 3.922 0 5.882 1.219 7.101C2.438 24 4.399 24 8.32 24h7.36c3.922 0 5.882 0 7.101-1.219C24 21.562 24 19.601 24 15.68V8.32c0-3.922 0-5.882-1.219-7.101C21.562 0 19.601 0 15.68 0H8.32zm.41 7.28h7.83a.16.16 0 0 1 .16.16v7.83h-3.87v-3.71a.41.41 0 0 0-.313-.398l-.086-.012h-3.72V7.28zm-.5.25v3.87H4.553a.08.08 0 0 1-.057-.136L8.23 7.529zm.25 4.12h3.87v3.87H8.64a.16.16 0 0 1-.16-.16v-3.71zm4.12 4.12h3.87l-3.734 3.734a.08.08 0 0 1-.136-.057V15.77z"
+      - name: "Contentful"
+        icon: "M21.875 16.361c-.043-.048-1.067-1.18-2.365-1.19-.68 0-1.288.283-1.815.858-.773.842-2.35 1.85-4.25 1.921-1.598.059-3.085-.548-4.423-1.805-1.644-1.544-2.155-4.016-1.302-6.297.834-2.23 2.752-3.616 5.131-3.707l.044-.004c.024-.003 2.302-.258 4.325 1.548.17.185 1.154 1.197 2.475 1.228.823.018 1.586-.336 2.27-1.055.602-.632.87-1.342.797-2.112-.154-1.61-1.806-2.876-2.03-3.04-.212-.184-1.878-1.578-4.476-2.294-2.52-.695-6.42-.853-10.685 2.349a7.31 7.31 0 0 0-.557.49c-.28.208-.523.462-.716.753a12.469 12.469 0 0 0-3.064 8.677c.207 6.283 5.265 9.293 5.646 9.51.262.17 2.906 1.81 6.495 1.809 2.106 0 4.538-.565 7.005-2.322.248-.138 1.714-1.012 2.103-2.52.23-.894.042-1.815-.562-2.737l-.046-.06zm-16.932 1.97c0-1.09.887-1.977 1.977-1.977s1.977.886 1.977 1.977c0 1.09-.887 1.977-1.977 1.977s-1.977-.887-1.977-1.977zm.139-13.657c.236-.275.451-.498.628-.67a1.965 1.965 0 0 1 1.088-.329c1.09 0 1.977.887 1.977 1.977S7.888 7.63 6.798 7.63s-1.977-.887-1.977-1.977c0-.356.096-.69.261-.978zM13.249.999c3.954 0 6.657 2.336 6.826 2.486l.043.034c.42.3 1.532 1.301 1.63 2.324.044.469-.126.898-.52 1.313-.477.5-.983.752-1.504.738-.964-.019-1.743-.887-1.76-.905l-.042-.044c-2.292-2.063-4.83-1.855-5.13-1.822a6.82 6.82 0 0 0-3.012.818 3 3 0 0 0-2.34-3.214C9.543 1.45 11.516.999 13.248.999zM3.884 6.34a3 3 0 0 0 2.914 2.31c.122 0 .24-.01.358-.024a7.336 7.336 0 0 0-.39.866c-.75 2.003-.59 4.14.359 5.854-.068-.005-.136-.01-.205-.01a2.999 2.999 0 0 0-2.967 2.6 10.075 10.075 0 0 1-1.7-5.288 11.43 11.43 0 0 1 1.63-6.309zM21.497 18.9c-.3 1.174-1.615 1.89-1.627 1.896l-.058.036c-6.287 4.499-12.137.667-12.382.502l-.036-.022a2.848 2.848 0 0 1-.034-.02 2.998 2.998 0 0 0 2.543-3.228c1.124.64 2.336.951 3.58.906 2.214-.083 4.057-1.264 4.962-2.25.327-.356.67-.53 1.048-.53h.005c.762.004 1.46.688 1.593.826.421.658.558 1.291.406 1.884z"
+      - name: "Weebly"
+      - name: "Wix"
+        icon: "m0 7.354 2.113 9.292h.801a1.54 1.54 0 0 0 1.506-1.218l1.351-6.34a.171.171 0 0 1 .167-.137c.08 0 .15.058.167.137l1.352 6.34a1.54 1.54 0 0 0 1.506 1.218h.805l2.113-9.292h-.565c-.62 0-1.159.43-1.296 1.035l-1.26 5.545-1.106-5.176a1.76 1.76 0 0 0-2.19-1.324c-.639.176-1.113.716-1.251 1.365l-1.094 5.127-1.26-5.537A1.33 1.33 0 0 0 .563 7.354H0zm13.992 0a.951.951 0 0 0-.951.95v8.342h.635a.952.952 0 0 0 .951-.95V7.353h-.635zm1.778 0 3.158 4.66-3.14 4.632h1.325c.368 0 .712-.181.918-.486l1.756-2.59a.12.12 0 0 1 .197 0l1.754 2.59c.206.305.55.486.918.486h1.326l-3.14-4.632L24 7.354h-1.326c-.368 0-.712.181-.918.486l-1.772 2.617a.12.12 0 0 1-.197 0L18.014 7.84a1.108 1.108 0 0 0-.918-.486H15.77z"
+      - name: "Squarespace"
+        icon: "M22.655 8.719c-1.802-1.801-4.726-1.801-6.564 0l-7.351 7.35c-.45.45-.45 1.2 0 1.65.45.449 1.2.449 1.65 0l7.351-7.351c.899-.899 2.362-.899 3.264 0 .9.9.9 2.364 0 3.264l-7.239 7.239c.9.899 2.362.899 3.263 0l5.589-5.589c1.836-1.838 1.836-4.763.037-6.563zm-2.475 2.437c-.451-.45-1.201-.45-1.65 0l-7.354 7.389c-.9.899-2.361.899-3.262 0-.45-.45-1.2-.45-1.65 0s-.45 1.2 0 1.649c1.801 1.801 4.726 1.801 6.564 0l7.351-7.35c.449-.487.449-1.239.001-1.688zm-2.439-7.35c-1.801-1.801-4.726-1.801-6.564 0l-7.351 7.351c-.45.449-.45 1.199 0 1.649s1.2.45 1.65 0l7.395-7.351c.9-.899 2.371-.899 3.27 0 .451.45 1.201.45 1.65 0 .421-.487.421-1.199-.029-1.649h-.021zm-2.475 2.437c-.45-.45-1.2-.45-1.65 0l-7.351 7.389c-.899.9-2.363.9-3.265 0-.9-.899-.9-2.363 0-3.264l7.239-7.239c-.9-.9-2.362-.9-3.263 0L1.35 8.719c-1.8 1.8-1.8 4.725 0 6.563 1.801 1.801 4.725 1.801 6.564 0l7.35-7.351c.451-.488.451-1.238 0-1.688h.002z"
+      - name: "Webflow"
+        icon: "m24 4.515-7.658 14.97H9.149l3.205-6.204h-.144C9.566 16.713 5.621 18.973 0 19.485v-6.118s3.596-.213 5.71-2.435H0V4.515h6.417v5.278l.144-.001 2.622-5.277h4.854v5.244h.144l2.72-5.244H24Z"
+
+  # Sidebar order on every guide: the path a reader actually takes, rather than
+  # the alphabetical order .Site.Pages arrives in. A guide missing from this list
+  # still appears, after the ordered ones.
+  docs_nav_order:
+    - install          # first thing anyone does
+    - quickstart       # then run something
+    - cli              # then tune it
+    - formats          # then pick a destination
+    - formats-ecommerce
+    - formats-cms
+    - formats-builders
+    - ssg-format
+    - media            # then deal with the files
+    - seo
+    - markdown
+    - page-builders
+    - menus            # the parts a public API hides
+    - comments
+    - accessibility
+    - mcp              # driving it from an agent
+    - xmlrpc_manual    # the other protocol
+    - architecture     # how it works inside
+    - development
+    - github-actions-versions
+
+  # Header navigation: a fixed, hand-picked set. The footer carries the full guide
+  # directory, so this stays short whatever docs/ grows into.
+  nav:
+    - label: Install
+      url: /install/
+    - label: Quick start
+      url: /quickstart/
+    - label: CLI
+      url: /cli/
+    - label: Formats
+      url: /formats/
+    - label: Docs
+      url: /#documentation
+    - label: GitHub
+      url: https://github.com/tradik/wpexporter

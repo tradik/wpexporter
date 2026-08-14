@@ -28,6 +28,7 @@ type Exporter struct {
 	userMap     map[int]string    // ID -> Name lookup
 	mediaMap    map[int]string    // ID -> media URL lookup (localized when rewriting is active)
 	altMap      map[string]string // media URL -> alt text, for filling in missing alt attributes
+	pageSlugs   map[int]string    // page ID -> slug, so a child can name its parent (#38)
 	// rewriter localizes attachment URLs; nil when the export keeps original URLs.
 	rewriter *media.URLRewriter
 }
@@ -56,13 +57,7 @@ func (e *Exporter) Export(data *models.ExportData) error {
 		data.Stats.MediaDownloaded = downloaded
 	}
 
-	// Update media paths in content only for local formats (json, markdown)
-	// unless --keep-original-urls is set (for importing markdown to Shopify etc.)
-	// Other formats (shopify, magento, etc.) need original URLs
-	if e.config.LocalizesURLs() {
-		e.updateMediaPaths(data)
-		e.updateLinkPaths(data)
-	}
+	e.localizeAddresses(data)
 
 	if err := e.reportAccessibility(data); err != nil {
 		return fmt.Errorf("failed to write accessibility report: %w", err)
@@ -103,6 +98,24 @@ func (e *Exporter) Export(data *models.ExportData) error {
 	default:
 		return fmt.Errorf("unsupported export format: %s", e.config.Format)
 	}
+}
+
+// localizeAddresses is the pre-format pass every writer depends on: attachment
+// URLs become local paths, same-host addresses take their configured form, and
+// each comment adopts the final address of the page it belongs to (#35).
+//
+// Media and link rewriting is skipped for the formats that need the source
+// site's own URLs (shopify, magento, …); comment addressing is not, because a
+// comment without its page address cannot be placed at all.
+func (e *Exporter) localizeAddresses(data *models.ExportData) {
+	// Update media paths in content only for local formats (json, markdown)
+	// unless --keep-original-urls is set (for importing markdown to Shopify etc.)
+	if e.config.LocalizesURLs() {
+		e.updateMediaPaths(data)
+		e.updateLinkPaths(data)
+	}
+
+	e.resolveCommentAddresses(data)
 }
 
 // exportJSON exports data as JSON
@@ -154,8 +167,11 @@ func (e *Exporter) exportMarkdown(data *models.ExportData) error {
 		return fmt.Errorf("failed to export posts: %w", err)
 	}
 
-	// Export pages
-	if err := e.exportPostsMarkdown(data.Pages, pagesDir, "page"); err != nil {
+	// Export pages, nested to mirror their published URL. A flat pages/<slug>.md
+	// cannot represent a hierarchical site: two pages in different branches may
+	// share a slug, and the second used to overwrite the first without a word
+	// (#38).
+	if err := e.exportPagesMarkdown(data); err != nil {
 		return fmt.Errorf("failed to export pages: %w", err)
 	}
 
@@ -168,6 +184,12 @@ func (e *Exporter) exportMarkdown(data *models.ExportData) error {
 	// Export metadata
 	if err := e.exportMetadata(data); err != nil {
 		return fmt.Errorf("failed to export metadata: %w", err)
+	}
+
+	// Reader comments are records, not documents — one comments.json beside
+	// metadata.json, addressed by page URL (#35).
+	if err := e.exportComments(data.Comments); err != nil {
+		return fmt.Errorf("failed to export comments: %w", err)
 	}
 
 	fmt.Printf("Export completed: %s\n", e.config.Output)
@@ -259,6 +281,52 @@ func (e *Exporter) exportPostsWithCategories(posts []models.WordPressPost, categ
 }
 
 // exportPostsMarkdown exports posts/pages as markdown files
+// exportPagesMarkdown writes every page under the path its URL states, so
+// /zerowisko/znaczenie/ becomes pages/zerowisko/znaczenie.md and stops sharing
+// a file with the unrelated top-level /znaczenie/ (#38).
+//
+// The placement — and therefore the collision report — is the one the SSG
+// format already used; the two formats disagreeing about where a page lives was
+// the whole defect. Pages written are counted so the summary can state them
+// against pages fetched rather than assume the two match.
+func (e *Exporter) exportPagesMarkdown(data *models.ExportData) error {
+	placement := newPagePlacement()
+
+	for _, page := range data.Pages {
+		dir, filename := ssgPageLocation(e.config.Output, page, e.generateMarkdownFilename(page))
+		filename = placement.claim(dir, filename, page.ID)
+
+		if err := os.MkdirAll(dir, 0750); err != nil {
+			return fmt.Errorf("failed to create page directory %s: %w", dir, err)
+		}
+
+		content := e.generateMarkdownContent(page, "page")
+		if err := os.WriteFile(filepath.Join(dir, filename), []byte(content), 0600); err != nil {
+			return fmt.Errorf("failed to write page file %s: %w", filename, err)
+		}
+
+		placement.recordWrite()
+	}
+
+	data.Stats.PagesWritten = placement.written
+	e.reportCollisions(placement)
+
+	return nil
+}
+
+// reportCollisions states every renamed document. Two pages competing for one
+// file is not a detail to leave in the tree for someone to notice later: it
+// means an address on the live site has no document of its own here.
+func (e *Exporter) reportCollisions(placement *pagePlacement) {
+	if e.config.Quiet {
+		return
+	}
+
+	for _, collision := range placement.report() {
+		fmt.Printf("Warning: %s\n", collision)
+	}
+}
+
 func (e *Exporter) exportPostsMarkdown(posts []models.WordPressPost, dir, contentType string) error {
 	for _, post := range posts {
 		filename := e.generateMarkdownFilename(post)
@@ -499,6 +567,18 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 	builder.WriteString(fmt.Sprintf("status: \"%s\"\n", post.Status))
 	builder.WriteString(fmt.Sprintf("type: \"%s\"\n", contentType))
 	builder.WriteString(fmt.Sprintf("link: \"%s\"\n", post.Link))
+
+	// A child page states its parent, so a consumer can rebuild the tree the
+	// URL implies without re-deriving it from paths (#38). The slug travels
+	// with the ID because an ID means nothing after a migration.
+	if post.Parent > 0 {
+		if !e.config.NoIDs {
+			builder.WriteString(fmt.Sprintf("parent: %d\n", post.Parent))
+		}
+		if slug, ok := e.pageSlugs[post.Parent]; ok && slug != "" {
+			builder.WriteString(fmt.Sprintf("parent_slug: \"%s\"\n", e.escapeYAML(slug)))
+		}
+	}
 
 	if post.Author > 0 {
 		if name, ok := e.userMap[post.Author]; ok && name != "" {

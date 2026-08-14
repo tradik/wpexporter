@@ -61,7 +61,15 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	// Create HTTP client
 	httpClient := resty.New()
 	httpClient.SetTimeout(time.Duration(cfg.Timeout) * time.Second)
+
+	// Retry what is the source site's weather rather than its answer: a 5xx, a
+	// 429, a dropped connection (#37). Without this, resty retried transport
+	// errors only, so a single 500 from a shared host ended the whole export.
 	httpClient.SetRetryCount(cfg.Retries)
+	httpClient.SetRetryWaitTime(retryWaitTime)
+	httpClient.SetRetryMaxWaitTime(retryMaxWaitTime)
+	httpClient.AddRetryCondition(isTransientFailure)
+	httpClient.SetRetryAfter(retryAfterDelay)
 	httpClient.SetHeader("User-Agent", cfg.UserAgent)
 	httpClient.SetHeader("Accept", "application/json")
 	// Bound the response size to avoid unbounded memory use on a hostile or
@@ -287,7 +295,10 @@ func (c *Client) GetPosts() ([]models.WordPressPost, error) {
 
 	posts, err := c.getAllContent("posts")
 	if err != nil {
-		return nil, err
+		// The records read before the gap travel with the error; a partial
+		// fetch is never cached, or the next run would inherit the gap as if
+		// it were the site's whole content (#37).
+		return posts, err
 	}
 
 	// Cache the result
@@ -308,7 +319,9 @@ func (c *Client) GetPages() ([]models.WordPressPost, error) {
 
 	pages, err := c.getAllContent("pages")
 	if err != nil {
-		return nil, err
+		// As with posts: what was read is returned with the gap, and a partial
+		// fetch is not cached.
+		return pages, err
 	}
 
 	// Cache the result
@@ -689,9 +702,12 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 
 		url := fmt.Sprintf("%s/%s?page=%d&per_page=%d", c.baseURL, endpoint, page, perPage)
 
+		// Every failure below returns what was already fetched alongside the
+		// error: the caller decides whether a gap is fatal, and an export
+		// missing one page of posts and saying so beats no export at all (#37).
 		resp, err := c.httpClient.R().Get(url)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get %s page %d: %w", endpoint, page, err)
+			return allContent, &PartialError{Endpoint: endpoint, Page: page, Fetched: len(allContent), Err: err}
 		}
 
 		if resp.StatusCode() == 400 {
@@ -700,12 +716,22 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 		}
 
 		if resp.StatusCode() != 200 {
-			return nil, fmt.Errorf("API returned status %d for %s page %d", resp.StatusCode(), endpoint, page)
+			return allContent, &PartialError{
+				Endpoint: endpoint,
+				Page:     page,
+				Fetched:  len(allContent),
+				Err:      fmt.Errorf("API returned status %d", resp.StatusCode()),
+			}
 		}
 
 		var content []models.WordPressPost
 		if err := json.Unmarshal(resp.Body(), &content); err != nil {
-			return nil, fmt.Errorf("failed to parse %s response: %w", endpoint, err)
+			return allContent, &PartialError{
+				Endpoint: endpoint,
+				Page:     page,
+				Fetched:  len(allContent),
+				Err:      fmt.Errorf("failed to parse response: %w", err),
+			}
 		}
 
 		if len(content) == 0 {
@@ -714,6 +740,20 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 
 		allContent = append(allContent, content...)
 		page++
+
+		// The walk ends when the site says so, with an empty page or a 400 —
+		// not when a page comes back short, because a host that caps per_page
+		// below what we asked for serves every page short. A site that never
+		// says stop is bounded here instead: without a ceiling one that repeats
+		// its first page for ever is followed until memory runs out (#37).
+		if page > maxContentPages {
+			return allContent, &PartialError{
+				Endpoint: endpoint,
+				Page:     page,
+				Fetched:  len(allContent),
+				Err:      fmt.Errorf("collection did not end within %d pages", maxContentPages),
+			}
+		}
 	}
 
 	return allContent, nil

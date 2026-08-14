@@ -81,6 +81,7 @@ func TestConfigFromArgs(t *testing.T) {
 		"noPosts":       true,
 		"noPages":       false,
 		"noProducts":    true,
+		"noComments":    true,
 		"pathFilter":    "/blog/",
 		"assistedCrawl": true,
 		"flatHtml":      true,
@@ -98,6 +99,7 @@ func TestConfigFromArgs(t *testing.T) {
 	assert.True(t, cfg.NoPosts)
 	assert.False(t, cfg.NoPages)
 	assert.True(t, cfg.NoProducts)
+	assert.True(t, cfg.NoComments)
 	assert.Equal(t, "/blog/", cfg.PathFilter)
 	assert.True(t, cfg.AssistedCrawl)
 	assert.True(t, cfg.FlatHTML)
@@ -368,8 +370,8 @@ func TestExportSiteOptions(t *testing.T) {
 	// Verify all export options are available
 	expectedProps := []string{
 		"url", "format", "output", "authUser", "authPass", "authToken",
-		"downloadMedia", "noPosts", "noPages", "noProducts", "pathFilter",
-		"assistedCrawl", "flatHtml",
+		"downloadMedia", "noPosts", "noPages", "noProducts", "noComments",
+		"pathFilter", "assistedCrawl", "flatHtml",
 	}
 
 	for _, prop := range expectedProps {
