@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"net/url"
 	"strings"
 	"time"
@@ -159,12 +160,14 @@ func (c *Client) GetSiteInfo() (*models.SiteInfo, error) {
 // apiRootInfo is the unauthenticated /wp-json/ document. Its field names differ
 // from the settings endpoint's, which is why it needs its own shape.
 type apiRootInfo struct {
-	Name           string `json:"name"`
-	Description    string `json:"description"`
-	URL            string `json:"url"`
-	Home           string `json:"home"`
-	GMTOffset      string `json:"gmt_offset"`
-	TimezoneString string `json:"timezone_string"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	URL         string `json:"url"`
+	Home        string `json:"home"`
+	// GMTOffset is a number in core's own output and a string elsewhere, so it
+	// is read as either — see jsonScalar (#32).
+	GMTOffset      jsonScalar `json:"gmt_offset"`
+	TimezoneString string     `json:"timezone_string"`
 }
 
 // siteSettings is the authenticated /wp/v2/settings document. Note `title`
@@ -209,12 +212,16 @@ func (c *Client) fetchAPIRootInfo() (models.SiteInfo, error) {
 	timezone := root.TimezoneString
 	if timezone == "" && root.GMTOffset != "" {
 		// A site that never set a named zone reports only an offset.
-		timezone = "UTC" + gmtOffsetSuffix(root.GMTOffset)
+		timezone = "UTC" + gmtOffsetSuffix(root.GMTOffset.String())
 	}
 
 	return models.SiteInfo{
-		Name:        root.Name,
-		Description: root.Description,
+		// WordPress stores the name and tagline entity-encoded and serves them
+		// that way. They are plain text wherever they land next — a <title>, a
+		// meta description, a template variable — so they are decoded here
+		// rather than left for every consumer to trip over.
+		Name:        html.UnescapeString(root.Name),
+		Description: html.UnescapeString(root.Description),
 		URL:         root.URL,
 		HomeURL:     root.Home,
 		Timezone:    timezone,
@@ -237,8 +244,8 @@ func (c *Client) mergeSettingsInfo(siteInfo *models.SiteInfo) {
 		return
 	}
 
-	overlay(&siteInfo.Name, settings.Title)
-	overlay(&siteInfo.Description, settings.Description)
+	overlay(&siteInfo.Name, html.UnescapeString(settings.Title))
+	overlay(&siteInfo.Description, html.UnescapeString(settings.Description))
 	overlay(&siteInfo.URL, settings.URL)
 	overlay(&siteInfo.AdminEmail, settings.Email)
 	overlay(&siteInfo.Timezone, settings.Timezone)

@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.4] - 2026-08-14
+
+### Fixed
+- **The site's own name, tagline and timezone were dropped from every export
+  (#32).** WordPress core publishes `gmt_offset` at the REST root as a *number*
+  (`"gmt_offset":2`); the reader declared it a string, so `json.Unmarshal`
+  rejected the whole document and the identity fields went with it — silently,
+  because an unreadable root is not treated as a failure. Every export of a
+  public site therefore recorded `"name": ""` while `/wp-json/` served the name
+  plainly, and the migrated site came up titled after its domain. The offset is
+  now read quoted or bare, and one field of an unexpected type can no longer
+  cost its siblings.
+- **The name and tagline arrived HTML-encoded.** WordPress stores them escaped
+  and serves them that way, so a tagline like `Fundacja Przyrodnicza &quot;pro
+  Natura&quot;` reached the target verbatim — into a `<title>`, a meta
+  description and a template variable, where an entity is just text. Both
+  fields are decoded once, at the source.
+
 ## [1.8.3] - 2026-08-13
 
 ### Fixed
