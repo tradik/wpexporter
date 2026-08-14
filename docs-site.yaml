@@ -126,9 +126,13 @@ variables:
   # Brand mark and hero photograph, both resolved inside assets/ and resized at
   # build time. Uncomment each once the file is in place — see assets/README.md
   # for what the theme expects. Unset means a plain hero and a wordmark-only
-  # header, which is why the site builds today without either.
+  # header, which is why the site built before either existed.
+  #
+  # The hero is the sunset the theme's colours are taken from: the amber in
+  # tokens.css is this photograph's sky, so the page and the picture cannot
+  # drift apart.
   # logo: logo.png
-  # hero_image: hero.jpg
+  hero_image: wpexporter_back.jpg
 
   github_repo: tradik/wpexporter # enables the header star count
   repository_url: https://github.com/tradik/wpexporter
