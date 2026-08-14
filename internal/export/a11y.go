@@ -2,49 +2,27 @@ package export
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
+	"github.com/tradik/wpexporter/internal/wcag"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
 // minContrastRatio is WCAG 2.2 SC 1.4.3 (Contrast Minimum) for normal-size text.
-const minContrastRatio = 4.5
+const minContrastRatio = wcag.MinContrastRatio
 
 // defaultBackground is assumed when content sets a color but no background: a
 // 2010-era WordPress theme almost always renders body copy on white, which is
 // the worst case for the bright editor colors this check is aimed at.
-var defaultBackground = rgb{255, 255, 255}
+var defaultBackground = wcag.Color{R: 255, G: 255, B: 255}
 
 var (
 	// styleAttrPattern matches an inline style attribute.
 	styleAttrPattern = regexp.MustCompile(`(?is)style\s*=\s*"([^"]*)"|style\s*=\s*'([^']*)'`)
-	// hexColorPattern matches #rgb and #rrggbb.
-	hexColorPattern = regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
-	// rgbColorPattern matches rgb(r, g, b) and rgba(r, g, b, a).
-	rgbColorPattern = regexp.MustCompile(`^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,[^)]*)?\)$`)
 )
-
-// namedColors covers the palette the classic WordPress editor offered, which is
-// where these contrast problems come from.
-var namedColors = map[string]rgb{
-	"black": {0, 0, 0}, "white": {255, 255, 255}, "red": {255, 0, 0},
-	"lime": {0, 255, 0}, "blue": {0, 0, 255}, "yellow": {255, 255, 0},
-	"cyan": {0, 255, 255}, "aqua": {0, 255, 255}, "magenta": {255, 0, 255},
-	"fuchsia": {255, 0, 255}, "green": {0, 128, 0}, "silver": {192, 192, 192},
-	"gray": {128, 128, 128}, "grey": {128, 128, 128}, "maroon": {128, 0, 0},
-	"olive": {128, 128, 0}, "navy": {0, 0, 128}, "purple": {128, 0, 128},
-	"teal": {0, 128, 128},
-}
-
-// rgb is an 8-bit-per-channel color.
-type rgb struct {
-	r, g, b uint8
-}
 
 // a11yFinding is one accessibility problem found in exported content.
 type a11yFinding struct {
@@ -106,25 +84,25 @@ func auditContrast(content, location string) []a11yFinding {
 	seen := make(map[string]bool)
 
 	for _, style := range inlineStyles(content) {
-		foreground, ok := parseColor(declarationValue(style, "color"))
+		foreground, ok := wcag.Parse(declarationValue(style, "color"))
 		if !ok {
 			continue
 		}
 
 		background := defaultBackground
 		assumed := true
-		if parsed, ok := parseColor(declarationValue(style, "background-color")); ok {
+		if parsed, ok := wcag.Parse(declarationValue(style, "background-color")); ok {
 			background = parsed
 			assumed = false
 		}
 
-		ratio := contrastRatio(foreground, background)
+		ratio := wcag.ContrastRatio(foreground, background)
 		if ratio >= minContrastRatio {
 			continue
 		}
 
 		detail := fmt.Sprintf("contrast %.2f:1 (minimum %.1f:1) for %s on %s",
-			ratio, minContrastRatio, formatColor(foreground), formatColor(background))
+			ratio, minContrastRatio, foreground.Hex(), background.Hex())
 		if assumed {
 			detail += " (background assumed white)"
 		}
@@ -232,103 +210,4 @@ func declarationValue(style, property string) string {
 	}
 
 	return ""
-}
-
-// parseColor reads a CSS color in hex, rgb()/rgba() or named form.
-func parseColor(value string) (rgb, bool) {
-	value = strings.ToLower(strings.TrimSpace(value))
-	if value == "" {
-		return rgb{}, false
-	}
-
-	if named, ok := namedColors[value]; ok {
-		return named, true
-	}
-
-	if match := hexColorPattern.FindStringSubmatch(value); match != nil {
-		return parseHexColor(match[1]), true
-	}
-
-	if match := rgbColorPattern.FindStringSubmatch(value); match != nil {
-		return parseRGBColor(match[1:4])
-	}
-
-	return rgb{}, false
-}
-
-// parseHexColor expands a 3- or 6-digit hex body into a color.
-//
-// Each channel is parsed on its own rather than shifted out of a wider integer,
-// so every value provably fits the 8 bits it is stored in.
-func parseHexColor(digits string) rgb {
-	if len(digits) == 3 {
-		digits = string([]byte{
-			digits[0], digits[0],
-			digits[1], digits[1],
-			digits[2], digits[2],
-		})
-	}
-
-	return rgb{
-		r: parseHexChannel(digits[0:2]),
-		g: parseHexChannel(digits[2:4]),
-		b: parseHexChannel(digits[4:6]),
-	}
-}
-
-// parseHexChannel reads one two-digit hex channel. The caller's pattern has
-// already established that the digits are valid hex.
-func parseHexChannel(pair string) uint8 {
-	value, err := strconv.ParseUint(pair, 16, 8)
-	if err != nil {
-		return 0
-	}
-
-	return uint8(value)
-}
-
-// parseRGBColor reads the three channels of an rgb()/rgba() color.
-func parseRGBColor(channels []string) (rgb, bool) {
-	values := make([]uint8, 0, 3)
-
-	for _, channel := range channels {
-		parsed, err := strconv.Atoi(channel)
-		if err != nil || parsed < 0 || parsed > 255 {
-			return rgb{}, false
-		}
-
-		values = append(values, uint8(parsed))
-	}
-
-	return rgb{r: values[0], g: values[1], b: values[2]}, true
-}
-
-// formatColor renders a color back to hex for the report.
-func formatColor(c rgb) string {
-	return fmt.Sprintf("#%02x%02x%02x", c.r, c.g, c.b)
-}
-
-// contrastRatio computes the WCAG contrast ratio between two colors.
-func contrastRatio(a, b rgb) float64 {
-	lighter, darker := relativeLuminance(a), relativeLuminance(b)
-	if lighter < darker {
-		lighter, darker = darker, lighter
-	}
-
-	return (lighter + 0.05) / (darker + 0.05)
-}
-
-// relativeLuminance implements the WCAG 2.2 relative luminance formula.
-func relativeLuminance(c rgb) float64 {
-	return 0.2126*channelLuminance(c.r) + 0.7152*channelLuminance(c.g) + 0.0722*channelLuminance(c.b)
-}
-
-// channelLuminance linearises one sRGB channel.
-func channelLuminance(value uint8) float64 {
-	scaled := float64(value) / 255.0
-	if scaled <= 0.04045 {
-		return scaled / 12.92
-	}
-
-	return math.Pow((scaled+0.055)/1.055, 2.4)
 }

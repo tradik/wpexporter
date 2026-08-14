@@ -1,7 +1,6 @@
 package export
 
 import (
-	"math"
 	"path/filepath"
 	"testing"
 
@@ -121,60 +120,6 @@ func TestAuditContrastDeduplicates(t *testing.T) {
 	assert.Len(t, auditContrast(content, "post 1"), 1)
 }
 
-func TestContrastRatio(t *testing.T) {
-	tests := []struct {
-		name string
-		a    rgb
-		b    rgb
-		want float64
-	}{
-		{"black on white", rgb{0, 0, 0}, rgb{255, 255, 255}, 21},
-		{"white on white", rgb{255, 255, 255}, rgb{255, 255, 255}, 1},
-		{"yellow on white", rgb{255, 255, 0}, rgb{255, 255, 255}, 1.074},
-		{"order does not matter", rgb{255, 255, 255}, rgb{0, 0, 0}, 21},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := contrastRatio(tt.a, tt.b)
-			assert.Less(t, math.Abs(got-tt.want), 0.01, "got %.3f, want %.3f", got, tt.want)
-		})
-	}
-}
-
-func TestParseColor(t *testing.T) {
-	tests := []struct {
-		name  string
-		in    string
-		want  rgb
-		valid bool
-	}{
-		{"six digit hex", "#ff0000", rgb{255, 0, 0}, true},
-		{"three digit hex", "#f00", rgb{255, 0, 0}, true},
-		{"uppercase hex", "#FF00FF", rgb{255, 0, 255}, true},
-		{"named", "yellow", rgb{255, 255, 0}, true},
-		{"named uppercase", "BLACK", rgb{0, 0, 0}, true},
-		{"rgb", "rgb(1, 2, 3)", rgb{1, 2, 3}, true},
-		{"rgba", "rgba(1, 2, 3, 0.5)", rgb{1, 2, 3}, true},
-		{"padded", "  #ff0000  ", rgb{255, 0, 0}, true},
-		{"empty", "", rgb{}, false},
-		{"unknown keyword", "chartreuse-ish", rgb{}, false},
-		{"bad hex length", "#ff00", rgb{}, false},
-		{"rgb out of range", "rgb(1, 2, 300)", rgb{}, false},
-		{"rgb non numeric", "rgb(a, b, c)", rgb{}, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, ok := parseColor(tt.in)
-			assert.Equal(t, tt.valid, ok)
-			if tt.valid {
-				assert.Equal(t, tt.want, got)
-			}
-		})
-	}
-}
-
 // TestDeclarationValue pins that "background-color" is never read as "color".
 func TestDeclarationValue(t *testing.T) {
 	style := "background-color: #000; color: #fff; font-weight: bold"
@@ -189,17 +134,4 @@ func TestInlineStyles(t *testing.T) {
 	content := `<a style="color: red">x</a><b style='color: blue'>y</b><i>z</i>`
 
 	assert.Equal(t, []string{"color: red", "color: blue"}, inlineStyles(content))
-}
-
-// TestParseHexChannelRejectsNonHex pins the defensive branch: a channel that is
-// not valid hex reads as zero rather than panicking.
-func TestParseHexChannelRejectsNonHex(t *testing.T) {
-	assert.Equal(t, uint8(0), parseHexChannel("zz"))
-	assert.Equal(t, uint8(255), parseHexChannel("ff"))
-	assert.Equal(t, uint8(0), parseHexChannel("00"))
-}
-
-func TestFormatColor(t *testing.T) {
-	assert.Equal(t, "#ffff00", formatColor(rgb{255, 255, 0}))
-	assert.Equal(t, "#000000", formatColor(rgb{0, 0, 0}))
 }

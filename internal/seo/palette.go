@@ -80,7 +80,25 @@ var paletteRoles = []struct {
 // ExtractPalette reads the theme's palette from a page's stylesheets, keyed by
 // role. Returns nil when the page declares nothing usable — an export records
 // what the site says about itself and never invents a color scheme.
-func ExtractPalette(html string) map[string]string {
+//
+// brandColor is the page's <meta name="theme-color">, which is the brand color
+// by definition and stands in for a primary the stylesheet did not name.
+//
+// Custom properties are read first because a theme that declares them has said
+// what its palette is. A theme that declares none has not stopped having one:
+// classic themes write their colors as ordinary rules, which is where the
+// fallback looks (#34).
+func ExtractPalette(html, brandColor string) map[string]string {
+	if palette := customPropertyPalette(html); len(palette) > 0 {
+		return palette
+	}
+
+	return rulePalette(html, brandColor)
+}
+
+// customPropertyPalette resolves each role from the custom properties the page
+// declares, most theme-specific name first.
+func customPropertyPalette(html string) map[string]string {
 	declared := customProperties(html)
 	if len(declared) == 0 {
 		return nil

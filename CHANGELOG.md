@@ -85,6 +85,27 @@ The comments a site's readers left it. Closes #35.
   every SBOM and vulnerability report taken of this tool.
 
 ### Fixed
+- **A classic theme's palette was read as nothing at all (#34).**
+  `marketing.colors` came from CSS custom properties, which covers block themes,
+  Elementor and GeneratePress 3.x and misses everything older — most of the
+  sites anyone migrates. bociany.pl (GeneratePress classic) exported no `colors`
+  key at all, so the migrated site arrived in the target theme's defaults, while
+  the palette sat in plain sight: `body`, `a`, `.main-navigation`, the button
+  classes, and a `theme-color` meta tag already stating the brand red.
+
+  When a page declares no theme properties, the roles are now taken from those
+  rules — background and text from `body`, link from `a`, primary from the
+  header or navigation rule (or `theme_color`, the brand colour by definition),
+  accent from the button rule. Core's own `--wp--preset--color--*` are still
+  never read: they are Gutenberg's defaults, identical on every site, so
+  recording them would say something false about this one. The background and
+  text pair is contrast-checked before it is emitted, and a pair that cannot be
+  a page's real body colours is dropped rather than guessed at.
+
+  The WCAG colour arithmetic moved into `internal/wcag`, shared with the
+  accessibility report: two copies of a luminance formula are two chances to
+  disagree about whether a site passes.
+
 - **A page that shared a slug overwrote another page (#38).** Pages were written
   as `pages/<slug>.md`, but WordPress page URLs are hierarchical and a slug is
   unique only within its branch: on bociany.pl a child of

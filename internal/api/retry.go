@@ -72,7 +72,7 @@ func isTransientFailure(resp *resty.Response, err error) bool {
 	return transient
 }
 
-// retryAfterDelay honours the server's own Retry-After when it sends one, in
+// retryAfterDelay honors the server's own Retry-After when it sends one, in
 // either form the header allows: a number of seconds, or an HTTP date.
 //
 // Returning (0, nil) means "use the backoff", which is what an absent, expired

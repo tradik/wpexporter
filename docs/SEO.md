@@ -71,6 +71,25 @@ target instead of re-entering it by hand:
 }
 ```
 
+### The theme's palette
+
+`marketing.colors` carries the palette by role — `primary`, `secondary`,
+`accent`, `text`, `background`, `link` — so a migrated site arrives in its own
+colours rather than the target theme's defaults.
+
+It is read from the CSS custom properties a theme declares (block themes,
+Elementor, GeneratePress 3.x). A theme that declares none has not stopped having
+a palette: classic themes write their colours as ordinary rules, so the roles are
+then taken from `body` (background and text), `a` (link), the header or
+navigation rule (primary, falling back to `theme_color`, which is the brand
+colour by definition) and the button rule (accent).
+
+WordPress core's own `--wp--preset--color--*` properties are never read: they are
+Gutenberg's defaults, identical on every site, and recording them would say
+something false about this one. The background and text pair is contrast-checked
+before it is emitted — two rules that cannot be a page's real body pair are two
+different contexts read as one, and nothing is recorded rather than a guess.
+
 Favicon, apple-touch-icon and logo are read from the document's `<link rel=...>`
 tags (the largest declared favicon size wins), social profiles from `<header>` and
 `<footer>` links, and relative paths are resolved to absolute URLs. Everything is
