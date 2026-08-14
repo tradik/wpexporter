@@ -168,16 +168,20 @@ type WordPressMenuItem struct {
 
 // WordPressPost represents a WordPress post or page
 type WordPressPost struct {
-	ID            int                    `json:"id"`
-	Date          WordPressTime          `json:"date"`
-	DateGMT       WordPressTime          `json:"date_gmt"`
-	GUID          GUID                   `json:"guid"`
-	Modified      WordPressTime          `json:"modified"`
-	ModifiedGMT   WordPressTime          `json:"modified_gmt"`
-	Slug          string                 `json:"slug"`
-	Status        string                 `json:"status"`
-	Type          string                 `json:"type"`
-	Link          string                 `json:"link"`
+	ID          int           `json:"id"`
+	Date        WordPressTime `json:"date"`
+	DateGMT     WordPressTime `json:"date_gmt"`
+	GUID        GUID          `json:"guid"`
+	Modified    WordPressTime `json:"modified"`
+	ModifiedGMT WordPressTime `json:"modified_gmt"`
+	Slug        string        `json:"slug"`
+	Status      string        `json:"status"`
+	Type        string        `json:"type"`
+	Link        string        `json:"link"`
+	// Parent is the page this one hangs under, 0 for a top-level document.
+	// WordPress page URLs are hierarchical, so a slug alone does not identify a
+	// page: two branches of the tree may use the same one (#38).
+	Parent        int                    `json:"parent"`
 	Title         RenderedContent        `json:"title"`
 	Content       RenderedContent        `json:"content"`
 	Excerpt       RenderedContent        `json:"excerpt"`
@@ -408,6 +412,15 @@ type ExportStats struct {
 	TotalUsers      int `json:"total_users"`
 	MediaDownloaded int `json:"media_downloaded"`
 	BruteForceFound int `json:"brute_force_found"`
+	// PagesWritten counts the page documents that reached disk. It is stated
+	// separately from TotalPages because the two differing is the bug it was
+	// added for: pages used to be written under their slug alone, so two pages
+	// in different branches of the tree overwrote each other silently (#38).
+	PagesWritten int `json:"pages_written,omitempty"`
+	// Incomplete names the collections that could not be read to the end, with
+	// the page they stopped at and why. Absent from a whole export; present in
+	// metadata.json so a gap outlives the console line reporting it (#37).
+	Incomplete []string `json:"incomplete,omitempty"`
 }
 
 // WooCommerceProduct represents a WooCommerce product

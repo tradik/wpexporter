@@ -76,6 +76,7 @@ var (
 	authPass          string
 	authToken         string
 	rateLimit         int
+	retries           int
 	resume            bool
 	timeout           int
 	crawlContent      bool
@@ -156,6 +157,7 @@ Advanced:
       --relevant-media-only   Download only featured/content images
       --resume                Resume from checkpoint
       --rate-limit int        Delay between requests in ms
+      --retries int           Retries for a 5xx, 429 or dropped connection (default 3)
       --zip                   Create ZIP archive
       --no-files              Remove files after ZIP (requires --zip)
 
@@ -207,6 +209,8 @@ func init() {
 	exportCmd.Flags().StringVar(&authPass, "auth-pass", "", "password for Basic Auth")
 	exportCmd.Flags().StringVar(&authToken, "auth-token", "", "Bearer token for authentication")
 	exportCmd.Flags().IntVar(&rateLimit, "rate-limit", 0, "delay between API requests in milliseconds (0 = no limit)")
+	exportCmd.Flags().IntVar(&retries, "retries", 3,
+		"attempts for a request the site answers with 5xx or 429, or drops (0 = no retry)")
 	exportCmd.Flags().BoolVar(&resume, "resume", false, "resume from checkpoint if previous export was interrupted")
 	exportCmd.Flags().IntVar(&timeout, "timeout", 30, "HTTP request timeout in seconds")
 	exportCmd.Flags().StringVar(&pathFilter, "path-filter", "", "filter posts/pages by URL path pattern (e.g., /fr/arts/)")
@@ -422,6 +426,9 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("rate-limit") {
 		cfg.RateLimit = rateLimit
+	}
+	if cmd.Flags().Changed("retries") {
+		cfg.Retries = retries
 	}
 	if cmd.Flags().Changed("resume") {
 		cfg.Resume = resume
@@ -711,6 +718,11 @@ func runExport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get site info: %w", err)
 	}
 
+	// Collections the site would not read to the end. They are reported here,
+	// again in the summary and in metadata.json, and never silently dropped —
+	// but they do not end the export (#37).
+	var gaps []string
+
 	// Get content via API (respecting filter flags)
 	var posts []models.WordPressPost
 	if !cfg.NoPosts {
@@ -720,8 +732,8 @@ func runExport(cmd *cobra.Command, args []string) error {
 		} else {
 			posts, err = apiClient.GetPosts()
 		}
-		if err != nil {
-			return fmt.Errorf("failed to get posts: %w", err)
+		if err := noteIncomplete(&gaps, "posts", err); err != nil {
+			return err
 		}
 		logf("Found %d posts\n", len(posts))
 	} else {
@@ -736,8 +748,8 @@ func runExport(cmd *cobra.Command, args []string) error {
 		} else {
 			pages, err = apiClient.GetPages()
 		}
-		if err != nil {
-			return fmt.Errorf("failed to get pages: %w", err)
+		if err := noteIncomplete(&gaps, "pages", err); err != nil {
+			return err
 		}
 		logf("Found %d pages\n", len(pages))
 	} else {
@@ -1050,6 +1062,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 			TotalUsers:       len(users),
 			TotalComments:    len(comments),
 			BruteForceFound:  bruteForceFound,
+			Incomplete:       gaps,
 		},
 	}
 
@@ -1084,7 +1097,13 @@ func runExport(cmd *cobra.Command, args []string) error {
 	logf("\n=== Export Summary ===\n")
 	logf("Site: %s (%s)\n", siteInfo.Name, siteInfo.URL)
 	logf("Posts: %d\n", len(posts))
-	logf("Pages: %d\n", len(pages))
+	// Fetched against written: a count that used to match only because nobody
+	// compared them, while pages sharing a slug overwrote each other (#38).
+	if written := exportData.Stats.PagesWritten; written > 0 && written != len(pages) {
+		logf("Pages: %d fetched, %d written\n", len(pages), written)
+	} else {
+		logf("Pages: %d\n", len(pages))
+	}
 	// One line per custom type: "Services: 48" says more than a total, and the
 	// absence of a type a user expected is the point of reporting them (#28).
 	for _, set := range customTypes {
@@ -1098,6 +1117,13 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// Reported unconditionally: a site with comments that exports zero of them
 	// is exactly the case a silent summary would hide (#35).
 	logf("Comments: %d\n", len(comments))
+
+	// Gaps last, where the eye stops. A summary that reports "Posts: 200"
+	// without saying the walk stopped at page 3 is the silence #37 is about;
+	// the same lines are in metadata.json, because a console scrolls away.
+	for _, gap := range gaps {
+		logf("Incomplete: %s\n", gap)
+	}
 
 	if cfg.BruteForce && bruteForceFound > 0 {
 		logf("Brute force found: %d\n", bruteForceFound)

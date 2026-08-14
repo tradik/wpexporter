@@ -506,6 +506,23 @@ func handleListPages(args map[string]interface{}) (*CallToolResult, error) {
 	}, nil
 }
 
+// noteGap keeps a partial read out of the error path and in the report: the
+// records that were fetched stay, the hole is named, and the export continues
+// (#37). Anything that is not a partial read is returned unchanged and ends the
+// call.
+func noteGap(gaps []string, collection string, err error) ([]string, error) {
+	if err == nil {
+		return gaps, nil
+	}
+
+	description, partial := api.Gap(err)
+	if !partial {
+		return gaps, fmt.Errorf("failed to get %s: %w", collection, err)
+	}
+
+	return append(gaps, description), nil
+}
+
 // collectExportData reads everything the export writes: the site itself, the
 // collections the caller did not switch off, and the counts the metadata block
 // states.
@@ -522,17 +539,25 @@ func collectExportData(client *api.Client, cfg *config.Config) (*models.ExportDa
 		return nil, fmt.Errorf("failed to get site info: %w", err)
 	}
 
+	// A page of results that will not come after the retries is a gap, not the
+	// end of the export (#37). It is named in the result the caller reads and
+	// in metadata.json, because an assistant that receives a complete-looking
+	// export has no way to know a hundred posts are missing.
+	var incomplete []string
+
 	var posts []models.WordPressPost
 	if !cfg.NoPosts {
-		if posts, err = client.GetPosts(); err != nil {
-			return nil, fmt.Errorf("failed to get posts: %w", err)
+		posts, err = client.GetPosts()
+		if incomplete, err = noteGap(incomplete, "posts", err); err != nil {
+			return nil, err
 		}
 	}
 
 	var pages []models.WordPressPost
 	if !cfg.NoPages {
-		if pages, err = client.GetPages(); err != nil {
-			return nil, fmt.Errorf("failed to get pages: %w", err)
+		pages, err = client.GetPages()
+		if incomplete, err = noteGap(incomplete, "pages", err); err != nil {
+			return nil, err
 		}
 	}
 
@@ -576,6 +601,7 @@ func collectExportData(client *api.Client, cfg *config.Config) (*models.ExportDa
 			TotalTags:       len(tags),
 			TotalUsers:      len(users),
 			TotalComments:   len(comments),
+			Incomplete:      incomplete,
 		},
 	}, nil
 }
@@ -642,6 +668,12 @@ func handleExportSite(args map[string]interface{}) (*CallToolResult, error) {
 			"users":      stats.TotalUsers,
 			"comments":   stats.TotalComments,
 		},
+	}
+
+	// An export with a hole says so where the caller looks first, not only in
+	// metadata.json (#37).
+	if len(stats.Incomplete) > 0 {
+		result["incomplete"] = stats.Incomplete
 	}
 
 	data, _ := json.MarshalIndent(result, "", "  ")

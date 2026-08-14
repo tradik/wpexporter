@@ -160,6 +160,9 @@ Concurrent downloads (default: 5)
 .BR \-\-rate\-limit " " \fIMS\fR
 Delay between API requests in milliseconds (prevents server rate limiting)
 .TP
+.BR \-\-retries " " \fINUM\fR
+Attempts for a request the site answers with 5xx or 429, or drops (default: 3). Backoff is exponential with jitter and honours \fBRetry\-After\fR. A page of results that still will not come is reported as an incomplete collection and the export continues with what it has.
+.TP
 .BR \-\-timeout " " \fISECONDS\fR
 HTTP request timeout in seconds (default: 30)
 .TP

@@ -20,6 +20,16 @@ Fifteen formats, one crawl. The exporter reads the site once and writes whicheve
 | `-f webflow` | Post, page, category and author CSVs for CMS collections, plus a JSON backup | [Website builder formats](FORMATS-BUILDERS.md) |
 | `-f weebly` | `weebly_export.xml` and `weebly_export.json` | [Website builder formats](FORMATS-BUILDERS.md) |
 
+`markdown` and `ssg` both write pages under the path their URL states, so a page
+published at `/zerowisko/znaczenie/` becomes `pages/zerowisko/znaczenie.md`.
+WordPress page addresses are hierarchical and a slug is unique only within its
+branch: written flat, a child page and an unrelated top-level page sharing a
+slug landed on one file and one of them was lost (#38). Two documents that still
+want the same file — a site whose links are missing, so both fall back to their
+slug — are both written, the second with its WordPress ID appended, and the
+substitution is reported. The summary states pages written against pages fetched
+whenever the two differ.
+
 Two things hold for every platform format, and only for those: media URLs are
 **left absolute**, because the target platform imports the files from the live
 site, and address fields (`link`, `canonical_url`) stay absolute too. `json`,

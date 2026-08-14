@@ -85,6 +85,46 @@ The comments a site's readers left it. Closes #35.
   every SBOM and vulnerability report taken of this tool.
 
 ### Fixed
+- **A page that shared a slug overwrote another page (#38).** Pages were written
+  as `pages/<slug>.md`, but WordPress page URLs are hierarchical and a slug is
+  unique only within its branch: on bociany.pl a child of
+  `/zerowisko-i-pokarm/` and an unrelated top-level page both claimed
+  `pages/znaczenie-zerowisk-bociana-bialego.md`, and whichever was written
+  second won. 124 pages fetched, 111 files written, success reported. Every
+  inbound link and menu entry to the losing page 404s after the migration.
+
+  Pages now land under the path their URL states — `pages/zerowisko-i-pokarm/
+  znaczenie-zerowisk.md` — which is the placement the `ssg` format already used;
+  the two formats disagreeing about where a page lives *was* the defect. A child
+  states its `parent` and `parent_slug` in front matter, so the tree can be
+  rebuilt without re-deriving it from paths. Two documents that still want one
+  file are both written, the second with its ID appended, and the rename is
+  reported rather than left to be noticed. `stats.pages_written` is in
+  `metadata.json`, and the summary reads `Pages: 124 fetched, 124 written`
+  whenever the two differ.
+
+- **One transient 5xx no longer ends the export (#37).** The exporter stopped at
+  the first non-2xx answer and discarded everything already fetched. Sites are
+  flaky: on 4sound.pl the posts route answered 500 about three times in four,
+  and the same URL succeeded seconds later — so an export of thousands of
+  requests could not finish at all, and nothing that had been downloaded
+  survived.
+
+  A 5xx, a 429, a request timeout and a dropped connection are now retried with
+  exponential backoff and jitter, honouring the site's own `Retry-After` in
+  either form the header allows. `--retries N` tunes it (default 3, `0` disables
+  it). `Config.Retries` had existed all along with no flag to set it and no
+  effect on a 5xx.
+
+  A page of results that still will not come is a **gap, not the end**: the
+  records already fetched are kept, the collection is reported as incomplete —
+  in the console, in the export summary and in `stats.incomplete` in
+  `metadata.json`, which outlives the console — and the export carries on. The
+  MCP `export_site` tool draws the same line and returns the gaps in its result,
+  since an assistant handed a complete-looking export has no other way to learn
+  a hundred posts are missing. A partial fetch is never cached, or the next run
+  would inherit the gap as the site's whole content.
+
 - **The MCP `export_site` tool dropped comments too.** Everything above fixed the
   CLI; an agent exporting a site over MCP still lost every comment, which is the
   same #35 through a different door — and the door with no console to print a

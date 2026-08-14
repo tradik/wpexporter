@@ -95,6 +95,7 @@ wpexportjson export --config config.yaml
 <tr><td><code>--auth-pass</code></td><td>Password for Basic Auth</td><td>-</td></tr>
 <tr><td><code>--auth-token</code></td><td>Bearer token for authentication</td><td>-</td></tr>
 <tr><td><code>--rate-limit</code></td><td>Delay between API requests in milliseconds (prevents server rate limiting)</td><td><code>0</code></td></tr>
+<tr><td><code>--retries</code></td><td>Attempts for a request the site answers with 5xx or 429, or drops. Exponential backoff with jitter, honouring <code>Retry-After</code></td><td><code>3</code></td></tr>
 <tr><td><code>--resume</code></td><td>Resume from checkpoint if previous export was interrupted</td><td><code>false</code></td></tr>
 <tr><td><code>--timeout</code></td><td>HTTP request timeout in seconds (increase for slow servers)</td><td><code>30</code></td></tr>
 <tr><td><code>--verbose</code>, <code>-v</code></td><td>Enable verbose output</td><td><code>false</code></td></tr>

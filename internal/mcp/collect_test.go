@@ -108,11 +108,11 @@ func TestCollectExportDataHonoursNoComments(t *testing.T) {
 	assert.Zero(t, site.visited("/wp-json/wp/v2/comments"))
 }
 
-// TestCollectExportDataFailsOnCoreCollections: posts and pages are the export.
-// Unlike comments, media or products, a refusal there cannot be reported as an
-// empty collection — that would hand the caller a plausible-looking export of a
-// site it never read.
-func TestCollectExportDataFailsOnCoreCollections(t *testing.T) {
+// TestCollectExportDataReportsGaps: a collection the site will not serve is a
+// hole in the export, not the end of it (#37). The rest still lands, and the
+// hole is named — an assistant handed a complete-looking export has no other
+// way to learn that a hundred posts are missing.
+func TestCollectExportDataReportsGaps(t *testing.T) {
 	for _, route := range []string{"posts", "pages"} {
 		t.Run(route, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -133,11 +133,30 @@ func TestCollectExportDataFailsOnCoreCollections(t *testing.T) {
 			require.NoError(t, err)
 
 			data, err := collectExportData(client, config.DefaultConfig())
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), route)
-			assert.Nil(t, data)
+			require.NoError(t, err)
+			require.NotNil(t, data)
+
+			require.Len(t, data.Stats.Incomplete, 1)
+			assert.Contains(t, data.Stats.Incomplete[0], route)
+			assert.Contains(t, data.Stats.Incomplete[0], "status 500")
+			assert.Equal(t, "Test", data.Site.Name)
 		})
 	}
+}
+
+// TestCollectExportDataFailsOnAnUnreachableSite: the line noteGap draws. A host
+// that answers nothing at all is a broken export, not an incomplete one.
+func TestCollectExportDataFailsOnAnUnreachableSite(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	address := server.URL
+	server.Close()
+
+	client, err := api.NewClient(&config.Config{URL: address, Timeout: 1, Retries: 0})
+	require.NoError(t, err)
+
+	data, err := collectExportData(client, config.DefaultConfig())
+	require.Error(t, err)
+	assert.Nil(t, data)
 }
 
 // TestCollectExportDataSurvivesClosedComments: a site that keeps its comment
