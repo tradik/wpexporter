@@ -82,10 +82,7 @@ func runSSGExport(t *testing.T, cfg *config.Config, data *models.ExportData) {
 	e := NewExporter(cfg)
 	require.NoError(t, cfg.EnsureOutputDir())
 
-	if cfg.LocalizesURLs() {
-		e.updateMediaPaths(data)
-		e.updateLinkPaths(data)
-	}
+	e.localizeAddresses(data)
 
 	require.NoError(t, e.exportSSG(data))
 }

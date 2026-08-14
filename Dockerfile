@@ -33,7 +33,7 @@ RUN VERSION="v$(tr -d '[:space:]' < VERSION)" && \
     done
 
 # Final stage
-FROM alpine:3.21
+FROM alpine:3.24
 
 # Install ca-certificates for HTTPS requests and create non-root user
 RUN apk add --no-cache --no-scripts ca-certificates && \

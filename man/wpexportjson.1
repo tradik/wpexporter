@@ -53,6 +53,9 @@ Skip exporting users
 .BR \-\-no\-tags
 Skip exporting tags
 .TP
+.BR \-\-no\-comments
+Skip exporting reader comments. They are exported by default into \fBcomments.json\fR, addressed by the page URL they belong to and sorted so a reply never precedes its parent; a site whose REST route is disabled or gated warns and carries on.
+.TP
 .BR \-\-path\-filter " " \fIPATTERN\fR
 Filter posts/pages by URL path pattern (e.g., /fr/arts/)
 .SS "Media Options"

@@ -264,6 +264,34 @@ type WordPressUser struct {
 	Links       Links             `json:"_links"`
 }
 
+// WordPressComment is one reader comment on a post, a page or a custom type
+// entry (#35).
+//
+// Comments are the part of a site nobody can rewrite: they are what readers
+// said, dated, threaded and attributed. A migration that leaves them behind
+// loses the only content the site owner did not author — so they ship like
+// posts and pages, and PostURL carries the address of the page they belong to,
+// which is what a target system keys them by (WordPress post IDs mean nothing
+// after a migration).
+type WordPressComment struct {
+	ID     int `json:"id"`
+	Post   int `json:"post"`
+	Parent int `json:"parent"`
+	// PostURL is the commented page's address, root-relativized with
+	// --link-style root exactly like the post's own link.
+	PostURL      string        `json:"post_url,omitempty"`
+	Author       string        `json:"author"`
+	AuthorURL    string        `json:"author_url,omitempty"`
+	AuthorAvatar string        `json:"author_avatar,omitempty"`
+	Date         WordPressTime `json:"date"`
+	DateGMT      WordPressTime `json:"date_gmt"`
+	// Content is the rendered comment body as WordPress serves it (HTML).
+	Content string `json:"content"`
+	Status  string `json:"status"`
+	Type    string `json:"type,omitempty"`
+	Link    string `json:"link,omitempty"`
+}
+
 // RenderedContent represents rendered WordPress content
 type RenderedContent struct {
 	Rendered  string `json:"rendered"`
@@ -326,6 +354,9 @@ type ExportData struct {
 	Tags       []WordPressTag       `json:"tags"`
 	Users      []WordPressUser      `json:"users"`
 	Menus      []WordPressMenu      `json:"menus,omitempty"`
+	// Comments carries every reader comment the site let us read, across all
+	// post types (#35).
+	Comments []WordPressComment `json:"comments,omitempty"`
 	// CustomTypes carries the entries of every custom post type discovered on
 	// the site, one set per type (#28).
 	CustomTypes []CustomTypeSet `json:"custom_types,omitempty"`
@@ -370,11 +401,13 @@ type ExportStats struct {
 	TotalCustomPosts int `json:"total_custom_posts"`
 	TotalProducts    int `json:"total_products"`
 	TotalMedia       int `json:"total_media"`
-	TotalCategories  int `json:"total_categories"`
-	TotalTags        int `json:"total_tags"`
-	TotalUsers       int `json:"total_users"`
-	MediaDownloaded  int `json:"media_downloaded"`
-	BruteForceFound  int `json:"brute_force_found"`
+	// TotalComments counts the reader comments the export carries (#35).
+	TotalComments   int `json:"total_comments"`
+	TotalCategories int `json:"total_categories"`
+	TotalTags       int `json:"total_tags"`
+	TotalUsers      int `json:"total_users"`
+	MediaDownloaded int `json:"media_downloaded"`
+	BruteForceFound int `json:"brute_force_found"`
 }
 
 // WooCommerceProduct represents a WooCommerce product

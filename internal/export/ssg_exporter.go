@@ -43,6 +43,10 @@ func (e *Exporter) exportSSG(data *models.ExportData) error {
 		return fmt.Errorf("failed to export metadata: %w", err)
 	}
 
+	if err := e.exportComments(data.Comments); err != nil {
+		return fmt.Errorf("failed to export comments: %w", err)
+	}
+
 	if !e.config.Quiet {
 		fmt.Printf("Export completed: %s\n", e.config.Output)
 	}

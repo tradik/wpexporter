@@ -5,6 +5,121 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.5] - 2026-08-14
+
+The comments a site's readers left it. Closes #35.
+
+### Added
+- **Documentation site — <https://wpexporter.tradik.com/>.** `docs/` is now
+  published as a static site, built by [SSG](https://ssg.tradik.com/) from
+  `docs-site.yaml` with the bundled theme in `templates/ssgtheme` — the same
+  theme and [Tradik design tokens](https://designstyles.tradik.com/) the SSG site
+  itself runs on. Nothing is copied into a second location that could drift:
+  `content_sources` reads `docs/` in place, so editing a guide and pushing it is
+  the whole publishing workflow.
+
+  `make site`, `make site-serve` (watch + <http://127.0.0.1:8888>) and
+  `make site-check` (strict link checking, what CI runs) build it locally. The
+  new **Docs Site** workflow deploys to Cloudflare Pages on a push to `main`,
+  creating the Pages project and attaching the custom domain on the first run,
+  and builds without deploying on a pull request. The site ships no analytics and
+  therefore no consent banner; it does publish Markdown copies of every page and
+  an `llms.txt`, for the agents this tool already serves over MCP.
+
+- **Reader comments (#35).** Comments are the one part of a site its owner did
+  not write and cannot rewrite — names, dates, threads and opinions left over
+  years — and every export so far dropped them without a word. They are now
+  fetched from `/wp/v2/comments`, which a public WordPress serves without
+  authentication and which lists approved comments only (pending and spam rows
+  are moderation state, not content), and written to `comments.json` beside
+  `metadata.json`, with `stats.total_comments` in the metadata block.
+
+  Each record carries **`post_url`**, not just WordPress's numeric `post`: a
+  post ID means nothing on the other side of a migration, so the comment states
+  the address of the page it belongs to, in the same form as that page's own
+  `link` (`--link-style root` → `/blog/…/`). A comment whose post was not
+  exported — excluded by `--no-posts`, a path filter, or left in draft — falls
+  back to its own permalink with the `#comment-N` anchor trimmed. Records are
+  sorted by id so a reply never precedes the comment it answers when a target
+  system replays them into a table with a parent reference.
+
+  `--no-comments` skips them. A site whose REST route is disabled or gated
+  prints a note and the export carries on, as it does for menus; an export with
+  no comments writes no file, because an empty `comments.json` would claim the
+  site has none when the truth may be that they were never requested.
+
+  The two refusals are told apart: a site that turned commenting off answers
+  `403 rest_comment_disabled` and is reported as having none, while a gated
+  route is the one that suggests `--auth-user`/`--auth-token`. Advising
+  credentials for comments that do not exist would send an operator hunting for
+  data no login can produce.
+
+- **`Comments: N` in the export summary.** Every other collection is counted
+  there; comments were fetched, written and then left out of the report, so the
+  one case worth seeing — a site with comments that exported none of them —
+  looked exactly like a site without any.
+
+### Security
+- **`go.mod` now requires Go 1.26.6, not `1.26`.** The 1.8.4 release note claimed
+  the tool was built on 1.26.6, but only the CI workflow said so; `go 1.26` let
+  any 1.26.x toolchain build it, and `govulncheck` on a 1.26.5 machine reported
+  eight standard-library advisories — `net/url`, `crypto/tls`, `encoding/xml`,
+  `encoding/asn1`, `net/http`, `html/template`, `net` — five of them reachable
+  from code this tool runs on every export: `xml.Unmarshal` on an XML-RPC
+  response, `http.Client.Do` on a crawl, `io.Copy` on a media download. The
+  requirement is now stated where builds actually read it, so a local `go build`
+  cannot silently produce a binary CI would never have shipped.
+
+- **gosec pinned to v2.28.0** (was v2.22.0) and the runtime image moved to
+  **Alpine 3.24** (was 3.21, two stable series behind).
+
+### Removed
+- **The Jekyll GitHub Pages workflow.** It built the repository root with Jekyll
+  and published it to GitHub Pages — a second documentation site, made of one
+  rendered README, with no navigation, no search and no relation to `docs/`. Two
+  sites for one project is one site too many, and the survivor is the one the
+  guides are actually written for. The last deployment stays live until GitHub
+  Pages is switched off in the repository settings; nothing rebuilds it.
+
+### Changed
+- **The README is now an index, and the manual lives in `docs/`.** It had grown
+  to 1,800 lines — the whole documentation set in one scroll, and the only copy
+  of it, which is why the new site had nothing to publish. Installation, the flag
+  reference, the fifteen formats, media rewriting, SEO extraction, the Markdown
+  converter, the page-builder rule sets, menus, comments, the accessibility
+  report, the MCP server and the development notes are now seventeen guides under
+  `docs/`, **moved verbatim** — only their headings rose a level where a section
+  became a page. The README keeps its identity block, the feature list, a
+  three-command install, a first export and a table of the guides. One copy of
+  each subject, in the place the site reads from.
+
+- **CI no longer runs on documentation.** A guide, a man page, a README edit or a
+  change to the site template compiles nothing, yet every one of them used to run
+  the full pipeline — tests, lint, gosec, the release, the Docker push and the
+  Homebrew update. `ci.yml` now ignores `docs/**`, `templates/**`, `assets/**`,
+  `man/**`, `**.md`, `LICENSE` and `docs-site.yaml`; those paths trigger the Docs
+  Site workflow instead. `paths-ignore` skips a run only when *every* changed file
+  matches, so a commit that touches Go code and a guide together still runs the
+  whole pipeline.
+
+- **Stale references fixed in `docs/XMLRPC_MANUAL.md`** — the API example imported
+  `github.com/tradik/wpexportjson/internal/…` and the support link pointed at the
+  old repository name; both now name `tradik/wpexporter`.
+
+- **Dependencies upgraded**: `progressbar` 3.19.0 → 3.19.1, `fsnotify` 1.9.0 →
+  1.10.1, `go-toml/v2` 2.2.4 → 2.4.3, `go.yaml.in/yaml/v3` 3.0.4 → 3.0.5,
+  `golang.org/x/net` 0.57.0 → 0.58.0, `golang.org/x/text` 0.40.0 → 0.41.0. The
+  direct requirements were already current.
+
+- **GitHub Actions moved to their newest releases**, all still pinned by commit
+  SHA: `checkout` v6.0.3 → v7.0.1, `setup-go` v6.5.0 → v7.0.0,
+  `action-gh-release` v2.6.2 → v3.0.2 (a Node 24 runtime change; the inputs are
+  unchanged), `login-action` v4.4.0 → v4.6.0, and on the Pages workflow
+  `configure-pages` v5 → v6.0.0, `upload-pages-artifact` v3 → v5.0.0,
+  `deploy-pages` v4 → v5.0.0. Each pin's trailing comment now names the exact
+  patch release the SHA is: `codecov-action` was labelled `# v6` while pointing
+  at v7.0.0, which is the failure mode a bare major comment invites.
+
 ## [1.8.4] - 2026-08-14
 
 ### Fixed

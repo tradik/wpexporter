@@ -90,6 +90,7 @@ var (
 	extractMeta       string
 	noTags            bool
 	noMenus           bool
+	noComments        bool
 	quiet             bool
 	noIDs             bool
 	excludeTags       string
@@ -134,6 +135,7 @@ Content Filters:
       --no-users              Skip users
       --no-tags               Skip tags
       --no-menus              Skip navigation menus
+      --no-comments           Skip reader comments
       --no-media              Skip media downloads
       --path-filter string    Filter by URL path (e.g., /fr/art/)
       --skip-empty-content    Skip posts/pages with empty content
@@ -232,6 +234,7 @@ func init() {
 		"which meta tags to keep beyond the named SEO fields: all, none, or a comma-separated allow-list")
 	exportCmd.Flags().BoolVar(&noTags, "no-tags", false, "skip exporting tags")
 	exportCmd.Flags().BoolVar(&noMenus, "no-menus", false, "skip exporting navigation menus")
+	exportCmd.Flags().BoolVar(&noComments, "no-comments", false, "skip exporting reader comments")
 	exportCmd.Flags().BoolVar(&noIDs, "no-ids", false, "exclude numeric IDs from frontmatter (keep only names)")
 	exportCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress all output, only return exit code")
 
@@ -461,6 +464,9 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("no-menus") {
 		cfg.NoMenus = noMenus
+	}
+	if cmd.Flags().Changed("no-comments") {
+		cfg.NoComments = noComments
 	}
 	if cmd.Flags().Changed("no-ids") {
 		cfg.NoIDs = noIDs
@@ -988,6 +994,8 @@ func runExport(cmd *cobra.Command, args []string) error {
 		logln("Skipping menus (--no-menus)")
 	}
 
+	comments := fetchComments(apiClient, cfg)
+
 	// Perform brute force scanning if enabled
 	var bruteForceFound int
 	if cfg.BruteForce {
@@ -1027,6 +1035,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		Tags:        tags,
 		Users:       users,
 		Menus:       menus,
+		Comments:    comments,
 		CustomTypes: customTypes,
 		Analytics:   siteAnalytics,
 		Marketing:   siteMarketing,
@@ -1039,6 +1048,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 			TotalCategories:  len(categories),
 			TotalTags:        len(tags),
 			TotalUsers:       len(users),
+			TotalComments:    len(comments),
 			BruteForceFound:  bruteForceFound,
 		},
 	}
@@ -1085,6 +1095,9 @@ func runExport(cmd *cobra.Command, args []string) error {
 	logf("Categories: %d\n", len(categories))
 	logf("Tags: %d\n", len(tags))
 	logf("Users: %d\n", len(users))
+	// Reported unconditionally: a site with comments that exports zero of them
+	// is exactly the case a silent summary would hide (#35).
+	logf("Comments: %d\n", len(comments))
 
 	if cfg.BruteForce && bruteForceFound > 0 {
 		logf("Brute force found: %d\n", bruteForceFound)

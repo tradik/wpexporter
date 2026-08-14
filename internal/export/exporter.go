@@ -56,13 +56,7 @@ func (e *Exporter) Export(data *models.ExportData) error {
 		data.Stats.MediaDownloaded = downloaded
 	}
 
-	// Update media paths in content only for local formats (json, markdown)
-	// unless --keep-original-urls is set (for importing markdown to Shopify etc.)
-	// Other formats (shopify, magento, etc.) need original URLs
-	if e.config.LocalizesURLs() {
-		e.updateMediaPaths(data)
-		e.updateLinkPaths(data)
-	}
+	e.localizeAddresses(data)
 
 	if err := e.reportAccessibility(data); err != nil {
 		return fmt.Errorf("failed to write accessibility report: %w", err)
@@ -103,6 +97,24 @@ func (e *Exporter) Export(data *models.ExportData) error {
 	default:
 		return fmt.Errorf("unsupported export format: %s", e.config.Format)
 	}
+}
+
+// localizeAddresses is the pre-format pass every writer depends on: attachment
+// URLs become local paths, same-host addresses take their configured form, and
+// each comment adopts the final address of the page it belongs to (#35).
+//
+// Media and link rewriting is skipped for the formats that need the source
+// site's own URLs (shopify, magento, …); comment addressing is not, because a
+// comment without its page address cannot be placed at all.
+func (e *Exporter) localizeAddresses(data *models.ExportData) {
+	// Update media paths in content only for local formats (json, markdown)
+	// unless --keep-original-urls is set (for importing markdown to Shopify etc.)
+	if e.config.LocalizesURLs() {
+		e.updateMediaPaths(data)
+		e.updateLinkPaths(data)
+	}
+
+	e.resolveCommentAddresses(data)
 }
 
 // exportJSON exports data as JSON
@@ -168,6 +180,12 @@ func (e *Exporter) exportMarkdown(data *models.ExportData) error {
 	// Export metadata
 	if err := e.exportMetadata(data); err != nil {
 		return fmt.Errorf("failed to export metadata: %w", err)
+	}
+
+	// Reader comments are records, not documents — one comments.json beside
+	// metadata.json, addressed by page URL (#35).
+	if err := e.exportComments(data.Comments); err != nil {
+		return fmt.Errorf("failed to export comments: %w", err)
 	}
 
 	fmt.Printf("Export completed: %s\n", e.config.Output)

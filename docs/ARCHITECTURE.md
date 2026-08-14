@@ -1,4 +1,4 @@
-# WordPress Export JSON - Architecture Documentation
+# Architecture
 
 ## System Overview
 
@@ -6,6 +6,33 @@ WordPress Export JSON is a monorepo containing two complementary applications fo
 
 1. **wpexportjson** - REST API based exporter with brute force capabilities
 2. **wpxmlrpc** - XML-RPC based exporter for authenticated access
+
+## Export flow
+
+```mermaid
+graph TB
+    A[CLI Interface] --> B[Configuration Manager]
+    B --> C[WordPress API Client]
+    C --> D[Content Discovery]
+    D --> E[Brute Force Scanner]
+    D --> F[Media Downloader]
+    E --> G[Export Engine]
+    F --> G
+    G --> H[JSON Exporter]
+    G --> I[Markdown Exporter]
+    G --> K[Shopify Exporter]
+    G --> L[Magento Exporter]
+    G --> M[Wix/Squarespace/Webflow]
+    G --> N[Ghost/Strapi/Contentful]
+    G --> O[Weebly/PrestaShop]
+    H --> J[Output Files]
+    I --> J
+    K --> J
+    L --> J
+    M --> J
+    N --> J
+    O --> J
+```
 
 ## High-Level Architecture
 

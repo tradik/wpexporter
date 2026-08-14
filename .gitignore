@@ -64,3 +64,10 @@ temp/
 
 # Audit reports
 audit/
+
+# Documentation site — https://wpexporter.tradik.com/, built by `make site`
+# from docs/ with docs-site.yaml. The output and SSG's image cache are
+# regenerated on every build; only the sources (docs/, templates/, assets/)
+# belong in git.
+.site/
+.ssg-cache/
