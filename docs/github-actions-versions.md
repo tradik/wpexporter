@@ -40,8 +40,21 @@ the comment claimed.
 | Tool | Version | Where |
 |------|---------|-------|
 | Go | 1.26.6 | `go-version:` in every job, and `go 1.26.6` in `go.mod` |
-| gosec | v2.28.0 | `go install github.com/securego/gosec/v2/cmd/gosec@v2.28.0` |
+| gosec | v2.28.0 | `tool` directive in `tools/go.mod`, every transitive version fixed by `tools/go.sum` |
 | golangci-lint | latest | `version: latest` in the lint job |
+
+gosec lives in a **separate `tools/` module** rather than in the project's own
+`go.mod`: it is built with `go -C tools build`, so the scanner and everything
+beneath it come from a lock file, while its dependency tree — gRPC,
+OpenTelemetry, a handful of cloud SDKs — stays out of wpexporter's. `go install
+pkg@version` would pin only gosec itself and re-resolve the rest on every run.
+
+Upgrading it is two commands:
+
+```bash
+go -C tools get -tool github.com/securego/gosec/v2/cmd/gosec@vX.Y.Z
+make sec        # builds the pinned scanner and runs it exactly as CI does
+```
 
 ## Checking for updates
 

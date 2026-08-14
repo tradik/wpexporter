@@ -1,14 +1,15 @@
 {{/* One guide card. Defined here rather than in partials/chrome.html because the
-     home page is the only thing that renders one; it takes a page. */}}
-{{define "wp-guide-card"}}
-                    <li>
-                        <a class="card" href="{{ .GetURL }}">
+     home page is the only thing that renders one; it takes a page.
+
+     The card is the <a>, not the <li> around it: the list item stays at the call
+     site so every <li> sits inside its <ul> in the source as well as in the
+     output, which is what a plain HTML reader — a linter, an editor, a person —
+     can see without expanding the template. */}}
+{{define "wp-guide-card"}}<a class="card" href="{{ .GetURL }}">
                             <h3>{{ .Title }}</h3>
                             <p class="card-meta">{{ .ReadingTime }} min read · {{ .WordCount }} words</p>
                             <p>{{ .Excerpt }}</p>
-                        </a>
-                    </li>
-{{end}}
+                        </a>{{end}}
 
 {{define "index.html"}}
 <!DOCTYPE html>
@@ -216,12 +217,12 @@ docker pull ghcr.io/tradik/wpexporter:latest</code></pre>
                     {{ if $order }}
                     {{ range $i, $slug := $order }}{{ if lt $i $.HomePagesLimit }}
                     {{ range $.Site.Pages }}{{ if and (eq .Slug $slug) (not .Extra.hide_from_lists) }}
-                    {{ template "wp-guide-card" . }}
+                    <li>{{ template "wp-guide-card" . }}</li>
                     {{ end }}{{ end }}
                     {{ end }}{{ end }}
                     {{ else }}
                     {{ range first .HomePagesLimit .Site.Pages }}{{ if not .Extra.hide_from_lists }}
-                    {{ template "wp-guide-card" . }}
+                    <li>{{ template "wp-guide-card" . }}</li>
                     {{ end }}{{ end }}
                     {{ end }}
                 </ul>

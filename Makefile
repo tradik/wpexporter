@@ -57,6 +57,18 @@ VERSION_VARS := -X $(VERSION_PKG).Version=$(VERSION) -X $(VERSION_PKG).BuildTime
 LDFLAGS := -ldflags "$(VERSION_VARS) -s -w"
 PROD_LDFLAGS := -ldflags "$(VERSION_VARS) -s -w -extldflags '-static'"
 
+# Security scanner. gosec is a pinned tool dependency of the separate tools/
+# module, so `make sec` builds the same binary CI does — every transitive
+# version fixed by tools/go.sum — instead of whatever an ambient
+# `go install …@latest` last left on PATH. The exclusions are the CI list, kept
+# here so a local run and the pipeline can never disagree about what passes:
+#   G703 path traversal   the tool writes where the operator told it to
+#   G704 SSRF             it fetches the WordPress URL the operator gave it
+#   G117 secret patterns  auth tokens are configuration, not leaked credentials
+#   G122 filepath.Walk    the TOCTOU window is acceptable while zipping an export
+GOSEC_BIN := $(BUILD_DIR)/gosec
+GOSEC_EXCLUDE := G703,G704,G117,G122
+
 .PHONY: help build clean test test-coverage deps run install dev lint vet sec check format build-prod release package packages docker-build docker-push version tag snap site site-serve site-check site-clean
 
 help: ## Show this help message
@@ -113,11 +125,9 @@ vet: ## Run go vet
 
 sec: ## Run gosec security scanner
 	@echo "${BLUE}Running gosec security scanner...${RESET}"
-	@if command -v gosec >/dev/null 2>&1; then \
-		gosec ./...; \
-	else \
-		echo "${YELLOW}gosec not installed. Install with: go install github.com/securego/gosec/v2/cmd/gosec@latest${RESET}"; \
-	fi
+	@mkdir -p $(BUILD_DIR)
+	@$(GOCMD) -C tools build -o "$(CURDIR)/$(GOSEC_BIN)" github.com/securego/gosec/v2/cmd/gosec
+	@$(GOSEC_BIN) -exclude=$(GOSEC_EXCLUDE) ./...
 
 check: vet lint sec test ## Run all checks (vet, lint, security, tests)
 	@echo "${GREEN}All checks passed${RESET}"

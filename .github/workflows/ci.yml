@@ -102,20 +102,29 @@ jobs:
           # 1.26.6 patches seven standard-library advisories reachable from a
           # tool that parses untrusted HTML, JSON and archive input all day.
           go-version: "1.26.6"
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
 
-      # Install gosec from an immutable, pinned module version and run it with the
-      # repo's Go toolchain. This avoids the mutable @master action ref (OPS-001)
-      # and the outdated bundled Docker image, and keeps the scanner compatible
-      # with the current Go release.
-      - name: Install gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.28.0
+      # gosec is a pinned tool dependency of the tools/ module, so it is built
+      # from tools/go.mod with every transitive version fixed by tools/go.sum:
+      # the scanner that passes today cannot silently become a different one
+      # tomorrow. `go install pkg@version` pins only the tool itself and
+      # re-resolves everything under it outside any lock file
+      # (SonarSource githubactions:S8545), and the mutable @master action ref
+      # (OPS-001) and the stale bundled Docker image are avoided the same way.
+      # The tools module is separate so gosec's dependency tree — gRPC,
+      # OpenTelemetry and the rest — stays out of wpexporter's own.
+      - name: Build gosec (versions locked by tools/go.sum)
+        run: go -C tools build -o "${RUNNER_TEMP}/gosec" github.com/securego/gosec/v2/cmd/gosec
 
       - name: Run Gosec Security Scanner
         # G703: Path traversal - expected as tool saves to user-specified paths
         # G704: SSRF - expected as tool makes requests to user-provided WordPress URLs
         # G117: Secret patterns - auth tokens are intentionally configurable
         # G122: filepath.Walk TOCTOU - acceptable for zip archive creation
-        run: gosec -exclude=G703,G704,G117,G122 ./...
+        run: |
+          "${RUNNER_TEMP}/gosec" -exclude=G703,G704,G117,G122 ./...
 
   # The version this run will release, read once from the VERSION file and used by
   # both build and release.
