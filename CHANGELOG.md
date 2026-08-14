@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   description and a template variable, where an entity is just text. Both
   fields are decoded once, at the source.
 
+### Security
+- **Built on Go 1.26.6** (was 1.26.5), which patches seven standard-library
+  advisories reachable from a tool whose whole job is parsing untrusted HTML,
+  JSON and archive input.
+
 ## [1.8.3] - 2026-08-13
 
 ### Fixed
