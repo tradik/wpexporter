@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.8.6] - 2026-08-15
+
+A release whose reason is the Snap: 1.8.5 reached GitHub, ghcr and Homebrew and
+stopped there, and the store cannot be handed a package without a tag to hang it
+on. Nothing in the exporter itself changed.
 
 ### Fixed
 - **The Snap could not be built for 1.8.5.** `go.mod` requires Go 1.26.6 — the
