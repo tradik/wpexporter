@@ -78,7 +78,7 @@ func TestGetSiteInfoSettingsOverlay(t *testing.T) {
 		switch r.URL.Path {
 		case "/wp-json/wp/v2/settings":
 			_, _ = w.Write([]byte(`{
-				"title": "Authenticated Title",
+				"title": "Authenticated &amp; Titled",
 				"email": "admin@example.com",
 				"timezone": "Europe/Warsaw",
 				"date_format": "F j, Y",
@@ -96,7 +96,8 @@ func TestGetSiteInfoSettingsOverlay(t *testing.T) {
 	info, err := client.GetSiteInfo()
 	require.NoError(t, err)
 
-	assert.Equal(t, "Authenticated Title", info.Name, "settings.title wins over root.name")
+	assert.Equal(t, "Authenticated & Titled", info.Name,
+		"settings.title wins over root.name, and it is entity-encoded there too")
 	assert.Equal(t, "admin@example.com", info.AdminEmail)
 	assert.Equal(t, "Europe/Warsaw", info.Timezone)
 	assert.Equal(t, "F j, Y", info.DateFormat)
@@ -134,6 +135,64 @@ func TestGetSiteInfoIgnoresMalformedDocuments(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, server.URL, info.URL)
+}
+
+// TestGetSiteInfoNumericGMTOffset is the regression from bociany.pl (#32):
+// WordPress core writes gmt_offset as a NUMBER, and reading it as a string
+// failed the whole root document — so an export of a 235-post site recorded no
+// name, no tagline and no timezone, while every other endpoint answered fine.
+// The fixture above quotes the offset, which is why the tests never saw it.
+func TestGetSiteInfoNumericGMTOffset(t *testing.T) {
+	client, _ := newSiteInfoClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/wp-json/wp/v2/settings":
+			w.WriteHeader(http.StatusUnauthorized)
+		case "/wp-json":
+			_, _ = w.Write([]byte(`{
+				"name": "bociany.pl",
+				"description": "Fundacja Przyrodnicza &quot;pro Natura&quot;",
+				"url": "https://bociany.pl",
+				"home": "https://bociany.pl",
+				"gmt_offset": 2,
+				"timezone_string": "Europe/Warsaw"
+			}`))
+		default:
+			_, _ = w.Write([]byte(wpV2IndexBody))
+		}
+	})
+
+	info, err := client.GetSiteInfo()
+	require.NoError(t, err)
+
+	assert.Equal(t, "bociany.pl", info.Name)
+	assert.Equal(t, `Fundacja Przyrodnicza "pro Natura"`, info.Description,
+		"the tagline is entity-encoded at the source and plain text everywhere after")
+	assert.Equal(t, "https://bociany.pl", info.HomeURL)
+	assert.Equal(t, "Europe/Warsaw", info.Timezone)
+}
+
+// TestGetSiteInfoNumericOffsetWithoutNamedZone pins the other half: a numeric
+// offset must still produce a zone when the site never named one.
+func TestGetSiteInfoNumericOffsetWithoutNamedZone(t *testing.T) {
+	client, _ := newSiteInfoClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/wp-json/wp/v2/settings":
+			w.WriteHeader(http.StatusUnauthorized)
+		case "/wp-json":
+			_, _ = w.Write([]byte(`{"name":"N","gmt_offset":-5,"timezone_string":""}`))
+		default:
+			_, _ = w.Write([]byte(wpV2IndexBody))
+		}
+	})
+
+	info, err := client.GetSiteInfo()
+	require.NoError(t, err)
+
+	assert.Equal(t, "UTC-5", info.Timezone)
 }
 
 func TestGMTOffsetSuffix(t *testing.T) {
