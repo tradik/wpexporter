@@ -29,6 +29,10 @@ var (
 	cssRulePattern = regexp.MustCompile(`(?s)([^{}]+)\{([^{}]*)\}`)
 )
 
+// backgroundColorProperty is the longhand every surface role reads: a theme
+// paints the page, the header and the buttons with the same property.
+const backgroundColorProperty = "background-color"
+
 // ruleRoles maps a role to the selectors a theme styles it with, and the
 // property that carries the color. The selectors are matched exactly: a rule
 // for `.entry-content a` is about one region of one template, while `a` is the
@@ -38,13 +42,13 @@ var ruleRoles = []struct {
 	property  string
 	selectors []string
 }{
-	{"background", "background-color", []string{"body", "html"}},
+	{"background", backgroundColorProperty, []string{"body", "html"}},
 	{"text", "color", []string{"body"}},
 	{"link", "color", []string{"a", "a:link"}},
-	{"primary", "background-color", []string{
+	{"primary", backgroundColorProperty, []string{
 		".main-navigation", ".site-header", "#masthead", "header", ".navigation",
 	}},
-	{"accent", "background-color", []string{
+	{"accent", backgroundColorProperty, []string{
 		".button", "button", ".wp-block-button__link", "input[type=submit]", "input[type=\"submit\"]",
 	}},
 }
@@ -173,7 +177,7 @@ func firstRuleColor(rules []cssRule, selectors []string, property string) string
 
 		// `background: #fff url(…)` carries the color a shorthand states; the
 		// longhand above is preferred, and this only runs when it is absent.
-		if property == "background-color" {
+		if property == backgroundColorProperty {
 			if value := ruleDeclaration(rule.body, "background"); value != "" {
 				return value
 			}
