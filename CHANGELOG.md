@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **The Snap could not be built for 1.8.5.** `go.mod` requires Go 1.26.6 — the
+  1.8.5 decision that closed seven standard-library advisories — and no channel
+  of the `go` snap ships it: `1.26/stable` and `latest/stable` are both 1.26.5.
+  Go fetched 1.26.6 itself, and the line it prints while doing so landed inside
+  the version string snapcraft's Go plugin parses:
+  `invalid go compiler version 'go: downloading go1.26.6 (linux/arm64)'`. The
+  arm64 build failed before it started and took the amd64 build down with it, so
+  1.8.5 reached GitHub, ghcr and Homebrew but not the Snap Store.
+
+  `snapcraft.yaml` no longer uses the Go plugin or the `go` snap: it fetches the
+  1.26.6 toolchain from go.dev, pinned by the checksum published beside it, and
+  builds with `GOTOOLCHAIN=local` so nothing can quietly substitute another one.
+  The snap is now built by exactly the compiler the release notes name.
+
+### Changed
+- **The documentation site takes its colours from its own photograph.** The
+  hero is `assets/wpexporter_back.jpg`, and the theme's accent ramp is that
+  sunset's sky with the ink ramp warmed to match, rather than the design
+  system's cool slate sitting on top of the picture. Every pairing used for text
+  was measured against WCAG 2.2: body copy 18.18:1, secondary 12.81:1, muted
+  7.00:1, links 6.25:1 in light; 17.59 / 14.05 / 7.03 / 10.69 in dark — none
+  below what the previous palette had, and most above.
+
 ## [1.8.5] - 2026-08-14
 
 The comments a site's readers left it. Closes #35.

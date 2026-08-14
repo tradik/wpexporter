@@ -30,15 +30,54 @@ architectures:
 
 parts:
   wpexporter:
-    plugin: go
+    # plugin: nil rather than the go plugin, and the toolchain fetched below
+    # rather than from the go snap.
+    #
+    # go.mod requires Go 1.26.6 — a deliberate 1.8.5 decision, since 1.26.5 and
+    # earlier carry seven standard-library advisories this tool is exposed to —
+    # and no channel of the go snap ships it: 1.26/stable and latest/stable are
+    # both 1.26.5. Go therefore fetched 1.26.6 itself, and the line it prints
+    # while doing so landed inside the version string the go plugin parses:
+    #   invalid go compiler version 'go: downloading go1.26.6 (linux/arm64)'
+    # which failed the arm64 build of 1.8.5 before it started.
+    #
+    # Fetching the toolchain here, pinned by the checksum go.dev publishes
+    # beside it, means the snap is built by exactly the compiler the release
+    # notes claim, and cannot be quietly built by an older one.
+    plugin: nil
     source: .
     source-type: local
-    build-snaps:
-      - go/1.26/stable
+    build-packages:
+      - curl
+      - ca-certificates
     build-environment:
       - CGO_ENABLED: "0"
       - GOFLAGS: "-mod=mod"
+      # Nothing may reach for a different toolchain behind our back: the one
+      # unpacked below is the one that builds, or the build fails saying so.
+      - GOTOOLCHAIN: "local"
     override-build: |
+      set -eu
+
+      GO_VERSION=1.26.6
+      GO_ARCH=$(dpkg --print-architecture)
+      case "${GO_ARCH}" in
+        amd64) GO_SHA256=708effb774be8237570d0add163225abbdfaf4fca28b2611df167beba4feef89 ;;
+        arm64) GO_SHA256=d0507e9e9d7fe012aae570108cbd76c15de879e17130ab8cb90d4d7445cb1f2e ;;
+        *) echo "no pinned Go toolchain for ${GO_ARCH}" >&2; exit 1 ;;
+      esac
+
+      GO_TARBALL="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
+      curl -fsSL --retry 3 --retry-delay 2 -o "${CRAFT_PART_BUILD}/${GO_TARBALL}" \
+        "https://go.dev/dl/${GO_TARBALL}"
+      echo "${GO_SHA256}  ${CRAFT_PART_BUILD}/${GO_TARBALL}" | sha256sum -c -
+
+      rm -rf "${CRAFT_PART_BUILD}/toolchain"
+      mkdir -p "${CRAFT_PART_BUILD}/toolchain"
+      tar -C "${CRAFT_PART_BUILD}/toolchain" -xzf "${CRAFT_PART_BUILD}/${GO_TARBALL}"
+      export PATH="${CRAFT_PART_BUILD}/toolchain/go/bin:${PATH}"
+      go version
+
       # The VERSION file is the single source of truth; git describe would stamp
       # the previous tag plus a commit count, since the tag is created after build.
       VERSION=$(test -f VERSION && echo "v$(tr -d '[:space:]' < VERSION)" || git describe --tags --always --dirty 2>/dev/null || echo "v0.0.0")
