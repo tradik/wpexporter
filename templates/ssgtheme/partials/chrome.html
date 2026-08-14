@@ -10,10 +10,15 @@
 */}}
 
 {{define "sc-head"}}
-    {{/* <title> is emitted by the role template rather than here: a static
-         analyser cannot follow {{ template }}, and a page with no literal
-         <title> in its own file reads as a missing one. The role passes the
-         same string in, so it is written once and reused for OG/Twitter. */}}
+    {{/* The title element is emitted by the role template rather than here: a
+         static analyser cannot follow {{ template }}, and a page whose own file
+         holds no literal title element reads as a page missing one. The role
+         passes the same string in, so it is written once and reused for
+         OG/Twitter.
+
+         Named in words, not in angle brackets: a template comment is not an
+         HTML comment, so a tag written inside one is markup as far as every
+         validator is concerned. */}}
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="{{ .Desc }}">
@@ -88,8 +93,8 @@
          it. With no banner configured there is nothing to wait for and the
          loader runs directly.
 
-         No <noscript> iframe: it cannot honour a prior choice at all, so it
-         would defeat the gating above.
+         No noscript iframe fallback: it cannot honour a prior choice at all, so
+         it would defeat the gating above.
 
          The two branches repeat the loader on purpose. html/template escapes by
          context, and type="text/plain" makes the element ordinary text rather

@@ -46,9 +46,19 @@ make test
 # Run linter
 make lint
 
+# Run the security scanner
+make sec
+
 # Format code
 make format
+
+# Everything CI runs: vet, lint, gosec, tests
+make check
 ```
+
+`make sec` builds gosec from the `tools/` module rather than expecting it on
+`PATH`, so it is the same binary — and the same exclusion list — the pipeline
+uses. Nothing to install; the first run compiles it into `build/`.
 
 ## Project structure
 
@@ -80,6 +90,7 @@ wpexporter/
 ├── docs/                    # the guides, published at wpexporter.tradik.com
 ├── templates/ssgtheme/      # the documentation site's theme
 ├── man/                     # man pages
+├── tools/                   # separate module: gosec, pinned by tools/go.sum
 ├── Makefile                 # build automation
 ├── go.mod                   # Go module definition
 └── README.md                # project overview

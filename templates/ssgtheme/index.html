@@ -1,10 +1,14 @@
 {{/* One guide card. Defined here rather than in partials/chrome.html because the
      home page is the only thing that renders one; it takes a page.
 
-     The card is the <a>, not the <li> around it: the list item stays at the call
-     site so every <li> sits inside its <ul> in the source as well as in the
-     output, which is what a plain HTML reader — a linter, an editor, a person —
-     can see without expanding the template. */}}
+     The card is the anchor, not the list item around it: the list item stays at
+     the call site, so it sits inside its list in the source as well as in the
+     output — which is what a plain HTML reader (a linter, an editor, a person)
+     can see without expanding the template.
+
+     Template comments are not HTML comments, so this one names tags in words:
+     an element written here in angle brackets is text a validator reads as
+     markup, and a tag in a comment can fail a page that renders perfectly. */}}
 {{define "wp-guide-card"}}<a class="card" href="{{ .GetURL }}">
                             <h3>{{ .Title }}</h3>
                             <p class="card-meta">{{ .ReadingTime }} min read · {{ .WordCount }} words</p>

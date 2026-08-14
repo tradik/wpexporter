@@ -73,6 +73,31 @@ The comments a site's readers left it. Closes #35.
 - **gosec pinned to v2.28.0** (was v2.22.0) and the runtime image moved to
   **Alpine 3.24** (was 3.21, two stable series behind).
 
+- **gosec is a locked tool dependency, not an installed one.** The `security`
+  job ran `go install github.com/securego/gosec/v2/cmd/gosec@v2.28.0`, which
+  pins gosec itself and then re-resolves everything underneath it on every run:
+  the scanner that passes today can be built from different code tomorrow, with
+  no lock file to say so. It is now a `tool` directive in a separate `tools/`
+  module, and both CI and `make sec` build it from there — every transitive
+  version fixed and checksum-verified by `tools/go.sum`. The module is separate
+  on purpose: gosec's dependency tree — gRPC, OpenTelemetry, the Google and
+  Anthropic SDKs — would otherwise merge into wpexporter's own and turn up in
+  every SBOM and vulnerability report taken of this tool.
+
+### Fixed
+- **`make sec` now runs the scanner CI runs.** It called whatever `gosec`
+  happened to be on `PATH` — and when there was none it printed an install hint
+  and exited successfully, so `make check` reported a clean security pass having
+  scanned nothing. It also omitted the pipeline's `-exclude` list, so a developer
+  who did have gosec installed saw four findings CI accepts. Both commands now
+  build the pinned tool and share one exclusion list.
+
+- **The guide-card template no longer writes an `<li>` outside its list.** The
+  card partial opened with `<li>` and the `<ul>` lived at the call site, which is
+  valid once the template is expanded and invalid to every reader that sees the
+  file as it is written. The list item moved to the call site; the partial is the
+  card itself. The rendered page is unchanged.
+
 ### Removed
 - **The Jekyll GitHub Pages workflow.** It built the repository root with Jekyll
   and published it to GitHub Pages — a second documentation site, made of one
