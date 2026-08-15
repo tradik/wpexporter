@@ -69,6 +69,11 @@ func htmlToMarkdown(input string) string {
 	md = mdBlockquoteOpen.ReplaceAllString(md, "\n\n> ")
 	md = mdBlockquoteClose.ReplaceAllString(md, "\n\n")
 
+	// Lists are converted as blocks, innermost first, so an ordered list stays
+	// ordered and a nested one keeps its own kind (#39). The tag-by-tag rules
+	// below still catch a stray item outside any list, which is malformed
+	// markup rather than a list, and reads best as a bullet.
+	md, preservedLists := convertLists(md)
 	md = mdListWrapOpenRe.ReplaceAllString(md, "")
 	md = mdListWrapCloseRe.ReplaceAllString(md, "\n")
 	md = mdLiOpenRe.ReplaceAllString(md, "- ")
@@ -84,7 +89,11 @@ func htmlToMarkdown(input string) string {
 
 	// UTF-8 output, so typographic entities are noise; HTML-significant ones stay
 	// encoded (decoding them would turn escaped markup into live markup).
-	return decodeTypographicEntities(md)
+	md = decodeTypographicEntities(md)
+
+	// Last, so nothing above rewrites the markup of a list Markdown cannot
+	// number — a lettered, roman or reversed one, which travels as HTML.
+	return restorePreservedLists(md, preservedLists)
 }
 
 // dedentOutsideCodeFences strips the leading whitespace of every line that is
@@ -97,11 +106,11 @@ func htmlToMarkdown(input string) string {
 // INDENTED CODE BLOCK and prints the closing tags to the visitor as monospaced
 // text. Removing the indentation keeps those lines HTML blocks instead.
 //
-// Nothing meaningful is lost: this converter never emits indentation itself —
-// list items are flat `- ` markers and blockquotes flat `> ` — so the only
-// leading whitespace in the output is the source HTML's own pretty-printing.
-// Fenced blocks (from `<pre>`) keep their indentation, which is the one place
-// it carries meaning.
+// Two kinds of line keep their indentation: a fenced block's contents (from
+// `<pre>`, where whitespace is the content) and a list line, where the
+// indentation attaches a nested list or a continuation to its parent item
+// (#39). Everything else that is indented was indented by the source HTML's
+// pretty-printer, and loses nothing by being straightened.
 func dedentOutsideCodeFences(md string) string {
 	lines := strings.Split(md, "\n")
 	inFence := false
@@ -117,8 +126,24 @@ func dedentOutsideCodeFences(md string) string {
 		if inFence {
 			continue
 		}
+		if isListLine(trimmed) && line != trimmed {
+			// Indented list content: normalise tabs to the spaces CommonMark
+			// counts, and leave the depth alone.
+			lines[i] = strings.ReplaceAll(line[:len(line)-len(trimmed)], "\t", "    ") + trimmed
+			continue
+		}
 		lines[i] = trimmed
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// listLineRe matches a Markdown list marker: a bullet, or a number followed by
+// a dot or a bracket.
+var listLineRe = regexp.MustCompile(`^(?:[-*+] |\d+[.)] )`)
+
+// isListLine reports whether a line carries a list marker, and so whether its
+// indentation is structure rather than the source's pretty-printing.
+func isListLine(trimmed string) bool {
+	return listLineRe.MatchString(trimmed)
 }

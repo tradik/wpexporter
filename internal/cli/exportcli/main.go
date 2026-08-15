@@ -92,6 +92,7 @@ var (
 	noTags            bool
 	noMenus           bool
 	noComments        bool
+	noInventoryCheck  bool
 	quiet             bool
 	noIDs             bool
 	excludeTags       string
@@ -137,6 +138,7 @@ Content Filters:
       --no-tags               Skip tags
       --no-menus              Skip navigation menus
       --no-comments           Skip reader comments
+      --no-inventory-check    Skip the sitemap/feed completeness check
       --no-media              Skip media downloads
       --path-filter string    Filter by URL path (e.g., /fr/art/)
       --skip-empty-content    Skip posts/pages with empty content
@@ -239,6 +241,8 @@ func init() {
 	exportCmd.Flags().BoolVar(&noTags, "no-tags", false, "skip exporting tags")
 	exportCmd.Flags().BoolVar(&noMenus, "no-menus", false, "skip exporting navigation menus")
 	exportCmd.Flags().BoolVar(&noComments, "no-comments", false, "skip exporting reader comments")
+	exportCmd.Flags().BoolVar(&noInventoryCheck, "no-inventory-check", false,
+		"skip reading the site's sitemap and feed to report what the export did not cover")
 	exportCmd.Flags().BoolVar(&noIDs, "no-ids", false, "exclude numeric IDs from frontmatter (keep only names)")
 	exportCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress all output, only return exit code")
 
@@ -474,6 +478,9 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("no-comments") {
 		cfg.NoComments = noComments
+	}
+	if cmd.Flags().Changed("no-inventory-check") {
+		cfg.NoInventoryCheck = noInventoryCheck
 	}
 	if cmd.Flags().Changed("no-ids") {
 		cfg.NoIDs = noIDs
@@ -1066,6 +1073,18 @@ func runExport(cmd *cobra.Command, args []string) error {
 		},
 	}
 
+	// What the site says it publishes, against what this run carries (#40). It
+	// costs a request or two, runs before the metadata is written so the answer
+	// lands in metadata.json as well as the console, and can only add a line to
+	// the report — a site that publishes neither inventory says so and nothing
+	// else changes.
+	if !cfg.NoInventoryCheck {
+		logln("\nReading the site's own inventory...")
+		inventory := apiClient.FetchInventory()
+		logf("Inventory: %s\n", inventory.Describe())
+		exportData.Stats.Uncovered = checkCoverage(inventory, exportData)
+	}
+
 	// Export data
 	logln("\nExporting data...")
 	if err := exporter.Export(exportData); err != nil {
@@ -1123,6 +1142,13 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// the same lines are in metadata.json, because a console scrolls away.
 	for _, gap := range gaps {
 		logf("Incomplete: %s\n", gap)
+	}
+
+	// And what the site says it has, against what this run wrote (#40). The
+	// export is already on disk: this can only add a sentence, never take one
+	// away.
+	for _, line := range exportData.Stats.Uncovered {
+		logf("%s\n", line)
 	}
 
 	if cfg.BruteForce && bruteForceFound > 0 {

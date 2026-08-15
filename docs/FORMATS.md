@@ -30,6 +30,26 @@ slug — are both written, the second with its WordPress ID appended, and the
 substitution is reported. The summary states pages written against pages fetched
 whenever the two differ.
 
+Lists keep their kind. An `<ol>` exports as `1.`, `2.`, a `<ul>` as bullets, a
+nested list keeps its own kind at each level, and `<ol start="5">` starts at
+five. A lettered, roman or reversed list keeps its HTML, which is valid in
+Markdown: numbering it 1, 2, 3 would state something the page does not.
+
+A page whose body is a page-builder post loop — a `/blog/` built from
+`[fusion_blog]`, Elementor's Posts widget or a block query — exports with
+`lists: posts` and `lists_hint` naming the element that gave it away, and the
+run reports it. The REST API serves what is stored, and what is stored is the
+element: the listing itself is produced at render time and cannot be exported.
+Point the target's own archive at that address rather than migrating a page
+over it.
+
+After the export, the site's own **sitemap and main feed** are read — one or two
+requests — and every address they list that the export does not carry is
+reported and recorded in `metadata.json` under `stats.uncovered`. Archive views
+a generator rebuilds itself are not counted. This is how a post type the REST
+API never exposed stops being invisible. `--no-inventory-check` skips it; a site
+that publishes neither document says so and nothing else changes.
+
 Two things hold for every platform format, and only for those: media URLs are
 **left absolute**, because the target platform imports the files from the live
 site, and address fields (`link`, `canonical_url`) stay absolute too. `json`,

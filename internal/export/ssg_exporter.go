@@ -99,6 +99,7 @@ func (e *Exporter) exportSSGPages(data *models.ExportData) error {
 
 	data.Stats.PagesWritten = placement.written
 	e.reportCollisions(placement)
+	e.notePostLoopPages(data)
 
 	return nil
 }
@@ -232,6 +233,9 @@ func (e *Exporter) writeSSGFrontMatter(builder *strings.Builder, post models.Wor
 	if post.FeaturedMedia > 0 {
 		writeYAMLString(builder, "featured_image", e.escapeYAML(e.mediaMap[post.FeaturedMedia]))
 	}
+
+	// The page renders an archive rather than storing one (#41).
+	writePostLoopFrontMatter(builder, post, contentType)
 
 	// Everything else the page declared. A generator ignores keys it does not
 	// recognize, but it cannot recover one the export dropped — and plugins put

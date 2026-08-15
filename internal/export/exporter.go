@@ -310,6 +310,7 @@ func (e *Exporter) exportPagesMarkdown(data *models.ExportData) error {
 
 	data.Stats.PagesWritten = placement.written
 	e.reportCollisions(placement)
+	e.notePostLoopPages(data)
 
 	return nil
 }
@@ -567,6 +568,10 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 	builder.WriteString(fmt.Sprintf("status: \"%s\"\n", post.Status))
 	builder.WriteString(fmt.Sprintf("type: \"%s\"\n", contentType))
 	builder.WriteString(fmt.Sprintf("link: \"%s\"\n", post.Link))
+
+	// A page whose body is a listing element says so, so a target points its
+	// own archive at this address instead of migrating a page over it (#41).
+	writePostLoopFrontMatter(&builder, post, contentType)
 
 	// A child page states its parent, so a consumer can rebuild the tree the
 	// URL implies without re-deriving it from paths (#38). The slug travels

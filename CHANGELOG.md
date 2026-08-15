@@ -5,6 +5,81 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.7] - 2026-08-15
+
+### Compatibility
+
+Nothing was removed or renamed. Every new field in `metadata.json`
+(`stats.uncovered`, `stats.post_loop_pages`) is omitted when empty, so a clean
+export's metadata is byte-for-byte what it was; every front-matter key a
+consumer reads today keeps its name, and the two new ones (`lists`,
+`lists_hint`) only appear on a page that renders a post loop. `--no-inventory-check`
+is the only new flag, and no existing flag changed its meaning or default.
+Config files without the new key load unchanged. Pinned by tests, not by
+intention.
+
+Two changes are visible in output, both deliberate:
+
+- an `<ol>` now exports as `1.`, `2.` instead of `- ` (that is #39), and a
+  lettered, roman or reversed list keeps its HTML rather than being renumbered.
+  A `<ul>` converts exactly as before;
+- the export makes one or two extra requests at the end, for the site's sitemap
+  and feed. `--no-inventory-check` restores the previous request pattern
+  exactly.
+
+### Fixed
+- **Ordered lists exported as bullets (#39).** Every `<li>` became `- ` and the
+  `<ul>`/`<ol>` around it was deleted, so an ordered list and an unordered one
+  were indistinguishable in the output — on one migrated post, 2 `<ol>` and 3
+  `<ul>` arrived as 5 `<ul>`. For a recipe, a tutorial or an assembly guide the
+  numbers *are* the content: "step 3" is a reference, and a bulleted method
+  reads as a set of unordered suggestions. Nothing downstream could recover the
+  distinction, and no count-based check could notice — the same items arrive,
+  with the same words.
+
+  Lists are now converted as blocks, innermost first, so each level keeps its
+  own kind and a nested list stays attached to its parent item. `<ol start="5">`
+  starts at five, because the four before it are elsewhere on the page. A
+  lettered, roman or reversed list keeps its HTML, which is valid in Markdown
+  and says more than a number that would be wrong. Items keep their markup: the
+  previous item pattern read only the text between the tags.
+
+- **A page whose body is a post loop exported as an empty page (#41).** A site's
+  `/blog/` is often a WordPress page whose body is a page-builder element —
+  `[fusion_blog]`, Elementor's Posts widget, a block query — and the REST API
+  serves what is stored, which is the element. The listing is produced at render
+  time and never reaches the export.
+
+  Such a page is worse than empty: it collides with the target's own listing. A
+  generator told to build its archive at `/blog/` finds a migrated page already
+  sitting there, the page wins, and the operator gets an empty blog with no
+  error anywhere — the only way to find out was to read the built HTML. The page
+  now carries `lists: posts` and `lists_hint` naming the element that was
+  matched, the run reports it, and the same line is in `metadata.json` under
+  `stats.post_loop_pages`. A page with real content of its own is left alone,
+  marker or not.
+
+### Added
+- **The export says what it did not cover (#40).** It could only ever report
+  what it fetched, so a content type the REST API does not expose was invisible:
+  the run ended in a success summary and the migrated site was missing a
+  section. Measured on one site, the sitemap listed 477 URLs against 155
+  exported documents — 57 of them a plugin's events, which nobody was told
+  about.
+
+  After the export, the site's own sitemap (all three usual paths, following an
+  index) and main feed are read, and every address they list that the export
+  does not carry is reported, grouped by path and heaviest group first, then
+  recorded in `metadata.json` under `stats.uncovered`. Archive views a generator
+  rebuilds for itself — `/tag/`, `/category/`, a plugin's own taxonomy, date
+  archives, paged listings — are not counted, because they are views of content
+  the export already carries.
+
+  Nothing is required of the site: no sitemap and no feed is a normal site, and
+  the check says so in one line. A body that is a home page rather than a
+  sitemap is not believed, since that is what a site without one answers with.
+  `--no-inventory-check` skips the whole thing.
+
 ## [1.8.6] - 2026-08-15
 
 A release whose reason is the Snap: 1.8.5 reached GitHub, ghcr and Homebrew and

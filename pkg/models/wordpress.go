@@ -421,6 +421,17 @@ type ExportStats struct {
 	// the page they stopped at and why. Absent from a whole export; present in
 	// metadata.json so a gap outlives the console line reporting it (#37).
 	Incomplete []string `json:"incomplete,omitempty"`
+	// Uncovered is what the site's own sitemap and feed list that this export
+	// does not carry, grouped by path. An export can otherwise only report what
+	// it fetched, which is how a whole post type goes missing without a word
+	// (#40).
+	Uncovered []string `json:"uncovered,omitempty"`
+	// PostLoopPages names the pages whose body renders an archive rather than
+	// storing content — a /blog/ built from a page-builder element. They export
+	// as nearly nothing through no fault of the exporter, and they collide with
+	// the target's own listing, so they are stated rather than left to be found
+	// by reading the built HTML (#41).
+	PostLoopPages []string `json:"post_loop_pages,omitempty"`
 }
 
 // WooCommerceProduct represents a WooCommerce product
