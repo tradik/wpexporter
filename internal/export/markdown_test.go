@@ -26,7 +26,10 @@ func TestHTMLToMarkdown_GutenbergBlocks(t *testing.T) {
 		"**Mixture (room temperature):**",
 		"- 200g dark chocolate",
 		"- 200g unsalted butter",
-		"- Melt",
+		// The method is an <ol>: its numbers are the content, and exporting
+		// them as bullets is what #39 was filed about.
+		"1. Melt",
+		"2. Whisk",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected %q in output:\n%s", want, out)

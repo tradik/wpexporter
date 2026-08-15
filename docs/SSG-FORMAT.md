@@ -65,3 +65,17 @@ Applied to the body of every `ssg` document:
 
 The `markdown` format keeps its existing output, with two exceptions that were plainly bugs:
 entities are decoded there too, and the excerpt no longer carries the "Continue reading" anchor.
+
+## A page that lists posts
+
+A `/blog/` whose body is a page-builder element carries two extra keys, because
+its content is generated at render time and cannot be exported (#41):
+
+```yaml
+lists: posts
+lists_hint: "fusion_blog"
+```
+
+`lists_hint` names the element that was matched, so a wrong guess is visible
+rather than silent. Point the generator's listing at this page's address —
+in SSG, `posts_page` — instead of letting the migrated page occupy it.

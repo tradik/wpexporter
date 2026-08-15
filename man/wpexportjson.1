@@ -160,6 +160,9 @@ Concurrent downloads (default: 5)
 .BR \-\-rate\-limit " " \fIMS\fR
 Delay between API requests in milliseconds (prevents server rate limiting)
 .TP
+.BR \-\-no\-inventory\-check
+Skip the completeness check. After the export the site's own sitemap and main feed are read \- one or two requests \- and every address they list that the export does not carry is reported, grouped by path, and recorded in \fBmetadata.json\fR under \fBstats.uncovered\fR. Archive views a generator rebuilds itself (\fI/tag/\fR, \fI/category/\fR, date archives) are not counted. A site that publishes neither document says so and the export is unchanged.
+.TP
 .BR \-\-retries " " \fINUM\fR
 Attempts for a request the site answers with 5xx or 429, or drops (default: 3). Backoff is exponential with jitter and honours \fBRetry\-After\fR. A page of results that still will not come is reported as an incomplete collection and the export continues with what it has.
 .TP

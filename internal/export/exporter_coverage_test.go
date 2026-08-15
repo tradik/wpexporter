@@ -518,7 +518,8 @@ func TestConvertHTMLToMarkdown_AllTags(t *testing.T) {
 		{"i", "<i>italic</i>", "*italic*"},
 		{"br with slash", "line<br/>break", "line\nbreak"},
 		{"br with space", "line<br />break", "line\nbreak"},
-		{"ol", "<ol><li>item</li></ol>", "- item"},
+		{"ol", "<ol><li>item</li></ol>", "1. item"},
+		{"ul", "<ul><li>item</li></ul>", "- item"},
 	}
 
 	for _, tt := range tests {
