@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.12] - 2026-08-16
+
+### Fixed
+- **A shop without API keys exported zero products (#55).** Products came only
+  from WooCommerce's `/wc/v3/products`, which needs consumer keys; a shop that
+  has issued none answers `401` there. The same products are public on the
+  ordinary WordPress route — and `product` is excluded from the custom-type walk
+  because it has its own exporter, so such a site had **no path at all**, and
+  `--custom-types product` could not reach it either.
+
+  A refusal is now told apart from an absent WooCommerce (404), and answered by
+  reading `/wp/v2/product`. What that route carries is the catalog page: title,
+  slug, address, description, excerpt, dates and status. What it does not carry
+  is the commerce — price, SKU, stock, variations, attributes, dimensions — and
+  those fields are left **empty rather than zeroed**, because a price of `0`
+  imports as a free product, which is worse than an absent one.
+
+- **`Products: 0` meant two different things.** "This shop has no products" and
+  "its products could not be read" printed identically, which is what sent the
+  reporter investigating. The line now states which it is, and names the remedy:
+
+      Products: 5 from /wp/v2/product — the WooCommerce API refused the request
+      (401: no consumer keys), so these carry title, address, description, image
+      and terms, and no price, SKU, stock or variations. Pass
+      --auth-user/--auth-pass with WooCommerce keys for the full catalog.
+
+- **The uncovered-URL report advised a flag that cannot work.** It suggested
+  `--custom-types with its name` for every missing section, including
+  `/product/`, which that walk excludes by design. For a shop it now names the
+  real reason and the real remedy.
+
 ## [1.8.11] - 2026-08-16
 
 ### Fixed
