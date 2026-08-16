@@ -56,12 +56,22 @@ runs on a 400 the previous code would have read as an empty collection.
   feed is already read for the completeness check.
 
 ### Changed
-- **`internal/checkpoint` is tested.** The state behind `--resume` had no tests
-  at all, which is a poor place for that to be true: its whole job is to be
-  correct after a crash, and a mistake there is not a wrong file but a second
-  run that skips a section it never read. Round-trips, a checkpoint belonging to
-  another site, a truncated file, a missing media map and concurrent writers are
-  now covered, and overall statement coverage rose from 77.7% to 79.6%.
+- **The two untested surfaces are tested.** `internal/checkpoint` — the state
+  behind `--resume` — had no tests at all, which is a poor place for that to be
+  true: its whole job is to be correct after a crash, and a mistake there is not
+  a wrong file but a second run that skips a section it never read. Round-trips,
+  a checkpoint belonging to another site, a truncated file, a missing media map
+  and concurrent writers are now covered (0% → 96.3%).
+
+  The **MCP tool handlers** were reachable only over the protocol and untested,
+  which matters more than it sounds: they are the whole product as far as an
+  assistant is concerned, and an assistant has no console in which to notice a
+  wrong answer. Every handler now runs against a stub WordPress — listings,
+  their limits and path filter, a record by ID, the refusal when it is missing,
+  an unusable URL, and an export that writes files and reports its counts
+  (52.4% → 92.4%).
+
+  Overall statement coverage rose from **77.7% to 81.1%**.
 
 ## [1.8.7] - 2026-08-15
 
