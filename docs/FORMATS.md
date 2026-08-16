@@ -58,6 +58,16 @@ many. It is asked for rather than assumed, and never merges with or replaces a
 collection the API did serve: REST is the better source in every respect, and a
 feed lists recent items rather than the archive.
 
+A post the editor **pinned to the top of the blog** carries `sticky: true`,
+omitted when false. A listing sorted by date alone buries it wherever its date
+falls — sixth, on the site that reported it (#51).
+
+Emphasis is written so that it **closes**: WordPress content is full of
+`<strong>text </strong>`, with the space inside the tags, and converted tag for
+tag that becomes `**text **`, which in CommonMark closes nothing and prints the
+asterisks to the reader. The whitespace moves outside the delimiters, and a run
+with nothing but space in it is dropped (#50).
+
 Terms carry their **addresses** as well as their names: `category_slugs`,
 `category_paths` (the parent chain, when the taxonomy is nested) and `tag_slugs`
 beside the existing `categories` and `tags`. A target that makes a slug out of a

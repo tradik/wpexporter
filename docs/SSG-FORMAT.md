@@ -66,6 +66,12 @@ Applied to the body of every `ssg` document:
 The `markdown` format keeps its existing output, with two exceptions that were plainly bugs:
 entities are decoded there too, and the excerpt no longer carries the "Continue reading" anchor.
 
+## A pinned post
+
+`sticky: true` marks a post the editor pinned to the top of the blog, and is
+absent otherwise. Sort on it before the date, or the post the site owner
+deliberately put first arrives wherever its date puts it (#51).
+
 ## Term addresses
 
 `category` and the `tags` a document carries are display names. The address the

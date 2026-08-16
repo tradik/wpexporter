@@ -244,6 +244,12 @@ func (e *Exporter) writeSSGFrontMatter(builder *strings.Builder, post models.Wor
 		writeYAMLList(builder, "tag_slugs", slugsOf(tags))
 	}
 	writeYAMLString(builder, "description", e.escapeYAML(ssgDescription(post)))
+
+	// The editor pinned this post to the top of the blog; a listing sorted by
+	// date alone would bury it (#51).
+	if post.Sticky {
+		builder.WriteString("sticky: true\n")
+	}
 	writeYAMLString(builder, "excerpt", e.escapeYAML(plainTextExcerpt(post.Excerpt.Rendered)))
 
 	if post.FeaturedMedia > 0 {
