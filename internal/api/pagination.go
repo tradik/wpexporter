@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+
+	"github.com/tradik/wpexporter/pkg/models"
 )
 
 const (
@@ -77,6 +79,20 @@ func nextPageSize(current int) (int, bool) {
 	}
 
 	return current, false
+}
+
+// pageResult is what one request for a page of a collection yielded: records,
+// the end of the walk, a page size to try instead, or a gap to report.
+type pageResult struct {
+	content []models.WordPressPost
+	// total is the site's own count for the collection, 0 when it did not say.
+	total int
+	// done reports that the collection ended here.
+	done bool
+	// retryWith is a smaller page size the site may accept, or 0.
+	retryWith int
+	// err is the gap, carrying what had been fetched before it.
+	err error
 }
 
 // refusal is what a 400 means for a walk in progress.
