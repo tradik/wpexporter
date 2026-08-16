@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.13] - 2026-08-16
+
+### Fixed
+- **One 500 in the media listing threw away the whole run (#57).** Posts, pages
+  and the custom types have carried a gap rather than an abort since 1.8.5, but
+  the media walk was never given the same contract: a single unreadable page of
+  `/wp/v2/media` ended the export and discarded everything already fetched — on
+  the run that reported this, 1251 posts and 89 pages, with nothing written to
+  the output directory at all. Neither `--retries` nor `--resume` helped, since
+  the failure was deterministic rather than transient.
+
+  Media, categories, tags and users now keep what they read and report the gap,
+  exactly as posts and pages do. Nothing that was fetched is thrown away because
+  something else could not be.
+
+- **A Cloudflare block reported as a bare `403` (#58).** "API returned status
+  403" is accurate and useless: nothing said the refusal came from the site's
+  bot protection rather than from its REST API, so a `403` on a route the
+  operator's own browser opens fine looked like a broken WordPress.
+
+  A response carrying Cloudflare's marks — a `cf-ray` header, `server:
+  cloudflare`, an error code on its block page — is now named as such, with the
+  remedies that apply to a wall rather than to a bug. A browser challenge is
+  told apart from a block, because the two mean different things, and it is no
+  longer retried: an identical request cannot solve an interstitial, so three
+  backoff waits were three delays for nothing.
+
+### Added
+- **`--user-agent`.** The default, `WordPress-Export-JSON/1.0`, is exactly what
+  a bot rule matches on, and changing it was possible only through a config
+  file. It is the remedy that most often works against a wall, so it now has a
+  flag.
+
+### Changed
+- **Two flags now describe what they actually do.** `--scan-range` *adds* to
+  what the listing walk found rather than replacing it, so it cannot be used to
+  step around a listing page the site will not serve; `--exclude-media-types`
+  skips **downloads**, and cannot skip listing pages, because the listing is
+  what states a file's type. Both were read wider than the code by the reporter
+  of #57, which is the documentation's fault rather than theirs.
+
 ## [1.8.12] - 2026-08-16
 
 ### Fixed

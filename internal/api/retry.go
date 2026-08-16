@@ -67,6 +67,12 @@ func isTransientFailure(resp *resty.Response, err error) bool {
 		return false
 	}
 
+	// A browser challenge is a wall, not weather: an identical request cannot
+	// pass it, and three backoff waits are three delays for nothing (#58).
+	if InspectRefusal(resp).Challenge {
+		return false
+	}
+
 	_, transient := transientStatuses[resp.StatusCode()]
 
 	return transient

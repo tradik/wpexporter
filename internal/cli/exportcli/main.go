@@ -77,6 +77,7 @@ var (
 	authToken         string
 	rateLimit         int
 	retries           int
+	userAgent         string
 	resume            bool
 	timeout           int
 	crawlContent      bool
@@ -164,6 +165,7 @@ Advanced:
       --resume                Resume from checkpoint
       --rate-limit int        Delay between requests in ms
       --retries int           Retries for a 5xx, 429 or dropped connection (default 3)
+      --user-agent string     Identify as something else (bot protection matches the default)
       --zip                   Create ZIP archive
       --no-files              Remove files after ZIP (requires --zip)
 
@@ -215,6 +217,9 @@ func init() {
 	exportCmd.Flags().StringVar(&authPass, "auth-pass", "", "password for Basic Auth")
 	exportCmd.Flags().StringVar(&authToken, "auth-token", "", "Bearer token for authentication")
 	exportCmd.Flags().IntVar(&rateLimit, "rate-limit", 0, "delay between API requests in milliseconds (0 = no limit)")
+	exportCmd.Flags().StringVar(&userAgent, "user-agent", "",
+		"the User-Agent to send; bot protection matches on the default, and a browser's string "+
+			"is the remedy that most often works against a 403 from a wall")
 	exportCmd.Flags().IntVar(&retries, "retries", 3,
 		"attempts for a request the site answers with 5xx or 429, or drops (0 = no retry)")
 	exportCmd.Flags().BoolVar(&resume, "resume", false, "resume from checkpoint if previous export was interrupted")
@@ -442,6 +447,9 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("retries") {
 		cfg.Retries = retries
+	}
+	if cmd.Flags().Changed("user-agent") && userAgent != "" {
+		cfg.UserAgent = userAgent
 	}
 	if cmd.Flags().Changed("resume") {
 		cfg.Resume = resume
@@ -901,8 +909,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 		} else {
 			media, err = apiClient.GetMedia()
 		}
-		if err != nil {
-			return fmt.Errorf("failed to get media: %w", err)
+		// A page of the media listing that will not come is a gap like any
+		// other: the run keeps what it read and carries on. It used to end the
+		// export and discard everything already fetched — 1251 posts and 89
+		// pages, on the run that reported this (#57).
+		if err := noteIncomplete(&gaps, "media", err); err != nil {
+			return err
 		}
 		logf("Found %d media items\n", len(media))
 

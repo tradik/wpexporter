@@ -59,12 +59,12 @@ wpexportjson export --config config.yaml
 <tr><td><code>--format</code></td><td>Export format (json/ markdown/ ssg/ shopify/ magento/ wordpress/ drupal/ wix/ squarespace/ webflow/ weebly/ prestashop/ ghost/ strapi/ contentful)</td><td><code>json</code></td></tr>
 <tr><td><code>--brute-force</code></td><td>Enable brute force ID discovery</td><td><code>false</code></td></tr>
 <tr><td><code>--max-id</code></td><td>Maximum ID for brute force</td><td><code>10000</code></td></tr>
-<tr><td><code>--scan-range</code></td><td>Rescan a specific inclusive ID range for posts/pages/media, e.g. <code>100-200</code></td><td><code>""</code></td></tr>
+<tr><td><code>--scan-range</code></td><td>Rescan a specific inclusive ID range for posts/pages/media, e.g. <code>100-200</code>. It <strong>adds</strong> to what the listing walk found — it does not replace the walk, so it cannot be used to avoid a listing page the site will not serve</td><td><code>""</code></td></tr>
 <tr><td><code>--max-media-mb</code></td><td>Per-file media download size cap in MB (0 = built-in default of 2048)</td><td><code>0</code></td></tr>
 <tr><td><code>--download-media</code></td><td>Download images and videos</td><td><code>true</code></td></tr>
 <tr><td><code>--no-media</code></td><td>Disable media downloads (alias for --download-media=false)</td><td><code>false</code></td></tr>
 <tr><td><code>--relevant-media-only</code></td><td>Download only featured images and media linked in content (images, PDFs, videos, etc.)</td><td><code>false</code></td></tr>
-<tr><td><code>--exclude-media-types</code></td><td>Media types to skip (comma-separated: images,videos,audio,documents,archives,pdf,gif)</td><td>-</td></tr>
+<tr><td><code>--exclude-media-types</code></td><td>Media types to skip <strong>downloading</strong> (comma-separated: images,videos,audio,documents,archives,pdf,gif). The listing is what states a file's type, so this cannot skip listing pages</td><td>-</td></tr>
 <tr><td><code>--media-path-style</code></td><td>Form of rewritten media paths: <code>root</code> (<code>/media/…</code>, resolves at any URL depth) or <code>relative</code> (<code>media/…</code>)</td><td><code>root</code></td></tr>
 <tr><td><code>--link-style</code></td><td>Form of <code>link</code>/<code>canonical_url</code>/<code>hreflangs</code>: <code>absolute</code> (source URL) or <code>root</code> (root-relative path)</td><td><code>absolute</code><br>(<code>root</code> for <code>ssg</code>)</td></tr>
 <tr><td><code>--extract-meta</code></td><td>Which meta tags to keep beyond the named SEO fields: <code>all</code>, <code>none</code>, or a comma-separated allow-list</td><td><code>all</code></td></tr>
@@ -98,6 +98,7 @@ wpexportjson export --config config.yaml
 <tr><td><code>--no-inventory-check</code></td><td>Skip reading the site's sitemap and feed after the export to report what it did not cover</td><td><code>false</code></td></tr>
 <tr><td><code>--frontmatter-style</code></td><td>Form of the structured front-matter values (<code>meta</code>, <code>hreflangs</code>): <code>nested</code> (YAML structure) or <code>flat</code> (one JSON string each, so they survive a store that holds only string lists — mddb and the like)</td><td><code>nested</code></td></tr>
 <tr><td><code>--from-sitemap</code></td><td>When the REST API serves no posts, recover what the site's feed still publishes (title, address, date, author, body — no IDs, terms or featured images)</td><td><code>false</code></td></tr>
+<tr><td><code>--user-agent</code></td><td>The <code>User-Agent</code> to send. Bot protection matches on the default, so a browser's string is the remedy that most often works against a <code>403</code> from a wall</td><td><code>WordPress-Export-JSON/1.0</code></td></tr>
 <tr><td><code>--retries</code></td><td>Attempts for a request the site answers with 5xx or 429, or drops. Exponential backoff with jitter, honouring <code>Retry-After</code></td><td><code>3</code></td></tr>
 <tr><td><code>--resume</code></td><td>Resume from checkpoint if previous export was interrupted</td><td><code>false</code></td></tr>
 <tr><td><code>--timeout</code></td><td>HTTP request timeout in seconds (increase for slow servers)</td><td><code>30</code></td></tr>
