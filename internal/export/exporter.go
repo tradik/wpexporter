@@ -25,10 +25,15 @@ type Exporter struct {
 	downloader  *media.Downloader
 	categoryMap map[int]string    // ID -> Name lookup
 	tagMap      map[int]string    // ID -> Name lookup
+	categoryIDs termIndex         // ID -> name, slug and parent chain (#45)
+	tagIDs      termIndex         // ID -> name and slug (#45)
 	userMap     map[int]string    // ID -> Name lookup
 	mediaMap    map[int]string    // ID -> media URL lookup (localized when rewriting is active)
 	altMap      map[string]string // media URL -> alt text, for filling in missing alt attributes
 	pageSlugs   map[int]string    // page ID -> slug, so a child can name its parent (#38)
+	// shortcodeLeaks records the unexpanded plugin calls removed from documents,
+	// so the export can say what it lost rather than showing it to readers (#47).
+	shortcodeLeaks []shortcodeLeak
 	// rewriter localizes attachment URLs; nil when the export keeps original URLs.
 	rewriter *media.URLRewriter
 }
@@ -116,6 +121,35 @@ func (e *Exporter) localizeAddresses(data *models.ExportData) {
 	}
 
 	e.resolveCommentAddresses(data)
+
+	// A shortcode the REST API never expanded is plugin source, not content: it
+	// is removed from every document and reported with counts (#47).
+	if e.config.LocalizesURLs() {
+		e.stripShortcodesFromContent(data)
+	}
+}
+
+// stripShortcodesFromContent cleans every document the export writes, naming
+// each one so the report can say where a plugin's output went missing.
+func (e *Exporter) stripShortcodesFromContent(data *models.ExportData) {
+	clean := func(posts []models.WordPressPost, kind string) {
+		for i := range posts {
+			e.stripPostShortcodes(&posts[i], kind+" "+posts[i].Slug)
+		}
+	}
+
+	clean(data.Posts, "post")
+	clean(data.Pages, "page")
+	for t := range data.CustomTypes {
+		clean(data.CustomTypes[t].Posts, data.CustomTypes[t].Slug)
+	}
+
+	e.reportShortcodes(data)
+
+	// Reported after the strip, so a page emptied by removing a shortcode is
+	// counted as what it is: a page whose body the API never really served
+	// (#46).
+	e.reportEmptyPages(data)
 }
 
 // exportJSON exports data as JSON
@@ -618,6 +652,12 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 				builder.WriteString(fmt.Sprintf("  - \"%s\"\n", e.escapeYAML(plainText(name))))
 			}
 		}
+
+		// The addresses those names are published under. A target that makes a
+		// slug out of a display name gets it wrong wherever WordPress did not,
+		// and every archive it publishes then 404s (#45).
+		e.writeTermAddresses(&builder, e.categoryIDs.identities(post.Categories), "category")
+
 		// Output IDs unless --no-ids
 		if !e.config.NoIDs {
 			builder.WriteString("category_ids:\n")
@@ -642,6 +682,8 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 				builder.WriteString(fmt.Sprintf("  - \"%s\"\n", e.escapeYAML(plainText(name))))
 			}
 		}
+
+		e.writeTermAddresses(&builder, e.tagIDs.identities(post.Tags), "tag")
 		// Output IDs unless --no-ids
 		if !e.config.NoIDs {
 			builder.WriteString("tag_ids:\n")

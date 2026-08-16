@@ -426,6 +426,16 @@ type ExportStats struct {
 	// terms, no featured image — so a consumer that needs to know says so by
 	// reading this rather than by guessing (#40).
 	RecoveredPosts int `json:"recovered_posts,omitempty"`
+	// EmptyPages names the pages whose body the REST API did not serve — a
+	// front page built from theme sections, whose content is assembled at
+	// render time and stored where the API cannot see it. The export is correct
+	// and useless at once, and saying so is the only remedy it has (#46).
+	EmptyPages []string `json:"empty_pages,omitempty"`
+	// RemovedShortcodes names the unexpanded plugin calls stripped from the
+	// documents, with counts. Their plugins do not render over REST, so what
+	// the API served was their source text rather than their output — a map, a
+	// calendar or a gallery that has to be rebuilt on the other side (#47).
+	RemovedShortcodes []string `json:"removed_shortcodes,omitempty"`
 	// Uncovered is what the site's own sitemap and feed list that this export
 	// does not carry, grouped by path. An export can otherwise only report what
 	// it fetched, which is how a whole post type goes missing without a word

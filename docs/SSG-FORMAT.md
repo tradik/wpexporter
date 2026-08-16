@@ -66,6 +66,26 @@ Applied to the body of every `ssg` document:
 The `markdown` format keeps its existing output, with two exceptions that were plainly bugs:
 entities are decoded there too, and the excerpt no longer carries the "Continue reading" anchor.
 
+## Term addresses
+
+`category` and the `tags` a document carries are display names. The address the
+site publishes their archives under is the **slug**, and the two disagree often
+enough to matter: on one migration 48 tag archives and 9 category archives 404'd
+because a generator had made slugs out of names (#45). So the addresses travel
+too:
+
+```yaml
+category: "Pasta & Rice"
+category_slug: "pasta-rice"
+category_path: "recipes/pasta-rice"   # only when the taxonomy is nested
+tag_slugs:
+  - "hand-made-pasta-3"
+```
+
+Use `category_path` where it is present — it is the chain WordPress published,
+`/category/recipes/pasta-rice/` — and `category_slug` otherwise. The names are
+unchanged and still the thing to display.
+
 ## A page that lists posts
 
 A `/blog/` whose body is a page-builder element carries two extra keys, because
