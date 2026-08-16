@@ -362,9 +362,17 @@ func (c *Client) GetProducts() ([]models.WooCommerceProduct, error) {
 			return allProducts, fmt.Errorf("failed to fetch WooCommerce products page %d: %w", page, err)
 		}
 
-		if resp.StatusCode() == 404 || resp.StatusCode() == 401 {
-			// WooCommerce not installed or no access — legitimately empty, not an error.
+		if resp.StatusCode() == 404 {
+			// WooCommerce is not installed: legitimately empty, not an error.
 			return allProducts, nil
+		}
+
+		if resp.StatusCode() == 401 || resp.StatusCode() == 403 {
+			// The shop exists and will not talk to us without consumer keys.
+			// Told apart from "no WooCommerce" because the remedy differs, and
+			// because the same products are usually public on /wp/v2/product —
+			// which is where the caller goes next (#55).
+			return allProducts, ErrProductsNeedKeys
 		}
 
 		if resp.StatusCode() == 400 {

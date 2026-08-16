@@ -143,3 +143,28 @@ The [PrestaShop](https://www.prestashop.com/) export format generates semicolon-
 ```bash
 wpexportjson export --url https://your-wordpress-site.com -f prestashop
 ```
+
+## A shop that handed out no API keys
+
+Products come from WooCommerce's own `/wc/v3/products`, which needs consumer
+keys. A shop that has not issued any answers `401` there, and the export used to
+report `Products: 0` — the same line a shop with no products gets.
+
+The same products are usually public on the ordinary WordPress route, so the
+export falls back to `/wp/v2/product` and says exactly what it got:
+
+```
+Products: 5 from /wp/v2/product — the WooCommerce API refused the request
+(401: no consumer keys), so these carry title, address, description, image and
+terms, and no price, SKU, stock or variations. Pass --auth-user/--auth-pass with
+WooCommerce keys for the full catalog.
+```
+
+That is a catalog, not a shop. It stops a migrated `/product/` being a wall of
+404s; it is **not** a substitute for the keys, and the fields the public route
+cannot answer for are left empty rather than filled with a plausible zero — a
+price of `0` would import as a free product, which is worse than an absent one.
+
+For `-f shopify`, `-f magento` and the other commerce formats, that means an
+import without prices: get the keys before running one of those against a shop
+that answered 401 (#55).

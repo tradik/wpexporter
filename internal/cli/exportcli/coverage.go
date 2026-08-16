@@ -116,10 +116,26 @@ func describeCoverage(total int, counts map[string]int) []string {
 		lines = append(lines, fmt.Sprintf("  %-28s %d", g.segment, g.count))
 	}
 
-	lines = append(lines, "  A section missing here is usually a post type the REST API does not "+
-		"expose — try --custom-types with its name, or --brute-force.")
+	lines = append(lines, coverageHint(counts))
 
 	return lines
+}
+
+// coverageHint names the remedy that actually applies. Suggesting
+// --custom-types for a type the export handles elsewhere sends the operator
+// somewhere the flag cannot reach, which is the shape of advice #55 was partly
+// about.
+func coverageHint(counts map[string]int) string {
+	for _, segment := range []string{"/product/", "/shop/", "/produkt/"} {
+		if counts[segment] > 0 {
+			return "  /product/ is WooCommerce: it is fetched from /wc/v3, which needs consumer " +
+				"keys. Without them the export falls back to what /wp/v2/product publishes — a " +
+				"catalog without prices — so pass --auth-user/--auth-pass to get the rest."
+		}
+	}
+
+	return "  A section missing here is usually a post type the REST API does not " +
+		"expose — try --custom-types with its name, or --brute-force."
 }
 
 // exportedPaths is every address the export carries, as comparable paths.

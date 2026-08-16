@@ -166,3 +166,26 @@ func TestSegmentClassification(t *testing.T) {
 	assert.True(t, isArchiveSegment("product-tag"))
 	assert.False(t, isArchiveSegment("events"))
 }
+
+// TestCoverageHintNamesTheRemedyThatApplies: suggesting --custom-types for
+// WooCommerce products sends the operator somewhere the flag cannot reach —
+// `product` is excluded from that walk because it has its own exporter (#55).
+func TestCoverageHintNamesTheRemedyThatApplies(t *testing.T) {
+	shop := api.Inventory{
+		Sitemap:     "https://x.test/sitemap.xml",
+		SitemapURLs: []string{"https://x.test/product/blue-mug/"},
+	}
+
+	report := strings.Join(checkCoverage(shop, exportOf()), "\n")
+	assert.Contains(t, report, "/wc/v3")
+	assert.Contains(t, report, "--auth-user")
+	assert.NotContains(t, report, "--custom-types", "a flag that cannot reach this type is not advice")
+
+	// Anything else keeps the general hint.
+	other := api.Inventory{
+		Sitemap:     "https://x.test/sitemap.xml",
+		SitemapURLs: []string{"https://x.test/events/gala/"},
+	}
+
+	assert.Contains(t, strings.Join(checkCoverage(other, exportOf()), "\n"), "--custom-types")
+}

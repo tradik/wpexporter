@@ -109,8 +109,11 @@ func TestGetProducts_Unauthorized(t *testing.T) {
 	client, err := NewClient(cfg)
 	require.NoError(t, err)
 
+	// 401 is the shop refusing an unauthenticated request, which is a fact about
+	// its configuration rather than an absence of products — and the caller
+	// answers it by reading /wp/v2/product instead (#55).
 	result, err := client.GetProducts()
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ErrProductsNeedKeys)
 	assert.Len(t, result, 0)
 }
 

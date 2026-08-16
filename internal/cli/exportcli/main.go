@@ -779,6 +779,9 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 
 	var products []models.WooCommerceProduct
+	// What to say about the products, when "0" and "could not read them" would
+	// otherwise print identically (#55).
+	var productsNotice string
 	if !cfg.NoProducts {
 		logln("Fetching WooCommerce products...")
 		if cfg.Resume {
@@ -786,13 +789,23 @@ func runExport(cmd *cobra.Command, args []string) error {
 		} else {
 			products, err = apiClient.GetProducts()
 		}
-		if err != nil {
+		switch {
+		case errors.Is(err, api.ErrProductsNeedKeys):
+			// The shop exists and will not talk to us without consumer keys.
+			// Its products are usually public on the ordinary WordPress route,
+			// which is a catalog without the commerce — and better than the
+			// zero this used to report (#55).
+			products, productsNotice = recoverPublicProducts(apiClient)
+		case err != nil:
 			// WooCommerce is optional: surface the failure but keep whatever was
 			// fetched, so a transient Woo error doesn't silently abort or truncate
 			// the rest of the export (GO-003).
 			logf("Warning: WooCommerce products may be incomplete: %v\n", err)
 		}
-		if len(products) > 0 {
+
+		if productsNotice != "" {
+			logln(productsNotice)
+		} else if len(products) > 0 {
 			logf("Found %d WooCommerce products\n", len(products))
 		} else if err == nil {
 			logln("No WooCommerce products found (WooCommerce may not be installed)")
@@ -1149,7 +1162,11 @@ func runExport(cmd *cobra.Command, args []string) error {
 	for _, set := range customTypes {
 		logf("%s (%s): %d\n", set.Name, set.Slug, len(set.Posts))
 	}
-	logf("Products: %d\n", len(products))
+	if productsNotice != "" {
+		logf("%s\n", productsNotice)
+	} else {
+		logf("Products: %d\n", len(products))
+	}
 	logf("Media: %d\n", len(media))
 	logf("Categories: %d\n", len(categories))
 	logf("Tags: %d\n", len(tags))
