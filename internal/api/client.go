@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -362,27 +363,12 @@ func (c *Client) GetProducts() ([]models.WooCommerceProduct, error) {
 			return allProducts, fmt.Errorf("failed to fetch WooCommerce products page %d: %w", page, err)
 		}
 
-		if resp.StatusCode() == 404 {
-			// WooCommerce is not installed: legitimately empty, not an error.
-			return allProducts, nil
+		done, statusErr := shopStatus(resp.StatusCode(), page)
+		if statusErr != nil {
+			return allProducts, statusErr
 		}
-
-		if resp.StatusCode() == 401 || resp.StatusCode() == 403 {
-			// The shop exists and will not talk to us without consumer keys.
-			// Told apart from "no WooCommerce" because the remedy differs, and
-			// because the same products are usually public on /wp/v2/product —
-			// which is where the caller goes next (#55).
-			return allProducts, ErrProductsNeedKeys
-		}
-
-		if resp.StatusCode() == 400 {
-			// No more pages
+		if done {
 			break
-		}
-
-		if resp.StatusCode() != 200 {
-			// 5xx or other unexpected status: a real failure, not "no WooCommerce".
-			return allProducts, fmt.Errorf("WooCommerce API returned status %d for products page %d", resp.StatusCode(), page)
 		}
 
 		var products []models.WooCommerceProduct
@@ -402,6 +388,30 @@ func (c *Client) GetProducts() ([]models.WooCommerceProduct, error) {
 	c.saveToCache(cacheKey, allProducts)
 
 	return allProducts, nil
+}
+
+// shopStatus reads what the WooCommerce route's status means for the walk:
+// carry on, stop, or stop and say why.
+//
+// The three refusals are deliberately distinct. 404 is a site without
+// WooCommerce, which is not an error. 401 and 403 are a shop that exists and
+// will not talk to us without consumer keys — a fact about its configuration,
+// answered by reading /wp/v2/product instead (#55). Anything else unexpected is
+// a genuine failure and must not be mistaken for an empty catalog.
+func shopStatus(status, page int) (done bool, err error) {
+	switch status {
+	case http.StatusOK:
+		return false, nil
+	case http.StatusNotFound:
+		return true, nil
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return true, ErrProductsNeedKeys
+	case http.StatusBadRequest:
+		// Past the last page.
+		return true, nil
+	default:
+		return true, fmt.Errorf("WooCommerce API returned status %d for products page %d", status, page)
+	}
 }
 
 // GetMedia retrieves all media items with pagination
