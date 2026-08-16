@@ -87,6 +87,7 @@ var (
 	keepOriginalURLs  bool
 	mediaPathStyle    string
 	linkStyle         string
+	frontmatterStyle  string
 	reportA11y        bool
 	extractMeta       string
 	noTags            bool
@@ -149,6 +150,7 @@ Content Filters:
       --keep-original-urls    Preserve WordPress URLs (don't convert to local paths)
       --media-path-style      Rewritten media paths: root (default, /media/...) or relative
       --link-style            link/canonical_url/hreflangs: absolute (default) or root
+      --frontmatter-style     structured values: nested (default) or flat (JSON strings)
       --report-a11y           Write a11y-report.md (WCAG 2.2 contrast + missing alt text)
 
 Advanced:
@@ -236,6 +238,9 @@ func init() {
 		"form of rewritten media paths: root (/media/...) or relative (media/...)")
 	exportCmd.Flags().StringVar(&linkStyle, "link-style", "absolute",
 		"form of link/canonical_url/hreflangs: absolute (source URL) or root (root-relative path); ssg defaults to root")
+	exportCmd.Flags().StringVar(&frontmatterStyle, "frontmatter-style", "nested",
+		"form of the structured frontmatter values (meta, hreflangs): nested (YAML structure) or "+
+			"flat (one JSON string each, so they survive a store that holds only string lists)")
 	exportCmd.Flags().BoolVar(&reportA11y, "report-a11y", false,
 		"write a11y-report.md flagging WCAG 2.2 contrast and missing alt-text issues")
 	exportCmd.Flags().StringVar(&extractMeta, "extract-meta", "all",
@@ -467,6 +472,9 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("link-style") {
 		cfg.LinkStyle = linkStyle
+	}
+	if cmd.Flags().Changed("frontmatter-style") {
+		cfg.FrontmatterStyle = frontmatterStyle
 	}
 	if cmd.Flags().Changed("report-a11y") {
 		cfg.ReportA11y = reportA11y

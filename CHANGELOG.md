@@ -18,6 +18,23 @@ key keep their names and their values; the addresses arrive beside them.
 output is the point of #47: an unexpanded shortcode is removed from the document
 instead of being written into it, and what was removed is reported.
 
+### Added
+- **`--frontmatter-style flat`: structured front matter that survives a flat
+  metadata store (#49).** Two exported values are not flat — the `meta` map and
+  the `hreflangs` list. That is the right shape for a generator reading the
+  files, and the wrong one for a store whose metadata model is key → list of
+  strings, which is what [mddb](https://github.com/tradik/mddb) is by design.
+
+  A `wpexporter -f ssg` → loader → mddb → ssg pipeline therefore lost both, and
+  lost them silently: a loader stringifying with Go's `%v` writes
+  `map[recipe:yield:8 …]`, which reads back as a string and breaks the template
+  that expected the structure (tradik/mddb#187, spagu/ssg#154). The flat style
+  writes each as one JSON string instead — lossless, decodable, and stable
+  between runs, so a consumer that decodes gets the same structure back.
+
+  The default is unchanged. `json_ld` already travelled as text and needed
+  nothing, and lists of plain strings are what such a store holds natively.
+
 ### Fixed
 - **Archives 404'd after migration because terms travelled by name (#45).** The
   export wrote a term's display name and left the target to make a slug of it.

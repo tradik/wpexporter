@@ -1,6 +1,7 @@
 package export
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -54,21 +55,44 @@ func (e *Exporter) writeSEOFrontMatter(builder *strings.Builder, seo models.SEOD
 		fmt.Fprintf(builder, "lang: \"%s\"\n", e.escapeYAML(seo.Lang))
 	}
 
-	if len(seo.Hreflangs) > 0 {
-		builder.WriteString("hreflangs:\n")
-		for _, alternate := range seo.Hreflangs {
-			fmt.Fprintf(builder, "  - lang: \"%s\"\n", e.escapeYAML(alternate.Lang))
-			fmt.Fprintf(builder, "    href: \"%s\"\n", e.escapeYAML(alternate.Href))
-		}
-	}
+	e.writeHreflangs(builder, seo.Hreflangs)
 
 	e.writeMetaMap(builder, seo.Meta)
 	e.writeJSONLD(builder, seo.JSONLD)
 }
 
+// writeHreflangs emits the alternates, as YAML objects or as one JSON string
+// depending on --frontmatter-style (#49).
+func (e *Exporter) writeHreflangs(builder *strings.Builder, alternates []models.HreflangLink) {
+	if len(alternates) == 0 {
+		return
+	}
+
+	if e.config.FlatFrontmatter() {
+		writeJSONValue(builder, "hreflangs", alternates)
+
+		return
+	}
+
+	builder.WriteString("hreflangs:\n")
+	for _, alternate := range alternates {
+		fmt.Fprintf(builder, "  - lang: \"%s\"\n", e.escapeYAML(alternate.Lang))
+		fmt.Fprintf(builder, "    href: \"%s\"\n", e.escapeYAML(alternate.Href))
+	}
+}
+
 // writeMetaMap emits the tags that have no dedicated key, sorted for stable output.
 func (e *Exporter) writeMetaMap(builder *strings.Builder, meta map[string]string) {
 	if len(meta) == 0 {
+		return
+	}
+
+	if e.config.FlatFrontmatter() {
+		// One JSON string, so the map survives a store whose metadata model is
+		// key → list of strings. Lossless, and decodable by anything that reads
+		// JSON — unlike the Go stringification a naive loader would apply (#49).
+		writeJSONValue(builder, "meta", meta)
+
 		return
 	}
 
@@ -82,6 +106,22 @@ func (e *Exporter) writeMetaMap(builder *strings.Builder, meta map[string]string
 	for _, key := range keys {
 		fmt.Fprintf(builder, "  %q: \"%s\"\n", key, e.escapeYAML(meta[key]))
 	}
+}
+
+// writeJSONValue writes one key whose value is JSON text, single-quoted so the
+// JSON's own double quotes need no escaping. A single quote inside the data is
+// doubled, which is how YAML escapes it.
+//
+// json.Marshal sorts map keys, so the same export produces the same bytes twice.
+func writeJSONValue(builder *strings.Builder, key string, value interface{}) {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		// Nothing written here can fail to marshal — strings, and structs of
+		// strings — but a key with no value is better than a broken document.
+		return
+	}
+
+	fmt.Fprintf(builder, "%s: '%s'\n", key, strings.ReplaceAll(string(encoded), "'", "''"))
 }
 
 // writeJSONLD emits the raw structured-data blocks as YAML block scalars, which

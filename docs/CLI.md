@@ -96,6 +96,7 @@ wpexportjson export --config config.yaml
 <tr><td><code>--auth-token</code></td><td>Bearer token for authentication</td><td>-</td></tr>
 <tr><td><code>--rate-limit</code></td><td>Delay between API requests in milliseconds (prevents server rate limiting)</td><td><code>0</code></td></tr>
 <tr><td><code>--no-inventory-check</code></td><td>Skip reading the site's sitemap and feed after the export to report what it did not cover</td><td><code>false</code></td></tr>
+<tr><td><code>--frontmatter-style</code></td><td>Form of the structured front-matter values (<code>meta</code>, <code>hreflangs</code>): <code>nested</code> (YAML structure) or <code>flat</code> (one JSON string each, so they survive a store that holds only string lists — mddb and the like)</td><td><code>nested</code></td></tr>
 <tr><td><code>--from-sitemap</code></td><td>When the REST API serves no posts, recover what the site's feed still publishes (title, address, date, author, body — no IDs, terms or featured images)</td><td><code>false</code></td></tr>
 <tr><td><code>--retries</code></td><td>Attempts for a request the site answers with 5xx or 429, or drops. Exponential backoff with jitter, honouring <code>Retry-After</code></td><td><code>3</code></td></tr>
 <tr><td><code>--resume</code></td><td>Resume from checkpoint if previous export was interrupted</td><td><code>false</code></td></tr>

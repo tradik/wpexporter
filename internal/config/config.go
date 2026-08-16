@@ -87,6 +87,11 @@ type Config struct {
 	// so the content is not pinned to the retired host. Empty means the format's
 	// default — see EffectiveLinkStyle.
 	LinkStyle string `mapstructure:"link_style" json:"link_style"`
+	// FrontmatterStyle selects how the values that are not flat — the meta map
+	// and the hreflang list — are written: "nested" (default) writes YAML
+	// structure, "flat" writes each as a single JSON string so it survives a
+	// store whose metadata model is key → list of strings (#49).
+	FrontmatterStyle string `mapstructure:"frontmatter_style" json:"frontmatter_style"`
 	// ReportA11y writes an accessibility report alongside the export.
 	ReportA11y bool `mapstructure:"report_a11y" json:"report_a11y"`
 	// ExtractMeta selects which meta tags beyond the named SEO fields are kept:
@@ -152,24 +157,25 @@ func DefaultConfig() *Config {
 		NoUsers:           false,
 		PathFilter:        "",
 		AssistedCrawl:     false,
-		RateLimit:         0,      // No rate limiting by default
-		Resume:            false,  // Don't resume by default
-		CrawlContent:      false,  // Don't crawl empty content by default
-		SkipEmptyContent:  false,  // Don't skip empty content by default
-		FlatHTML:          false,  // Don't flatten HTML by default
-		NoTags:            false,  // Don't skip tags by default
-		NoMenus:           false,  // Try to export menus by default (needs auth; degrades with a warning)
-		NoComments:        false,  // Reader comments are content — they ship by default (#35)
-		NoInventoryCheck:  false,  // The site's own inventory is one or two requests, and worth them (#40)
-		FromSitemap:       false,  // Recovery is asked for, never assumed: REST is the better source (#40)
-		Cache:             false,  // Caching disabled by default
-		CacheTTL:          "24h",  // 24 hour cache TTL by default
-		CacheDir:          "",     // Will default to ~/.wpexporter/cache
-		CacheClear:        false,  // Don't clear cache by default
-		MediaPathStyle:    "root", // Root-relative media paths resolve from any URL depth
-		LinkStyle:         "",     // Empty = per-format default (see EffectiveLinkStyle)
-		ReportA11y:        false,  // Don't write an accessibility report by default
-		ExtractMeta:       "all",  // Keep every meta tag: plugins put real data in unexpected ones
+		RateLimit:         0,        // No rate limiting by default
+		Resume:            false,    // Don't resume by default
+		CrawlContent:      false,    // Don't crawl empty content by default
+		SkipEmptyContent:  false,    // Don't skip empty content by default
+		FlatHTML:          false,    // Don't flatten HTML by default
+		NoTags:            false,    // Don't skip tags by default
+		NoMenus:           false,    // Try to export menus by default (needs auth; degrades with a warning)
+		NoComments:        false,    // Reader comments are content — they ship by default (#35)
+		NoInventoryCheck:  false,    // The site's own inventory is one or two requests, and worth them (#40)
+		FromSitemap:       false,    // Recovery is asked for, never assumed: REST is the better source (#40)
+		Cache:             false,    // Caching disabled by default
+		CacheTTL:          "24h",    // 24 hour cache TTL by default
+		CacheDir:          "",       // Will default to ~/.wpexporter/cache
+		CacheClear:        false,    // Don't clear cache by default
+		MediaPathStyle:    "root",   // Root-relative media paths resolve from any URL depth
+		LinkStyle:         "",       // Empty = per-format default (see EffectiveLinkStyle)
+		FrontmatterStyle:  "nested", // YAML structure, which is what a generator reading files wants (#49)
+		ReportA11y:        false,    // Don't write an accessibility report by default
+		ExtractMeta:       "all",    // Keep every meta tag: plugins put real data in unexpected ones
 	}
 }
 
@@ -353,7 +359,17 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("link_style must be one of: absolute, root")
 	}
 
+	if c.FrontmatterStyle != "" && c.FrontmatterStyle != "nested" && c.FrontmatterStyle != "flat" {
+		return fmt.Errorf("frontmatter_style must be one of: nested, flat")
+	}
+
 	return nil
+}
+
+// FlatFrontmatter reports whether structured frontmatter values travel as JSON
+// strings rather than as YAML structure (#49).
+func (c *Config) FlatFrontmatter() bool {
+	return c.FrontmatterStyle == "flat"
 }
 
 // LocalizesURLs reports whether this export rewrites URLs for local consumption.

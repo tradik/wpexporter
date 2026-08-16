@@ -160,6 +160,9 @@ Concurrent downloads (default: 5)
 .BR \-\-rate\-limit " " \fIMS\fR
 Delay between API requests in milliseconds (prevents server rate limiting)
 .TP
+.BR \-\-frontmatter\-style " " \fISTYLE\fR
+Form of the front-matter values that are not flat \- the \fBmeta\fR map and the \fBhreflangs\fR list. \fInested\fR (default) writes YAML structure, which is what a generator reading the files wants. \fIflat\fR writes each as a single JSON string, so it survives a store whose metadata model is key to list of strings and can be decoded back into the same structure; \fBjson_ld\fR already travels as text and is unchanged either way.
+.TP
 .BR \-\-from\-sitemap
 Recover posts from the site's main feed when the REST API serves none \- a site whose \fI/wp/v2/posts\fR answers 5xx for every request still publishes its feed. Recovered records carry title, address, date, author and body, and no IDs, taxonomy terms or featured images; \fBstats.recovered_posts\fR states how many there were. The feed lists recent items only, so this never replaces or merges with a collection the API did serve.
 .TP
