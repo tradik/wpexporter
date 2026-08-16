@@ -172,8 +172,11 @@ Skip the completeness check. After the export the site's own sitemap and main fe
 .BR \-\-limit " " \fIN\fR
 Export at most \fIN\fR documents in total, newest first (default: no limit). The walk stops when the budget is spent rather than fetching everything and discarding the rest, so a preview of five pages costs one request instead of five hundred records. Media is limited to what the exported documents reference, and the summary states the truncation as \fBPosts: 5 (limited from 75)\fR.
 .TP
-.BR \-\-limit\-per\-type " " \fIN\fR
-Export at most \fIN\fR of each kind \- posts, pages, each custom type. Combines with \fB\-\-limit\fR, whichever is smaller.
+.BR \-\-limit\-per\-type " " \fISPEC\fR
+At most \fIN\fR of each kind, or \fIkind=N\fR pairs, or both: \fB5\fR, \fBposts=5,media=10\fR, \fB5,media=10\fR. A kind is a collection name (\fBposts\fR, \fBpages\fR, \fBmedia\fR, \fBproducts\fR) or a custom type's slug, since there can be any number of those. Combines with \fB\-\-limit\fR, whichever is smaller.
+.TP
+.BR \-\-limit\-posts ", " \-\-limit\-pages ", " \-\-limit\-media ", " \-\-limit\-products " " \fIN\fR
+Shortcuts for the kinds a preview is usually shaped around. Where one names a kind \fB\-\-limit\-per\-type\fR also names, the dedicated flag wins and the run says which value it used \- a silent choice between two numbers the operator asked for is worse than either.
 .TP
 .BR \-\-user\-agent " " \fISTRING\fR
 The User\-Agent to send (default: \fIWordPress\-Export\-JSON/1.0\fR). Bot protection matches on the default, so a browser's string is the remedy that most often works against a \fB403\fR served by a wall rather than by WordPress. A refusal that carries Cloudflare's marks is named as such in the report, with the remedies that apply to it.

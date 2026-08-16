@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Limits have a shape, and every kind is capped (#62).** 1.8.14 gave the
+  export two caps, both single numbers. A preview usually wants different
+  amounts of different things — five posts say what a blog is, five media items
+  say almost nothing about a gallery site — so `--limit-per-type` now takes
+  `kind=N` pairs as well as a bare number, and both together:
+
+      --limit-per-type 5,media=10        five of each kind, ten media
+      --limit-per-type posts=5,media=10  five posts, ten media
+      --limit-posts 5 --limit-media 10   shortcuts for the common pair
+
+  A kind is a collection name or a custom type's slug, since there can be any
+  number of those. Where a kind is named twice the dedicated flag wins and **the
+  run says so**: a silent choice between two numbers the operator asked for is
+  worse than either of them.
+
+- **Media and products are capped at all.** The budget was consulted only by the
+  walk that fetches posts, pages and custom types, so `--limit 5` bounded the
+  documents and still listed the whole media library — thirteen requests on a
+  site with 1204 attachments, against a host that is doing us a favour by
+  answering. Both walks now take a budget, ask only for what they need, and
+  report their truncation the same way: `Media: 10 (limited from 1204)`.
+
 ## [1.8.14] - 2026-08-16
 
 ### Added

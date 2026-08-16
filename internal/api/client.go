@@ -97,7 +97,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 		httpClient: httpClient,
 		baseURL:    baseURL,
 		cache:      nil, // Set via SetCache()
-		limits:     newLimits(cfg.Limit, cfg.LimitPerType),
+		limits:     newLimits(cfg.Limit, cfg.LimitPerType, cfg.LimitByType),
 	}, nil
 }
 
@@ -351,8 +351,17 @@ func (c *Client) GetProducts() ([]models.WooCommerceProduct, error) {
 	}
 
 	var allProducts []models.WooCommerceProduct
+
+	budget, proceed := c.takeBudget(CollectionProducts)
+	if !proceed {
+		return nil, nil
+	}
+
 	page := 1
 	perPage := 100
+	if budget > 0 && budget < perPage {
+		perPage = budget
+	}
 
 	// WooCommerce uses a different API base
 	wooBaseURL := strings.Replace(c.baseURL, "/wp/v2", "/wc/v3", 1)
@@ -390,8 +399,18 @@ func (c *Client) GetProducts() ([]models.WooCommerceProduct, error) {
 		}
 
 		allProducts = append(allProducts, products...)
+
+		if budget > 0 && len(allProducts) >= budget {
+			allProducts = allProducts[:budget]
+			c.spendBudget(len(allProducts))
+
+			return allProducts, nil
+		}
+
 		page++
 	}
+
+	c.spendBudget(len(allProducts))
 
 	// Cache the result
 	c.saveToCache(cacheKey, allProducts)
@@ -434,8 +453,20 @@ func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
 	}
 
 	var allMedia []models.WordPressMedia
+
+	// The media listing was never capped: --limit bounded the documents and
+	// still walked the whole library, which on a site with 1204 attachments is
+	// thirteen requests nobody asked for (#62).
+	budget, proceed := c.takeBudget(CollectionMedia)
+	if !proceed {
+		return nil, nil
+	}
+
 	page := 1
 	perPage := 100
+	if budget > 0 && budget < perPage {
+		perPage = budget
+	}
 
 	for {
 		// Apply rate limiting between requests
@@ -467,6 +498,8 @@ func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
 			}
 		}
 
+		c.recordStated(CollectionMedia, collectionTotal(resp.Header().Get(totalHeader)))
+
 		var media []models.WordPressMedia
 		if err := json.Unmarshal(resp.Body(), &media); err != nil {
 			return allMedia, &PartialError{
@@ -482,8 +515,18 @@ func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
 		}
 
 		allMedia = append(allMedia, media...)
+
+		if budget > 0 && len(allMedia) >= budget {
+			allMedia = allMedia[:budget]
+			c.spendBudget(len(allMedia))
+
+			return allMedia, nil
+		}
+
 		page++
 	}
+
+	c.spendBudget(len(allMedia))
 
 	// Cache the result
 	c.saveToCache(cacheKey, allMedia)
@@ -773,8 +816,8 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 
 	// How much this collection may take, and what a page should ask for: there
 	// is no sense fetching a hundred records to keep five (#60).
-	budget := c.limits.budget()
-	if c.limits.exhausted() {
+	budget, proceed := c.takeBudget(endpoint)
+	if !proceed {
 		return nil, nil
 	}
 
@@ -805,7 +848,7 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 
 			continue
 		case result.done:
-			c.limits.spend(len(allContent))
+			c.spendBudget(len(allContent))
 
 			return c.checkedContent(endpoint, allContent, stated, page)
 		}
@@ -821,7 +864,7 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 		// which is the REST default, so the first N are the N worth previewing.
 		if budget > 0 && len(allContent) >= budget {
 			allContent = allContent[:budget]
-			c.limits.spend(len(allContent))
+			c.spendBudget(len(allContent))
 
 			return allContent, nil
 		}

@@ -79,7 +79,11 @@ var (
 	retries           int
 	userAgent         string
 	limit             int
-	limitPerType      int
+	limitPerType      string
+	limitPosts        int
+	limitPages        int
+	limitMedia        int
+	limitProducts     int
 	resume            bool
 	timeout           int
 	crawlContent      bool
@@ -169,7 +173,8 @@ Advanced:
       --retries int           Retries for a 5xx, 429 or dropped connection (default 3)
       --user-agent string     Identify as something else (bot protection matches the default)
       --limit int             Export at most N documents in total, newest first
-      --limit-per-type int    Export at most N of each kind (posts, pages, each custom type)
+      --limit-per-type spec   At most N of each kind, or kind=N pairs: 5,media=10
+      --limit-posts int       At most N posts (same for --limit-pages/-media/-products)
       --zip                   Create ZIP archive
       --no-files              Remove files after ZIP (requires --zip)
 
@@ -224,8 +229,13 @@ func init() {
 	exportCmd.Flags().IntVar(&limit, "limit", 0,
 		"export at most N documents in total, newest first (0 = no limit); the walk stops when the "+
 			"budget is spent, so a preview of a site does not download the site")
-	exportCmd.Flags().IntVar(&limitPerType, "limit-per-type", 0,
-		"export at most N of each kind — posts, pages, each custom type (0 = no limit)")
+	exportCmd.Flags().StringVar(&limitPerType, "limit-per-type", "",
+		"at most N of each kind, or kind=N pairs — \"5\", \"posts=5,media=10\" or \"5,media=10\"; "+
+			"a kind is a collection name or a custom type's slug")
+	exportCmd.Flags().IntVar(&limitPosts, "limit-posts", 0, "export at most N posts (0 = no limit)")
+	exportCmd.Flags().IntVar(&limitPages, "limit-pages", 0, "export at most N pages (0 = no limit)")
+	exportCmd.Flags().IntVar(&limitMedia, "limit-media", 0, "export at most N media items (0 = no limit)")
+	exportCmd.Flags().IntVar(&limitProducts, "limit-products", 0, "export at most N products (0 = no limit)")
 	exportCmd.Flags().StringVar(&userAgent, "user-agent", "",
 		"the User-Agent to send; bot protection matches on the default, and a browser's string "+
 			"is the remedy that most often works against a 403 from a wall")
@@ -463,8 +473,25 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	if cmd.Flags().Changed("limit") {
 		cfg.Limit = limit
 	}
-	if cmd.Flags().Changed("limit-per-type") {
-		cfg.LimitPerType = limitPerType
+	shortcuts := map[string]int{}
+	for name, value := range map[string]*int{
+		"posts": &limitPosts, "pages": &limitPages,
+		"media": &limitMedia, "products": &limitProducts,
+	} {
+		if cmd.Flags().Changed("limit-" + name) {
+			shortcuts[name] = *value
+		}
+	}
+
+	if cmd.Flags().Changed("limit-per-type") || len(shortcuts) > 0 {
+		conflicts, err := applyPerTypeLimits(cfg, limitPerType, shortcuts)
+		if err != nil {
+			return err
+		}
+
+		for _, conflict := range conflicts {
+			logf("Note: %s\n", conflict)
+		}
 	}
 	if cmd.Flags().Changed("resume") {
 		cfg.Resume = resume
@@ -767,7 +794,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// whole library: fetching 200 MB of images for a five-page preview is the
 	// thing #60 exists to stop. --relevant-media-only already has that logic,
 	// so the limit switches it on rather than growing a second copy.
-	if (cfg.Limit > 0 || cfg.LimitPerType > 0) && !cfg.RelevantMediaOnly {
+	if limitsActive(cfg) && !cfg.RelevantMediaOnly {
 		cfg.RelevantMediaOnly = true
 		logln("Limiting media to what the exported documents reference (--limit)")
 	}
@@ -1203,7 +1230,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	} else {
 		logf("Products: %d\n", len(products))
 	}
-	logf("Media: %d\n", len(media))
+	logf("%s\n", countLine("Media", len(media), apiClient.StatedTotal("media"), apiClient.Limited()))
 	logf("Categories: %d\n", len(categories))
 	logf("Tags: %d\n", len(tags))
 	logf("Users: %d\n", len(users))

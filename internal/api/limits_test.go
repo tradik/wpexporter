@@ -177,30 +177,43 @@ func TestStatedTotalIsRemembered(t *testing.T) {
 // TestLimitArithmetic covers the budget on its own, including the edges a flag
 // can be given.
 func TestLimitArithmetic(t *testing.T) {
-	unlimited := newLimits(0, 0)
-	assert.Zero(t, unlimited.budget())
+	unlimited := newLimits(0, 0, nil)
+	assert.Zero(t, unlimited.budget(CollectionPosts))
 	assert.False(t, unlimited.exhausted())
 	assert.False(t, unlimited.active())
 
-	total := newLimits(10, 0)
-	assert.Equal(t, 10, total.budget())
+	total := newLimits(10, 0, nil)
+	assert.Equal(t, 10, total.budget(CollectionPosts))
 	total.spend(10)
 	assert.True(t, total.exhausted())
-	assert.Zero(t, total.budget())
+	assert.Zero(t, total.budget(CollectionPosts))
 
 	// Spending more than the budget must not wrap into a negative one.
-	over := newLimits(3, 0)
+	over := newLimits(3, 0, nil)
 	over.spend(9)
 	assert.True(t, over.exhausted())
 
-	perType := newLimits(0, 4)
-	assert.Equal(t, 4, perType.budget())
+	perType := newLimits(0, 4, nil)
+	assert.Equal(t, 4, perType.budget(CollectionPosts))
 	perType.spend(4)
-	assert.Equal(t, 4, perType.budget(), "a per-type budget is not shared")
+	assert.Equal(t, 4, perType.budget(CollectionPosts), "a per-type budget is not shared")
 
-	negative := newLimits(-1, -5)
-	assert.Zero(t, negative.budget())
-	assert.False(t, negative.active())
+	negative := newLimits(-1, -5, map[string]int{"posts": -3})
+	assert.Zero(t, negative.budget(CollectionPosts))
+	assert.False(t, negative.active(), "a negative flag value is not a budget")
+
+	// A kind named on its own beats the default for that kind, and only that
+	// kind: five of everything, ten media (#62).
+	shaped := newLimits(0, 5, map[string]int{CollectionMedia: 10})
+	assert.Equal(t, 5, shaped.budget(CollectionPosts))
+	assert.Equal(t, 10, shaped.budget(CollectionMedia))
+	assert.Equal(t, 5, shaped.budget("services"), "a custom type takes the default")
+
+	// Named kinds with no default leave everything else unbounded.
+	namedOnly := newLimits(0, 0, map[string]int{CollectionPosts: 3})
+	assert.Equal(t, 3, namedOnly.budget(CollectionPosts))
+	assert.Zero(t, namedOnly.budget(CollectionPages))
+	assert.True(t, namedOnly.active())
 }
 
 // startServer runs a stub WordPress and returns its base URL.

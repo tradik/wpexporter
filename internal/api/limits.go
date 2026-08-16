@@ -1,6 +1,6 @@
 package api
 
-// Exporting less than everything (#60).
+// Exporting less than everything, in the shape asked for (#60, #62).
 //
 // The smallest export of a site used to be the whole site. Every flag that
 // bounded a run bounded something else — an ID range, how far brute force
@@ -15,44 +15,70 @@ package api
 // Newest first, because the first five posts of a blog say more about it than
 // five arbitrary ones — and because a truncated export that cannot say what it
 // truncated is the silent-cap failure this must not become.
+//
+// The budget is per kind as well as overall, because a preview has a shape:
+// five posts say what a blog is, and five media items say almost nothing about
+// a gallery site (#62).
+
+// Collection names the walks a budget can be given to. They are the strings an
+// operator types, so they are also the strings the report prints.
+const (
+	CollectionPosts    = "posts"
+	CollectionPages    = "pages"
+	CollectionMedia    = "media"
+	CollectionProducts = "products"
+)
 
 // limits is how much a client may still fetch.
 type limits struct {
-	// perType bounds each collection on its own: posts, pages, and each custom
-	// type get this many. Zero means unbounded.
-	perType int
+	// perType bounds one named collection. A custom type is named by its slug.
+	perType map[string]int
+	// defaultPerType bounds every kind perType does not name; 0 is unbounded.
+	defaultPerType int
 	// remaining is the shared budget across every collection, spent in fetch
-	// order. Zero after initialisation means unbounded; it is set negative
-	// never, since a spent budget is exactly zero.
+	// order. Meaningful only when bounded.
 	remaining int
 	// bounded distinguishes "no total budget" from "a total budget of nothing".
 	bounded bool
 }
 
-// newLimits reads the two caps into the form the walk uses.
-func newLimits(total, perType int) limits {
+// newLimits reads the caps into the form the walks use.
+func newLimits(total, defaultPerType int, perType map[string]int) limits {
+	capped := make(map[string]int, len(perType))
+	for name, value := range perType {
+		if value > 0 {
+			capped[name] = value
+		}
+	}
+
 	return limits{
-		perType:   maxZero(perType),
-		remaining: maxZero(total),
-		bounded:   total > 0,
+		perType:        capped,
+		defaultPerType: maxZero(defaultPerType),
+		remaining:      maxZero(total),
+		bounded:        total > 0,
 	}
 }
 
-// budget is how many records the next collection may take: the smaller of what
-// is left overall and what one collection may have. Zero means unbounded.
-func (l limits) budget() int {
+// budget is how many records the named collection may take: the smaller of what
+// is left overall and what this kind may have. Zero means unbounded.
+func (l limits) budget(collection string) int {
+	perType := l.defaultPerType
+	if named, ok := l.perType[collection]; ok {
+		perType = named
+	}
+
 	switch {
-	case l.bounded && l.perType > 0:
-		return min(l.remaining, l.perType)
+	case l.bounded && perType > 0:
+		return min(l.remaining, perType)
 	case l.bounded:
 		return l.remaining
 	default:
-		return l.perType
+		return perType
 	}
 }
 
 // spend records what a collection took, so the next one sees the smaller
-// budget. A per-type-only limit spends nothing: each collection has its own.
+// budget. A per-kind limit spends nothing: each kind has its own.
 func (l *limits) spend(count int) {
 	if !l.bounded {
 		return
@@ -64,15 +90,15 @@ func (l *limits) spend(count int) {
 	}
 }
 
-// exhausted reports a total budget with nothing left, which is how the walk
-// knows to stop asking rather than to ask for zero records.
+// exhausted reports a total budget with nothing left, which is how a walk knows
+// to stop asking rather than to ask for zero records.
 func (l limits) exhausted() bool {
 	return l.bounded && l.remaining == 0
 }
 
 // active reports whether anything is capped at all.
 func (l limits) active() bool {
-	return l.bounded || l.perType > 0
+	return l.bounded || l.defaultPerType > 0 || len(l.perType) > 0
 }
 
 // maxZero keeps a negative flag value from reading as a budget.
@@ -115,4 +141,21 @@ func (c *Client) StatedTotal(endpoint string) int {
 // Limited reports whether this client was asked to cap the export.
 func (c *Client) Limited() bool {
 	return c.limits.active()
+}
+
+// takeBudget returns how many records the named collection may fetch, and
+// whether the walk should start at all. It is the one place a walk asks, so
+// every collection is capped the same way — media and products included, which
+// they were not when the budget lived inside a single walk (#62).
+func (c *Client) takeBudget(collection string) (budget int, proceed bool) {
+	if c.limits.exhausted() {
+		return 0, false
+	}
+
+	return c.limits.budget(collection), true
+}
+
+// spendBudget records what a walk took.
+func (c *Client) spendBudget(count int) {
+	c.limits.spend(count)
 }
