@@ -438,7 +438,7 @@ func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
 
 		resp, err := c.httpClient.R().Get(url)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get media page %d: %w", page, err)
+			return allMedia, &PartialError{Endpoint: "media", Page: page, Fetched: len(allMedia), Err: err}
 		}
 
 		if resp.StatusCode() == 400 {
@@ -447,12 +447,25 @@ func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
 		}
 
 		if resp.StatusCode() != 200 {
-			return nil, fmt.Errorf("API returned status %d for media page %d", resp.StatusCode(), page)
+			// A gap, not the end of the export: one unreadable page used to
+			// discard every record already fetched — and, with media, the whole
+			// run including the posts and pages already in hand (#57).
+			return allMedia, &PartialError{
+				Endpoint: "media",
+				Page:     page,
+				Fetched:  len(allMedia),
+				Err:      fmt.Errorf("API returned status %d", resp.StatusCode()),
+			}
 		}
 
 		var media []models.WordPressMedia
 		if err := json.Unmarshal(resp.Body(), &media); err != nil {
-			return nil, fmt.Errorf("failed to parse media response: %w", err)
+			return allMedia, &PartialError{
+				Endpoint: "media",
+				Page:     page,
+				Fetched:  len(allMedia),
+				Err:      fmt.Errorf("failed to parse response: %w", err),
+			}
 		}
 
 		if len(media) == 0 {
@@ -493,7 +506,7 @@ func (c *Client) GetCategories() ([]models.WordPressCategory, error) {
 
 		resp, err := c.httpClient.R().Get(url)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get categories page %d: %w", page, err)
+			return allCategories, &PartialError{Endpoint: "categories", Page: page, Fetched: len(allCategories), Err: err}
 		}
 
 		if resp.StatusCode() == 400 {
@@ -501,12 +514,25 @@ func (c *Client) GetCategories() ([]models.WordPressCategory, error) {
 		}
 
 		if resp.StatusCode() != 200 {
-			return nil, fmt.Errorf("API returned status %d for categories page %d", resp.StatusCode(), page)
+			// A gap, not the end of the export: one unreadable page used to
+			// discard every record already fetched — and, with media, the whole
+			// run including the posts and pages already in hand (#57).
+			return allCategories, &PartialError{
+				Endpoint: "categories",
+				Page:     page,
+				Fetched:  len(allCategories),
+				Err:      fmt.Errorf("API returned status %d", resp.StatusCode()),
+			}
 		}
 
 		var categories []models.WordPressCategory
 		if err := json.Unmarshal(resp.Body(), &categories); err != nil {
-			return nil, fmt.Errorf("failed to parse categories response: %w", err)
+			return allCategories, &PartialError{
+				Endpoint: "categories",
+				Page:     page,
+				Fetched:  len(allCategories),
+				Err:      fmt.Errorf("failed to parse response: %w", err),
+			}
 		}
 
 		if len(categories) == 0 {
@@ -547,7 +573,7 @@ func (c *Client) GetTags() ([]models.WordPressTag, error) {
 
 		resp, err := c.httpClient.R().Get(url)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get tags page %d: %w", page, err)
+			return allTags, &PartialError{Endpoint: "tags", Page: page, Fetched: len(allTags), Err: err}
 		}
 
 		if resp.StatusCode() == 400 {
@@ -555,12 +581,25 @@ func (c *Client) GetTags() ([]models.WordPressTag, error) {
 		}
 
 		if resp.StatusCode() != 200 {
-			return nil, fmt.Errorf("API returned status %d for tags page %d", resp.StatusCode(), page)
+			// A gap, not the end of the export: one unreadable page used to
+			// discard every record already fetched — and, with media, the whole
+			// run including the posts and pages already in hand (#57).
+			return allTags, &PartialError{
+				Endpoint: "tags",
+				Page:     page,
+				Fetched:  len(allTags),
+				Err:      fmt.Errorf("API returned status %d", resp.StatusCode()),
+			}
 		}
 
 		var tags []models.WordPressTag
 		if err := json.Unmarshal(resp.Body(), &tags); err != nil {
-			return nil, fmt.Errorf("failed to parse tags response: %w", err)
+			return allTags, &PartialError{
+				Endpoint: "tags",
+				Page:     page,
+				Fetched:  len(allTags),
+				Err:      fmt.Errorf("failed to parse response: %w", err),
+			}
 		}
 
 		if len(tags) == 0 {
@@ -601,7 +640,7 @@ func (c *Client) GetUsers() ([]models.WordPressUser, error) {
 
 		resp, err := c.httpClient.R().Get(url)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get users page %d: %w", page, err)
+			return allUsers, &PartialError{Endpoint: "users", Page: page, Fetched: len(allUsers), Err: err}
 		}
 
 		if resp.StatusCode() == 400 {
@@ -609,12 +648,25 @@ func (c *Client) GetUsers() ([]models.WordPressUser, error) {
 		}
 
 		if resp.StatusCode() != 200 {
-			return nil, fmt.Errorf("API returned status %d for users page %d", resp.StatusCode(), page)
+			// A gap, not the end of the export: one unreadable page used to
+			// discard every record already fetched — and, with media, the whole
+			// run including the posts and pages already in hand (#57).
+			return allUsers, &PartialError{
+				Endpoint: "users",
+				Page:     page,
+				Fetched:  len(allUsers),
+				Err:      fmt.Errorf("API returned status %d", resp.StatusCode()),
+			}
 		}
 
 		var users []models.WordPressUser
 		if err := json.Unmarshal(resp.Body(), &users); err != nil {
-			return nil, fmt.Errorf("failed to parse users response: %w", err)
+			return allUsers, &PartialError{
+				Endpoint: "users",
+				Page:     page,
+				Fetched:  len(allUsers),
+				Err:      fmt.Errorf("failed to parse response: %w", err),
+			}
 		}
 
 		if len(users) == 0 {
@@ -795,7 +847,7 @@ func (c *Client) fetchContentPage(endpoint string, page, perPage, fetched int) p
 			Endpoint: endpoint,
 			Page:     page,
 			Fetched:  fetched,
-			Err:      fmt.Errorf("API returned status %d", resp.StatusCode()),
+			Err:      statusReason(resp),
 		}}
 	}
 
@@ -1151,7 +1203,12 @@ func (c *Client) GetMediaWithCheckpoint(state *checkpoint.State, onProgress Prog
 
 		var media []models.WordPressMedia
 		if err := json.Unmarshal(resp.Body(), &media); err != nil {
-			return nil, fmt.Errorf("failed to parse media response: %w", err)
+			return allMedia, &PartialError{
+				Endpoint: "media",
+				Page:     page,
+				Fetched:  len(allMedia),
+				Err:      fmt.Errorf("failed to parse response: %w", err),
+			}
 		}
 
 		if len(media) == 0 {
