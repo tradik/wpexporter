@@ -227,6 +227,22 @@ func (e *Exporter) writeSSGFrontMatter(builder *strings.Builder, post models.Wor
 	writeYAMLString(builder, "link", e.escapeYAML(post.Link))
 	writeYAMLString(builder, "author", e.escapeYAML(e.userMap[post.Author]))
 	writeYAMLString(builder, "category", e.escapeYAML(e.primaryCategory(post)))
+
+	// The address that category is published under. A generator that makes a
+	// slug out of the display name above serves /category/pasta-rice/ where the
+	// site published /category/recipes/pasta-rice/, and every link to it 404s
+	// (#45). category_path carries the parent chain; it is absent on a flat
+	// taxonomy, where it would only repeat the slug.
+	if primary, ok := e.primaryCategoryTerm(post); ok {
+		writeYAMLString(builder, "category_slug", e.escapeYAML(primary.Slug))
+		if primary.Path != primary.Slug {
+			writeYAMLString(builder, "category_path", e.escapeYAML(primary.Path))
+		}
+	}
+
+	if tags := e.tagIDs.identities(post.Tags); len(tags) > 0 {
+		writeYAMLList(builder, "tag_slugs", slugsOf(tags))
+	}
 	writeYAMLString(builder, "description", e.escapeYAML(ssgDescription(post)))
 	writeYAMLString(builder, "excerpt", e.escapeYAML(plainTextExcerpt(post.Excerpt.Rendered)))
 
@@ -287,6 +303,19 @@ func (e *Exporter) primaryCategory(post models.WordPressPost) string {
 	return ""
 }
 
+// primaryCategoryTerm is the identity of the category primaryCategory names.
+// The same first-match rule, so the name and the address always describe one
+// term rather than two.
+func (e *Exporter) primaryCategoryTerm(post models.WordPressPost) (termIdentity, bool) {
+	for _, categoryID := range post.Categories {
+		if term, known := e.categoryIDs[categoryID]; known && term.Slug != "" {
+			return term, true
+		}
+	}
+
+	return termIdentity{}, false
+}
+
 // cleanContent applies the content transforms an SSG source needs: entities
 // decoded to UTF-8, alt text filled in from the media library, WordPress
 // presentation attributes dropped.
@@ -306,6 +335,12 @@ func (e *Exporter) buildLookupMaps(data *models.ExportData) {
 	for _, tag := range data.Tags {
 		e.tagMap[tag.ID] = tag.Name
 	}
+
+	// Names are what a document reads; slugs and parent chains are what its
+	// archives are addressed by, and the two disagree often enough to 404 a
+	// migrated site (#45).
+	e.categoryIDs = buildCategoryIndex(data.Categories)
+	e.tagIDs = buildTagIndex(data.Tags)
 
 	e.userMap = make(map[int]string, len(data.Users))
 	for _, user := range data.Users {

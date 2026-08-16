@@ -5,6 +5,104 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.9] - 2026-08-16
+
+Three issues, one shape: an export that is not wrong so much as silently
+incomplete.
+
+### Compatibility
+
+Additive only. Display names, `categories`, `tags`, `category` and every other
+key keep their names and their values; the addresses arrive beside them.
+`metadata.json` gains three fields, each omitted when empty. The one change in
+output is the point of #47: an unexpanded shortcode is removed from the document
+instead of being written into it, and what was removed is reported.
+
+### Added
+- **`--frontmatter-style flat`: structured front matter that survives a flat
+  metadata store (#49).** Two exported values are not flat — the `meta` map and
+  the `hreflangs` list. That is the right shape for a generator reading the
+  files, and the wrong one for a store whose metadata model is key → list of
+  strings, which is what [mddb](https://github.com/tradik/mddb) is by design.
+
+  A `wpexporter -f ssg` → loader → mddb → ssg pipeline therefore lost both, and
+  lost them silently: a loader stringifying with Go's `%v` writes
+  `map[recipe:yield:8 …]`, which reads back as a string and breaks the template
+  that expected the structure (tradik/mddb#187, spagu/ssg#154). The flat style
+  writes each as one JSON string instead — lossless, decodable, and stable
+  between runs, so a consumer that decodes gets the same structure back.
+
+  The default is unchanged. `json_ld` already travelled as text and needed
+  nothing, and lists of plain strings are what such a store holds natively.
+
+### Fixed
+- **Archives 404'd after migration because terms travelled by name (#45).** The
+  export wrote a term's display name and left the target to make a slug of it.
+  Usually the two agree; when they do not, every archive the source published is
+  gone and every link anyone made to it is broken. On one migration that was 48
+  tag archives and 9 category archives — "hand made pasta" against WordPress's
+  own `hand-made-pasta-3`, the suffix a site earns by having had three terms of
+  that name over the years.
+
+  Hierarchy went the same way: the source publishes
+  `/category/recipes/pasta-rice/` and the export recorded only the leaf, so the
+  migrated site served `/category/pasta-rice/`.
+
+  Both are stated by the REST API, so both are exported: `category_slugs`,
+  `category_paths` and `tag_slugs` in the markdown front matter, `category_slug`
+  and `category_path` in the `ssg` format. The names stay exactly where they
+  were — a consumer reading them today keeps working, and one that needs the
+  address now has it. A parent chain that loops, which a direct database edit
+  can create, is bounded rather than followed.
+
+- **Unexpanded shortcodes were shown to readers (#47).** A plugin that renders
+  on the front end and not in the REST context leaves its shortcode in
+  `content.rendered`, and the export wrote it into the document: a visitor to
+  the migrated page saw `[osm_map_v3 map_center=&#8221;…&#8243;]`, mangled
+  entities and all, where the site rendered a map. 113 leaks across three of six
+  unrelated migrations — an events calendar, an image plugin, a gallery, a
+  newsletter form, a map.
+
+  Plugin source is never content a reader should see, so it is removed, and what
+  was removed is reported with counts and kept in `stats.removed_shortcodes`: a
+  missing calendar is known rather than discovered. A paired shortcode takes its
+  body with it, since the body is the plugin's arguments. A Markdown link's
+  label, a footnote marker and an editorial `[sic]` are left alone — the fix
+  must not become the worse bug — and a platform format still receives the
+  source site's own markup.
+
+- **A page the API served empty was reported as a success (#46).** A front page
+  built with a theme's section builder — GeneratePress Sections, Elementor,
+  Avada, Smart Slider — stores its sections in post meta and assembles them at
+  render time, so `content.rendered` is empty or nearly so. The export was
+  correct and useless at once: the migrated home page arrived as chrome with
+  nothing in it while the source showed a hero, a slider and three sections. Two
+  of six sites in one batch.
+
+  Such a page is now named in the run and in `stats.empty_pages`, the front page
+  first because it is what the whole site opens with, together with the remedy:
+  `--assisted-crawl --crawl-content` takes the rendered page instead. A page
+  already explained as a post loop (#41) is not explained twice.
+
+## [Unreleased]
+
+### Changed
+- **The resume path is tested.** `internal/checkpoint` gained tests in 1.8.8;
+  its other half — the fetchers that write that state and read it back — had
+  none. They are what makes `--resume` mean anything: a state file is only
+  trustworthy if the code writing it records exactly what it fetched, and only
+  useful if the code reading it starts where the last run stopped. A mistake
+  there is not a wrong file but a resumed export that skips a page it never read
+  and reports success. Now covered: what a run records, resuming mid-collection,
+  skipping a finished one, the failure written into the state, a checkpoint that
+  cannot be saved stopping the walk, and a site without WooCommerce.
+
+  The summary's own arithmetic is covered too — sizes, the export archive, and
+  the write-permission check that should fail in the first second rather than
+  the fortieth minute.
+
+  Overall statement coverage 81.1% → **83.3%**.
+
 ## [1.8.8] - 2026-08-16
 
 ### Compatibility

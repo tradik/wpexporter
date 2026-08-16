@@ -66,6 +66,26 @@ Applied to the body of every `ssg` document:
 The `markdown` format keeps its existing output, with two exceptions that were plainly bugs:
 entities are decoded there too, and the excerpt no longer carries the "Continue reading" anchor.
 
+## Term addresses
+
+`category` and the `tags` a document carries are display names. The address the
+site publishes their archives under is the **slug**, and the two disagree often
+enough to matter: on one migration 48 tag archives and 9 category archives 404'd
+because a generator had made slugs out of names (#45). So the addresses travel
+too:
+
+```yaml
+category: "Pasta & Rice"
+category_slug: "pasta-rice"
+category_path: "recipes/pasta-rice"   # only when the taxonomy is nested
+tag_slugs:
+  - "hand-made-pasta-3"
+```
+
+Use `category_path` where it is present — it is the chain WordPress published,
+`/category/recipes/pasta-rice/` — and `category_slug` otherwise. The names are
+unchanged and still the thing to display.
+
 ## A page that lists posts
 
 A `/blog/` whose body is a page-builder element carries two extra keys, because
@@ -79,3 +99,23 @@ lists_hint: "fusion_blog"
 `lists_hint` names the element that was matched, so a wrong guess is visible
 rather than silent. Point the generator's listing at this page's address —
 in SSG, `posts_page` — instead of letting the migrated page occupy it.
+
+## Front matter through a flat metadata store
+
+Two values are not flat: the `meta` map and the `hreflangs` list. That is the
+right shape for a generator reading these files, and the wrong one for a store
+whose metadata model is key → list of strings — [mddb](https://github.com/tradik/mddb)
+is one, deliberately. A pipeline through such a store loses both, and loses them
+silently when the loader stringifies with Go's `%v`.
+
+`--frontmatter-style flat` writes them as single JSON strings instead:
+
+```yaml
+meta: '{"recipe:yield":"8","twitter:label1":"Prep time"}'
+hreflangs: '[{"lang":"en","href":"https://x.test/focaccia/"}]'
+```
+
+Lossless, decodable by anything that reads JSON, and stable between runs. The
+default is unchanged, and `json_ld` already travelled as text, so it needs
+nothing. Lists of plain strings — `categories`, `tags`, `category_slugs`,
+`tag_slugs`, `category_paths` — are already what such a store holds natively.

@@ -58,6 +58,25 @@ many. It is asked for rather than assumed, and never merges with or replaces a
 collection the API did serve: REST is the better source in every respect, and a
 feed lists recent items rather than the archive.
 
+Terms carry their **addresses** as well as their names: `category_slugs`,
+`category_paths` (the parent chain, when the taxonomy is nested) and `tag_slugs`
+beside the existing `categories` and `tags`. A target that makes a slug out of a
+display name gets it wrong wherever WordPress did not, and every archive it
+publishes then 404s (#45).
+
+An **unexpanded shortcode is removed** rather than written into the document. A
+plugin that renders on the front end and not over REST leaves its source text in
+`content.rendered`, and a reader of the migrated page would see
+`[osm_map_v3 …]` where the site rendered a map. What was removed is reported
+with counts and kept in `stats.removed_shortcodes`, so a missing calendar or
+gallery is known rather than discovered (#47). A Markdown link's label and an
+editorial `[sic]` are left alone.
+
+A page whose body the API **did not serve at all** — a front page assembled from
+theme sections, which live in post meta — is reported as well, and named in
+`stats.empty_pages`. The export is correct and useless at the same time there;
+`--assisted-crawl --crawl-content` takes the rendered page instead (#46).
+
 Two things hold for every platform format, and only for those: media URLs are
 **left absolute**, because the target platform imports the files from the live
 site, and address fields (`link`, `canonical_url`) stay absolute too. `json`,
