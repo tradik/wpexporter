@@ -156,7 +156,10 @@ func (c *Client) GetCustomPosts(restBase string) ([]models.WordPressPost, error)
 
 	posts, err := c.getAllContent(restBase)
 	if err != nil {
-		return nil, err
+		// The records read before the gap travel with it, and a partial fetch is
+		// not cached: a type whose collection refused one page still exports
+		// what it did serve, and says what it did not (#43).
+		return posts, err
 	}
 
 	c.saveToCache(cacheKey, posts)

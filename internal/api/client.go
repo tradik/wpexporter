@@ -692,7 +692,10 @@ func (c *Client) GetMediaByID(id int) (*models.WordPressMedia, error) {
 func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) {
 	var allContent []models.WordPressPost
 	page := 1
-	perPage := 100
+	perPage := pageSizes[0]
+	// What the site says the collection holds, from its own header. A walk that
+	// ends with fewer records than this has missed something (#43).
+	stated := 0
 
 	for {
 		// Apply rate limiting between requests
@@ -711,7 +714,28 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 		}
 
 		if resp.StatusCode() == 400 {
-			// No more pages
+			// WordPress answers 400 both past the last page and for a parameter
+			// it will not accept. Treating the two alike is what made a
+			// collection that refuses per_page=100 export as zero records
+			// without a word (#43).
+			decided := classifyRefusal(resp.Body(), perPage, len(allContent))
+
+			if decided.retryWith > 0 {
+				perPage = decided.retryWith
+
+				continue // the same page, at a size the site may accept
+			}
+
+			if !decided.done {
+				return allContent, &PartialError{
+					Endpoint: endpoint,
+					Page:     page,
+					Fetched:  len(allContent),
+					Err:      fmt.Errorf("the site refused the request (%s)", decided.code),
+				}
+			}
+
+			// Past the last page: the walk is done.
 			break
 		}
 
@@ -722,6 +746,10 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 				Fetched:  len(allContent),
 				Err:      fmt.Errorf("API returned status %d", resp.StatusCode()),
 			}
+		}
+
+		if stated == 0 {
+			stated = collectionTotal(resp.Header().Get(totalHeader))
 		}
 
 		var content []models.WordPressPost
@@ -753,6 +781,18 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 				Fetched:  len(allContent),
 				Err:      fmt.Errorf("collection did not end within %d pages", maxContentPages),
 			}
+		}
+	}
+
+	// The site stated a size and the walk came back with less. Something was
+	// refused, filtered or paginated away, and reporting the shortfall is the
+	// difference between an export that is wrong and one that says so (#43).
+	if stated > 0 && len(allContent) < stated {
+		return allContent, &PartialError{
+			Endpoint: endpoint,
+			Page:     page,
+			Fetched:  len(allContent),
+			Err:      fmt.Errorf("the site lists %d records here", stated),
 		}
 	}
 

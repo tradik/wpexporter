@@ -32,7 +32,10 @@ func fetchCustomTypes(client *api.Client, cfg *config.Config) []models.CustomTyp
 		logf("Warning: could not list post types: %v\n", err)
 		return nil
 	}
-	custom := selectCustomTypes(api.CustomPostTypes(types), cfg.CustomTypes)
+	exportable := api.CustomPostTypes(types)
+	custom, unmatched := selectCustomTypes(exportable, cfg.CustomTypes)
+	reportUnmatchedTypes(unmatched, types, exportable)
+
 	if len(custom) == 0 {
 		logln("No custom post types found")
 		return nil
@@ -44,8 +47,18 @@ func fetchCustomTypes(client *api.Client, cfg *config.Config) []models.CustomTyp
 	for _, t := range custom {
 		posts, fetchErr := client.GetCustomPosts(t.RestBase)
 		if fetchErr != nil {
-			logf("Warning: could not fetch %s: %v\n", t.Slug, fetchErr)
-			continue
+			// A gap keeps what it read: a type that served 40 of its 56 entries
+			// exports the 40 and says so, rather than arriving as an empty
+			// section nobody was warned about (#43).
+			if description, isGap := api.Gap(fetchErr); isGap {
+				logf("Warning: %s is incomplete — %s\n", t.Slug, description)
+			} else {
+				logf("Warning: could not fetch %s: %v\n", t.Slug, fetchErr)
+			}
+
+			if len(posts) == 0 {
+				continue
+			}
 		}
 		if len(posts) == 0 {
 			// A registered type with nothing in it is not a finding worth a
@@ -74,24 +87,84 @@ func splitCommaList(raw string) []string {
 }
 
 // selectCustomTypes narrows the discovered types to an explicit --custom-types
-// selection. An empty selection keeps everything that was discovered.
-func selectCustomTypes(discovered []api.PostType, wanted []string) []api.PostType {
+// selection, and reports the names that matched nothing. An empty selection
+// keeps everything that was discovered.
+//
+// The unmatched names are the point: a flag that silently exports nothing is
+// the same shape of problem the sitemap check was written to end (#43). The
+// operator has no way to tell a typo from a gated type from a broken flag
+// unless the export says which it was.
+func selectCustomTypes(discovered []api.PostType, wanted []string) (kept []api.PostType, unmatched []string) {
 	if len(wanted) == 0 {
-		return discovered
+		return discovered, nil
 	}
-	keep := make(map[string]bool, len(wanted))
+
+	// Trimmed once, up front: the flag arrives split and trimmed, but a config
+	// file's value does not, and a name with a space around it must not read as
+	// a type the site does not have.
+	names := make([]string, 0, len(wanted))
 	for _, name := range wanted {
 		if name = strings.TrimSpace(name); name != "" {
-			keep[strings.ToLower(name)] = true
+			names = append(names, name)
 		}
 	}
-	var out []api.PostType
+
+	matched := make(map[string]bool, len(names))
+
 	for _, t := range discovered {
-		if keep[strings.ToLower(t.Slug)] || keep[strings.ToLower(t.RestBase)] {
-			out = append(out, t)
+		for _, name := range names {
+			if strings.EqualFold(name, t.Slug) || strings.EqualFold(name, t.RestBase) {
+				kept = append(kept, t)
+				matched[strings.ToLower(name)] = true
+
+				break
+			}
 		}
 	}
-	return out
+
+	for _, name := range names {
+		if !matched[strings.ToLower(name)] {
+			unmatched = append(unmatched, name)
+		}
+	}
+
+	return kept, unmatched
+}
+
+// reportUnmatchedTypes says why a requested type brought nothing: the site does
+// not register it, or it registers it and the export handles it elsewhere.
+//
+// Naming the registered types is the difference between "try again" and "try
+// what". A list is cheap here — discovery already fetched it.
+func reportUnmatchedTypes(unmatched []string, registered, exportable []api.PostType) {
+	for _, name := range unmatched {
+		known := findRegisteredType(registered, name)
+
+		switch {
+		case known == nil:
+			logf("Warning: --custom-types %s: the site registers no such type. It registers: %s\n",
+				name, strings.Join(typeSlugs(exportable), ", "))
+		case known.RestBase == "":
+			logf("Warning: --custom-types %s: the site registers it but does not serve it over REST, "+
+				"so there is nothing to fetch.\n", name)
+		default:
+			logf("Warning: --custom-types %s: the site registers it, but this export handles it "+
+				"elsewhere — products as WooCommerce products, media as attachments, and a plugin's "+
+				"own bookkeeping types not at all.\n", name)
+		}
+	}
+}
+
+// findRegisteredType looks a name up among every type the site declares,
+// including the ones an export does not treat as content.
+func findRegisteredType(registered []api.PostType, name string) *api.PostType {
+	for i := range registered {
+		if strings.EqualFold(name, registered[i].Slug) || strings.EqualFold(name, registered[i].RestBase) {
+			return &registered[i]
+		}
+	}
+
+	return nil
 }
 
 // typeSlugs lists the slugs for a one-line report.

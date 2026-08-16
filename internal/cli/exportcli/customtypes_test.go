@@ -117,15 +117,18 @@ func TestSelectCustomTypes(t *testing.T) {
 		{Slug: "cpt_portfolio", RestBase: "portfolio"},
 	}
 
-	if got := selectCustomTypes(discovered, nil); len(got) != 2 {
-		t.Errorf("an empty selection keeps everything, got %+v", got)
+	if got, unmatched := selectCustomTypes(discovered, nil); len(got) != 2 || unmatched != nil {
+		t.Errorf("an empty selection keeps everything, got %+v / %+v", got, unmatched)
 	}
 	// Either the type slug or its REST collection name identifies a type.
-	if got := selectCustomTypes(discovered, []string{"CPT_SERVICES", " portfolio "}); len(got) != 2 {
-		t.Errorf("matching should be case- and space-insensitive, got %+v", got)
+	got, unmatched := selectCustomTypes(discovered, []string{"CPT_SERVICES", " portfolio "})
+	if len(got) != 2 || len(unmatched) != 0 {
+		t.Errorf("matching should be case- and space-insensitive, got %+v / %+v", got, unmatched)
 	}
-	if got := selectCustomTypes(discovered, []string{"absent"}); got != nil {
-		t.Errorf("an unmatched selection selects nothing, got %+v", got)
+	// An unmatched name is reported rather than silently exporting nothing (#43).
+	got, unmatched = selectCustomTypes(discovered, []string{"absent"})
+	if got != nil || len(unmatched) != 1 || unmatched[0] != "absent" {
+		t.Errorf("an unmatched selection must be named, got %+v / %+v", got, unmatched)
 	}
 }
 

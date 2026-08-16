@@ -93,6 +93,7 @@ var (
 	noMenus           bool
 	noComments        bool
 	noInventoryCheck  bool
+	fromSitemap       bool
 	quiet             bool
 	noIDs             bool
 	excludeTags       string
@@ -139,6 +140,7 @@ Content Filters:
       --no-menus              Skip navigation menus
       --no-comments           Skip reader comments
       --no-inventory-check    Skip the sitemap/feed completeness check
+      --from-sitemap          Recover posts from the feed when the REST API serves none
       --no-media              Skip media downloads
       --path-filter string    Filter by URL path (e.g., /fr/art/)
       --skip-empty-content    Skip posts/pages with empty content
@@ -243,6 +245,8 @@ func init() {
 	exportCmd.Flags().BoolVar(&noComments, "no-comments", false, "skip exporting reader comments")
 	exportCmd.Flags().BoolVar(&noInventoryCheck, "no-inventory-check", false,
 		"skip reading the site's sitemap and feed to report what the export did not cover")
+	exportCmd.Flags().BoolVar(&fromSitemap, "from-sitemap", false,
+		"when the REST API serves no posts, recover what the site's feed still publishes")
 	exportCmd.Flags().BoolVar(&noIDs, "no-ids", false, "exclude numeric IDs from frontmatter (keep only names)")
 	exportCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress all output, only return exit code")
 
@@ -481,6 +485,9 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("no-inventory-check") {
 		cfg.NoInventoryCheck = noInventoryCheck
+	}
+	if cmd.Flags().Changed("from-sitemap") {
+		cfg.FromSitemap = fromSitemap
 	}
 	if cmd.Flags().Changed("no-ids") {
 		cfg.NoIDs = noIDs
@@ -1082,6 +1089,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 		logln("\nReading the site's own inventory...")
 		inventory := apiClient.FetchInventory()
 		logf("Inventory: %s\n", inventory.Describe())
+
+		// A site whose /wp/v2/posts answers 500 for every request still serves
+		// its feed. Recovering titles, addresses, dates and bodies from it is
+		// what makes such a site exportable at all (#40).
+		recoverPostsFromFeed(cfg, inventory, exportData)
+
 		exportData.Stats.Uncovered = checkCoverage(inventory, exportData)
 	}
 

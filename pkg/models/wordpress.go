@@ -421,6 +421,11 @@ type ExportStats struct {
 	// the page they stopped at and why. Absent from a whole export; present in
 	// metadata.json so a gap outlives the console line reporting it (#37).
 	Incomplete []string `json:"incomplete,omitempty"`
+	// RecoveredPosts counts records rebuilt from the site's feed because the
+	// REST API served none. They are thinner than a REST payload — no IDs, no
+	// terms, no featured image — so a consumer that needs to know says so by
+	// reading this rather than by guessing (#40).
+	RecoveredPosts int `json:"recovered_posts,omitempty"`
 	// Uncovered is what the site's own sitemap and feed list that this export
 	// does not carry, grouped by path. An export can otherwise only report what
 	// it fetched, which is how a whole post type goes missing without a word

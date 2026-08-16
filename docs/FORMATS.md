@@ -50,6 +50,14 @@ a generator rebuilds itself are not counted. This is how a post type the REST
 API never exposed stops being invisible. `--no-inventory-check` skips it; a site
 that publishes neither document says so and nothing else changes.
 
+When the REST API serves **no posts at all** — a site whose `/wp/v2/posts`
+answers 5xx for every request still publishes its feed — `--from-sitemap`
+recovers what the feed carries: title, address, date, author and body, with no
+IDs, taxonomy terms or featured images, and `stats.recovered_posts` saying how
+many. It is asked for rather than assumed, and never merges with or replaces a
+collection the API did serve: REST is the better source in every respect, and a
+feed lists recent items rather than the archive.
+
 Two things hold for every platform format, and only for those: media URLs are
 **left absolute**, because the target platform imports the files from the live
 site, and address fields (`link`, `canonical_url`) stay absolute too. `json`,

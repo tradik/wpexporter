@@ -18,7 +18,11 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
+
+	"github.com/tradik/wpexporter/pkg/models"
 )
 
 // sitemapPaths are the three names WordPress and its SEO plugins use, in the
@@ -38,6 +42,10 @@ type Inventory struct {
 	SitemapURLs []string
 	// FeedURLs are the addresses of the main feed's recent items.
 	FeedURLs []string
+	// FeedPosts are the feed's items as records: title, address, date, author
+	// and body. They are what a site whose REST routes are broken still serves,
+	// and the difference between a partial export and no export at all (#40).
+	FeedPosts []models.WordPressPost
 	// Sitemap and Feed name the documents that answered, empty when none did.
 	// A report that cannot say where a number came from is not worth printing.
 	Sitemap string
@@ -61,11 +69,22 @@ type sitemapIndex struct {
 	} `xml:"url"`
 }
 
-// feedDocument is the part of RSS a completeness check reads.
+// feedDocument is the RSS a completeness check reads — and, when the REST API
+// cannot answer at all, the only copy of the content left to read (#40).
 type feedDocument struct {
-	Items []struct {
-		Link string `xml:"link"`
-	} `xml:"channel>item"`
+	Items []feedItem `xml:"channel>item"`
+}
+
+// feedItem is one entry of the main feed. WordPress publishes the whole post in
+// content:encoded on most sites and an excerpt in description on the rest.
+type feedItem struct {
+	Title       string `xml:"title"`
+	Link        string `xml:"link"`
+	PubDate     string `xml:"pubDate"`
+	Creator     string `xml:"creator"`
+	Description string `xml:"description"`
+	Encoded     string `xml:"encoded"`
+	GUID        string `xml:"guid"`
 }
 
 // FetchInventory reads the site's sitemap and main feed. Anything missing is
@@ -89,9 +108,10 @@ func (c *Client) FetchInventory() Inventory {
 		break
 	}
 
-	if feed, urls, ok := c.readFeed(root + "/feed/"); ok {
+	if feed, items, ok := c.readFeed(root + "/feed/"); ok {
 		inventory.Feed = feed
-		inventory.FeedURLs = urls
+		inventory.FeedURLs = feedLinks(items)
+		inventory.FeedPosts = feedPosts(items)
 	}
 
 	return inventory
@@ -186,8 +206,8 @@ func looksLikeSitemap(body []byte) bool {
 	return strings.Contains(lowered, "<urlset") || strings.Contains(lowered, "<sitemapindex")
 }
 
-// readFeed fetches the main RSS feed and returns the addresses of its items.
-func (c *Client) readFeed(url string) (string, []string, bool) {
+// readFeed fetches the main RSS feed and returns its items.
+func (c *Client) readFeed(url string) (string, []feedItem, bool) {
 	resp, err := c.httpClient.R().Get(url)
 	if err != nil || resp.StatusCode() != http.StatusOK {
 		return "", nil, false
@@ -202,14 +222,103 @@ func (c *Client) readFeed(url string) (string, []string, bool) {
 		return "", nil, false
 	}
 
-	urls := make([]string, 0, len(document.Items))
-	for _, item := range document.Items {
+	return url, document.Items, true
+}
+
+// feedLinks is the addresses alone, for the completeness check.
+func feedLinks(items []feedItem) []string {
+	urls := make([]string, 0, len(items))
+	for _, item := range items {
 		if link := strings.TrimSpace(item.Link); link != "" {
 			urls = append(urls, link)
 		}
 	}
 
-	return url, urls, true
+	return urls
+}
+
+// feedPosts turns feed items into the records the rest of the exporter works
+// with.
+//
+// What comes back is thinner than a REST payload — no IDs, no taxonomy terms,
+// no featured image — and it is deliberately not disguised as more than that:
+// the ID stays zero, so nothing downstream can mistake a recovered record for
+// one WordPress numbered. Titles, addresses, dates, authors and bodies are what
+// a migration needs most, and on a site whose /wp/v2/posts answers 500 they are
+// the only copy on offer.
+func feedPosts(items []feedItem) []models.WordPressPost {
+	posts := make([]models.WordPressPost, 0, len(items))
+
+	for _, item := range items {
+		link := strings.TrimSpace(item.Link)
+		if link == "" {
+			continue
+		}
+
+		post := models.WordPressPost{
+			Slug:   slugFromURL(link),
+			Status: "publish", // a feed lists what the site published
+			Type:   "post",
+			Link:   link,
+		}
+		post.Title.Rendered = strings.TrimSpace(item.Title)
+		post.Content.Rendered = firstNonEmpty(item.Encoded, item.Description)
+		post.Excerpt.Rendered = strings.TrimSpace(item.Description)
+
+		if published, err := parseFeedDate(item.PubDate); err == nil {
+			post.Date = models.WordPressTime{Time: published}
+			post.Modified = models.WordPressTime{Time: published}
+		}
+
+		posts = append(posts, post)
+	}
+
+	return posts
+}
+
+// feedDateFormats are the spellings RSS dates arrive in. WordPress writes
+// RFC1123 with a numeric zone; plugins and caches rewrite it.
+var feedDateFormats = []string{
+	time.RFC1123Z, time.RFC1123, time.RFC822Z, time.RFC822, time.RFC3339,
+}
+
+// parseFeedDate reads a publication date in whichever form the feed used.
+func parseFeedDate(raw string) (time.Time, error) {
+	raw = strings.TrimSpace(raw)
+
+	var err error
+	for _, layout := range feedDateFormats {
+		var parsed time.Time
+		if parsed, err = time.Parse(layout, raw); err == nil {
+			return parsed, nil
+		}
+	}
+
+	return time.Time{}, err
+}
+
+// slugFromURL is the last path segment of an address, which is a post's slug on
+// every permalink structure WordPress offers.
+func slugFromURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+
+	segments := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+
+	return segments[len(segments)-1]
+}
+
+// firstNonEmpty returns the first value with something in it.
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+
+	return ""
 }
 
 // Describe renders where the inventory came from, for a report that has to be
