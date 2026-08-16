@@ -49,7 +49,11 @@ type PostType struct {
 	Name       string `json:"name"`
 	RestBase   string `json:"rest_base"`
 	HasArchive bool   `json:"has_archive"`
-	Taxonomies []string
+	// ArchiveSlug is the address the archive is published at when the type
+	// registered an explicit one; empty when it uses its own slug or has no
+	// archive. Kept because a migration needs it to avoid 404ing that page (#53).
+	ArchiveSlug string `json:"archive_slug,omitempty"`
+	Taxonomies  []string
 }
 
 // GetPostTypes lists every post type the REST API exposes, including the
@@ -71,36 +75,73 @@ func (c *Client) GetPostTypes() ([]PostType, error) {
 		return nil, fmt.Errorf("API returned status %d for post types", resp.StatusCode())
 	}
 
-	// The endpoint answers with an object keyed by type slug, not an array.
-	var raw map[string]struct {
-		Slug       string   `json:"slug"`
-		Name       string   `json:"name"`
-		RestBase   string   `json:"rest_base"`
-		HasArchive bool     `json:"has_archive"`
-		Taxonomies []string `json:"taxonomies"`
-	}
+	// The endpoint answers with an object keyed by type slug, not an array, and
+	// each value is decoded on its own: a single unexpected scalar anywhere in
+	// the document used to drop every type on the site, which is the difference
+	// between "one type could not be read" and no custom content at all (#53).
+	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(resp.Body(), &raw); err != nil {
 		return nil, fmt.Errorf("failed to parse post types: %w", err)
 	}
 
-	types := make([]PostType, 0, len(raw))
-	for slug, t := range raw {
-		if t.Slug == "" {
-			t.Slug = slug
-		}
-		if t.RestBase == "" {
-			continue // not reachable over REST, so not fetchable
-		}
-		types = append(types, PostType{
-			Slug: t.Slug, Name: t.Name, RestBase: t.RestBase,
-			HasArchive: t.HasArchive, Taxonomies: t.Taxonomies,
-		})
+	types, unreadable := decodePostTypes(raw)
+
+	// Named rather than counted: a type nobody can decode is a section of the
+	// site that will be missing, and its name is what the operator needs to
+	// look it up.
+	if len(unreadable) > 0 {
+		sort.Strings(unreadable)
+		fmt.Printf("Warning: %d post type(s) could not be read and are not exported: %s\n",
+			len(unreadable), strings.Join(unreadable, ", "))
 	}
+
 	// Stable order so a report and a re-run agree.
 	sort.Slice(types, func(i, j int) bool { return types[i].Slug < types[j].Slug })
 
 	c.saveToCache(cacheKey, types)
 	return types, nil
+}
+
+// restPostType is one entry of the /wp/v2/types document.
+type restPostType struct {
+	Slug       string     `json:"slug"`
+	Name       string     `json:"name"`
+	RestBase   string     `json:"rest_base"`
+	HasArchive hasArchive `json:"has_archive"`
+	Taxonomies []string   `json:"taxonomies"`
+}
+
+// decodePostTypes reads each type independently, returning the ones that parsed
+// and the names of the ones that did not.
+func decodePostTypes(raw map[string]json.RawMessage) (types []PostType, unreadable []string) {
+	types = make([]PostType, 0, len(raw))
+
+	for slug, document := range raw {
+		var decoded restPostType
+		if err := json.Unmarshal(document, &decoded); err != nil {
+			unreadable = append(unreadable, slug)
+
+			continue
+		}
+
+		if decoded.Slug == "" {
+			decoded.Slug = slug
+		}
+		if decoded.RestBase == "" {
+			continue // not reachable over REST, so not fetchable
+		}
+
+		types = append(types, PostType{
+			Slug:        decoded.Slug,
+			Name:        decoded.Name,
+			RestBase:    decoded.RestBase,
+			HasArchive:  decoded.HasArchive.Enabled,
+			ArchiveSlug: decoded.HasArchive.Slug,
+			Taxonomies:  decoded.Taxonomies,
+		})
+	}
+
+	return types, unreadable
 }
 
 // CustomPostTypes narrows a type list to the ones that carry site content: not

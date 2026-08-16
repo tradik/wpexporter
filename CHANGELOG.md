@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.11] - 2026-08-16
+
+### Fixed
+- **One type's archive slug cost the export every custom type on the site
+  (#53).** `has_archive` is not a boolean in WordPress: it is `false`, or `true`
+  for a type whose archive lives under its own slug, or **the slug itself as a
+  string** for one registered with an explicit archive — `"has_archive": "shop"`
+  on any site with WooCommerce.
+
+  Declared as a bool, the whole `/wp/v2/types` document failed to decode on the
+  first such type, and with it went every other type registered on the site. One
+  product archive therefore cost a migration 56 events, 5 products and three
+  further types, with a single warning line between them and a "completed"
+  summary. It is also why the pagination fix in #43 did not help that site: the
+  walk it repaired was never reached, because discovery had already failed.
+
+  `has_archive` now reads all three forms, and anything else a plugin invents is
+  read as "no archive" rather than as a failure. The slug is kept as
+  `archive_slug` rather than discarded — it is the address the archive is
+  published at, which a migration needs to avoid 404ing that page.
+
+- **A single unreadable type no longer drops the rest.** Each entry of the types
+  document is decoded on its own, so an unexpected shape costs the type it is in
+  and nothing else, and the run names what it could not read. "One type could
+  not be read" is a difference an operator can act on; "no custom content at
+  all" is not.
+
 ## [1.8.10] - 2026-08-16
 
 Two defects a reader of the migrated site can see.
