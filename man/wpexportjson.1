@@ -169,6 +169,12 @@ Recover posts from the site's main feed when the REST API serves none \- a site 
 .BR \-\-no\-inventory\-check
 Skip the completeness check. After the export the site's own sitemap and main feed are read \- one or two requests \- and every address they list that the export does not carry is reported, grouped by path, and recorded in \fBmetadata.json\fR under \fBstats.uncovered\fR. Archive views a generator rebuilds itself (\fI/tag/\fR, \fI/category/\fR, date archives) are not counted. A site that publishes neither document says so and the export is unchanged.
 .TP
+.BR \-\-limit " " \fIN\fR
+Export at most \fIN\fR documents in total, newest first (default: no limit). The walk stops when the budget is spent rather than fetching everything and discarding the rest, so a preview of five pages costs one request instead of five hundred records. Media is limited to what the exported documents reference, and the summary states the truncation as \fBPosts: 5 (limited from 75)\fR.
+.TP
+.BR \-\-limit\-per\-type " " \fIN\fR
+Export at most \fIN\fR of each kind \- posts, pages, each custom type. Combines with \fB\-\-limit\fR, whichever is smaller.
+.TP
 .BR \-\-user\-agent " " \fISTRING\fR
 The User\-Agent to send (default: \fIWordPress\-Export\-JSON/1.0\fR). Bot protection matches on the default, so a browser's string is the remedy that most often works against a \fB403\fR served by a wall rather than by WordPress. A refusal that carries Cloudflare's marks is named as such in the report, with the remedies that apply to it.
 .TP

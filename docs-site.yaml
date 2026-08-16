@@ -140,7 +140,7 @@ variables:
   # Header version chip. Committed as the current release; the Docs Site workflow
   # rewrites it from the VERSION file before building, so a release bump reaches
   # the site even when this line lags behind.
-  version: "1.8.13"
+  version: "1.8.14"
 
   # No `gtag` and no `gtm_id`: this site ships no analytics, so it also needs no
   # consent banner. Add either variable (and cookie_consent alongside it) if that

@@ -78,6 +78,8 @@ var (
 	rateLimit         int
 	retries           int
 	userAgent         string
+	limit             int
+	limitPerType      int
 	resume            bool
 	timeout           int
 	crawlContent      bool
@@ -166,6 +168,8 @@ Advanced:
       --rate-limit int        Delay between requests in ms
       --retries int           Retries for a 5xx, 429 or dropped connection (default 3)
       --user-agent string     Identify as something else (bot protection matches the default)
+      --limit int             Export at most N documents in total, newest first
+      --limit-per-type int    Export at most N of each kind (posts, pages, each custom type)
       --zip                   Create ZIP archive
       --no-files              Remove files after ZIP (requires --zip)
 
@@ -217,6 +221,11 @@ func init() {
 	exportCmd.Flags().StringVar(&authPass, "auth-pass", "", "password for Basic Auth")
 	exportCmd.Flags().StringVar(&authToken, "auth-token", "", "Bearer token for authentication")
 	exportCmd.Flags().IntVar(&rateLimit, "rate-limit", 0, "delay between API requests in milliseconds (0 = no limit)")
+	exportCmd.Flags().IntVar(&limit, "limit", 0,
+		"export at most N documents in total, newest first (0 = no limit); the walk stops when the "+
+			"budget is spent, so a preview of a site does not download the site")
+	exportCmd.Flags().IntVar(&limitPerType, "limit-per-type", 0,
+		"export at most N of each kind — posts, pages, each custom type (0 = no limit)")
 	exportCmd.Flags().StringVar(&userAgent, "user-agent", "",
 		"the User-Agent to send; bot protection matches on the default, and a browser's string "+
 			"is the remedy that most often works against a 403 from a wall")
@@ -450,6 +459,12 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("user-agent") && userAgent != "" {
 		cfg.UserAgent = userAgent
+	}
+	if cmd.Flags().Changed("limit") {
+		cfg.Limit = limit
+	}
+	if cmd.Flags().Changed("limit-per-type") {
+		cfg.LimitPerType = limitPerType
 	}
 	if cmd.Flags().Changed("resume") {
 		cfg.Resume = resume
@@ -746,6 +761,15 @@ func runExport(cmd *cobra.Command, args []string) error {
 	siteInfo, err := apiClient.GetSiteInfo()
 	if err != nil {
 		return fmt.Errorf("failed to get site info: %w", err)
+	}
+
+	// A limited export downloads the media its documents reference, not the
+	// whole library: fetching 200 MB of images for a five-page preview is the
+	// thing #60 exists to stop. --relevant-media-only already has that logic,
+	// so the limit switches it on rather than growing a second copy.
+	if (cfg.Limit > 0 || cfg.LimitPerType > 0) && !cfg.RelevantMediaOnly {
+		cfg.RelevantMediaOnly = true
+		logln("Limiting media to what the exported documents reference (--limit)")
 	}
 
 	// Collections the site would not read to the end. They are reported here,
@@ -1161,13 +1185,13 @@ func runExport(cmd *cobra.Command, args []string) error {
 	duration := time.Since(startTime)
 	logf("\n=== Export Summary ===\n")
 	logf("Site: %s (%s)\n", siteInfo.Name, siteInfo.URL)
-	logf("Posts: %d\n", len(posts))
+	logf("%s\n", countLine("Posts", len(posts), apiClient.StatedTotal("posts"), apiClient.Limited()))
 	// Fetched against written: a count that used to match only because nobody
 	// compared them, while pages sharing a slug overwrote each other (#38).
 	if written := exportData.Stats.PagesWritten; written > 0 && written != len(pages) {
 		logf("Pages: %d fetched, %d written\n", len(pages), written)
 	} else {
-		logf("Pages: %d\n", len(pages))
+		logf("%s\n", countLine("Pages", len(pages), apiClient.StatedTotal("pages"), apiClient.Limited()))
 	}
 	// One line per custom type: "Services: 48" says more than a total, and the
 	// absence of a type a user expected is the point of reporting them (#28).

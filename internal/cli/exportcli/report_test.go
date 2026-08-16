@@ -136,3 +136,15 @@ func zipEntries(t *testing.T, path string) []string {
 
 	return names
 }
+
+// TestCountLineSaysWhenItTruncated: a truncated export that cannot say what it
+// truncated is the failure mode of every silent cap (#60).
+func TestCountLineSaysWhenItTruncated(t *testing.T) {
+	assert.Equal(t, "Posts: 5 (limited from 75)", countLine("Posts", 5, 75, true))
+	assert.Equal(t, "Posts: 75", countLine("Posts", 75, 75, true),
+		"a limit that did not bite says nothing")
+	assert.Equal(t, "Posts: 5", countLine("Posts", 5, 75, false),
+		"without a limit the number is simply the number")
+	assert.Equal(t, "Pages: 3", countLine("Pages", 3, 0, true),
+		"a site that stated no total gives nothing to compare against")
+}
