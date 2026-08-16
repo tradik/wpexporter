@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **The resume path is tested.** `internal/checkpoint` gained tests in 1.8.8;
+  its other half — the fetchers that write that state and read it back — had
+  none. They are what makes `--resume` mean anything: a state file is only
+  trustworthy if the code writing it records exactly what it fetched, and only
+  useful if the code reading it starts where the last run stopped. A mistake
+  there is not a wrong file but a resumed export that skips a page it never read
+  and reports success. Now covered: what a run records, resuming mid-collection,
+  skipping a finished one, the failure written into the state, a checkpoint that
+  cannot be saved stopping the walk, and a site without WooCommerce.
+
+  The summary's own arithmetic is covered too — sizes, the export archive, and
+  the write-permission check that should fail in the first second rather than
+  the fortieth minute.
+
+  Overall statement coverage 81.1% → **83.3%**.
+
 ## [1.8.8] - 2026-08-16
 
 ### Compatibility
