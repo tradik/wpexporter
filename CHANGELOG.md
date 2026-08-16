@@ -5,6 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.8] - 2026-08-16
+
+### Compatibility
+
+Additive only: two new flags (`--from-sitemap`, and `--no-inventory-check` from
+1.8.7), one new metadata field (`stats.recovered_posts`, omitted when nothing
+was recovered), and no key, flag or default changed. A collection that answered
+normally before is walked exactly as before — the new page-size handling only
+runs on a 400 the previous code would have read as an empty collection.
+
+### Fixed
+- **A custom type the REST API serves exported as nothing (#43).** WordPress
+  answers `400` both past the last page and for a `per_page` it will not accept,
+  and the walk read the second as the first: a site that caps page size below
+  the REST maximum served every collection as zero records, with no error and no
+  warning. `--custom-types mec-events` against a site with 56 events brought
+  none of them, and the report — which had just told the operator to run exactly
+  that — said nothing.
+
+  The two refusals are now told apart by WordPress's own name for them. A
+  rejected page size is retried smaller (100 → 50 → 25 → 10 → 5 → 1), but only
+  before any record has been read, since page numbers are relative to the size.
+  Any other refusal is reported with its code instead of being mistaken for an
+  empty collection. A type that serves some of its entries and then breaks off
+  keeps what it served.
+
+- **An unmatched `--custom-types` name said nothing.** A typo, a gated type and
+  a broken flag all looked identical — an export that quietly contained nothing.
+  Each unmatched name is now reported with the reason: the site registers no
+  such type (and here is what it does register), or it registers it and the
+  export handles it elsewhere.
+
+- **A collection shorter than the site claims is reported.** Every WordPress
+  states the size of a collection in `X-WP-Total`. A walk that ends with fewer
+  records than that has missed something, and now says so through the same
+  incomplete-collection channel as #37 rather than reporting success.
+
+### Added
+- **`--from-sitemap`: recover posts from the feed when the REST API serves none
+  (#40).** One measured site answers 500 for every request to `/wp/v2/posts` and
+  has for weeks, while its feed — served by the same WordPress — works. The flag
+  reads what the feed carries: title, address, date, author and body, with no
+  IDs, taxonomy terms or featured images, and `stats.recovered_posts` stating
+  how many records are thinner than a REST payload.
+
+  It is asked for, never assumed, and never merges with or replaces a collection
+  the API did serve: REST is the better source in every respect, and a feed
+  lists recent items rather than the archive. It costs no extra request — the
+  feed is already read for the completeness check.
+
+### Changed
+- **The two untested surfaces are tested.** `internal/checkpoint` — the state
+  behind `--resume` — had no tests at all, which is a poor place for that to be
+  true: its whole job is to be correct after a crash, and a mistake there is not
+  a wrong file but a second run that skips a section it never read. Round-trips,
+  a checkpoint belonging to another site, a truncated file, a missing media map
+  and concurrent writers are now covered (0% → 96.3%).
+
+  The **MCP tool handlers** were reachable only over the protocol and untested,
+  which matters more than it sounds: they are the whole product as far as an
+  assistant is concerned, and an assistant has no console in which to notice a
+  wrong answer. Every handler now runs against a stub WordPress — listings,
+  their limits and path filter, a record by ID, the refusal when it is missing,
+  an unusable URL, and an export that writes files and reports its counts
+  (52.4% → 92.4%).
+
+  Overall statement coverage rose from **77.7% to 81.1%**.
+
 ## [1.8.7] - 2026-08-15
 
 ### Compatibility

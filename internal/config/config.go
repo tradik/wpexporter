@@ -96,6 +96,7 @@ type Config struct {
 	NoMenus           bool           `mapstructure:"no_menus" json:"no_menus"`                                 // Skip exporting navigation menus
 	NoComments        bool           `mapstructure:"no_comments" json:"no_comments"`                           // Skip exporting reader comments (#35)
 	NoInventoryCheck  bool           `mapstructure:"no_inventory_check" json:"no_inventory_check"`             // Skip the sitemap/feed check (#40)
+	FromSitemap       bool           `mapstructure:"from_sitemap" json:"from_sitemap"`                         // Recover posts from the feed (#40)
 	Quiet             bool           `mapstructure:"quiet" json:"quiet"`                                       // Suppress all output
 	NoIDs             bool           `mapstructure:"no_ids" json:"no_ids"`                                     // Exclude numeric IDs from frontmatter
 	ExcludeTags       []string       `mapstructure:"exclude_tags" json:"exclude_tags,omitempty"`               // SEO tags to exclude from extraction
@@ -160,6 +161,7 @@ func DefaultConfig() *Config {
 		NoMenus:           false,  // Try to export menus by default (needs auth; degrades with a warning)
 		NoComments:        false,  // Reader comments are content — they ship by default (#35)
 		NoInventoryCheck:  false,  // The site's own inventory is one or two requests, and worth them (#40)
+		FromSitemap:       false,  // Recovery is asked for, never assumed: REST is the better source (#40)
 		Cache:             false,  // Caching disabled by default
 		CacheTTL:          "24h",  // 24 hour cache TTL by default
 		CacheDir:          "",     // Will default to ~/.wpexporter/cache

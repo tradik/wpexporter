@@ -29,9 +29,17 @@ const urlsetBody = `<?xml version="1.0"?>
 </urlset>`
 
 const feedBody = `<?xml version="1.0"?>
-<rss version="2.0"><channel>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"
+     xmlns:dc="http://purl.org/dc/elements/1.1/"><channel>
   <title>x</title>
-  <item><title>Hello</title><link>https://x.test/blog/hello/</link></item>
+  <item>
+    <title>Hello</title>
+    <link>https://x.test/blog/hello/</link>
+    <pubDate>Fri, 01 Mar 2024 10:00:00 +0000</pubDate>
+    <dc:creator>Ewa</dc:creator>
+    <description>An excerpt.</description>
+    <content:encoded>&lt;p&gt;The whole post.&lt;/p&gt;</content:encoded>
+  </item>
 </channel></rss>`
 
 func newInventoryClient(t *testing.T, handler http.HandlerFunc) *Client {
@@ -157,4 +165,63 @@ func TestInventoryDescribe(t *testing.T) {
 	assert.Equal(t, "feed (1 items)",
 		Inventory{Feed: "f", FeedURLs: []string{"a"}}.Describe())
 	assert.True(t, Inventory{Feed: "f"}.Published())
+}
+
+// TestFeedItemsBecomeRecords: on a site whose REST routes are broken, the feed
+// is the only copy of the content left to read (#40). What it can give is
+// given; what it cannot — IDs, terms, featured images — is left plainly empty
+// rather than invented.
+func TestFeedItemsBecomeRecords(t *testing.T) {
+	var base string
+
+	client := newInventoryClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/feed/" {
+			w.Header().Set("Content-Type", "application/rss+xml")
+			_, _ = w.Write([]byte(feedBody))
+
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	})
+	base = strings.TrimSuffix(client.baseURL, "/wp-json/wp/v2")
+	_ = base
+
+	inventory := client.FetchInventory()
+	require.Len(t, inventory.FeedPosts, 1)
+
+	post := inventory.FeedPosts[0]
+	assert.Equal(t, "Hello", post.Title.Rendered)
+	assert.Equal(t, "https://x.test/blog/hello/", post.Link)
+	assert.Equal(t, "hello", post.Slug, "the last path segment is the slug on every permalink structure")
+	assert.Equal(t, "<p>The whole post.</p>", post.Content.Rendered)
+	assert.Equal(t, "An excerpt.", post.Excerpt.Rendered)
+	assert.Equal(t, 2024, post.Date.Year())
+	assert.Equal(t, "publish", post.Status)
+	assert.Zero(t, post.ID, "nothing may mistake a recovered record for one WordPress numbered")
+}
+
+// TestFeedDatesAreReadInEveryUsualSpelling: WordPress writes RFC1123 with a
+// numeric zone; caches and plugins rewrite it.
+func TestFeedDatesAreReadInEveryUsualSpelling(t *testing.T) {
+	for _, raw := range []string{
+		"Fri, 01 Mar 2024 10:00:00 +0000",
+		"Fri, 01 Mar 2024 10:00:00 UTC",
+		"2024-03-01T10:00:00Z",
+	} {
+		parsed, err := parseFeedDate(raw)
+		require.NoError(t, err, raw)
+		assert.Equal(t, 2024, parsed.Year())
+	}
+
+	_, err := parseFeedDate("last Tuesday")
+	assert.Error(t, err, "a date nobody can read is left unset rather than guessed")
+}
+
+// TestSlugFromURL is what addresses a recovered record.
+func TestSlugFromURL(t *testing.T) {
+	assert.Equal(t, "hello", slugFromURL("https://x.test/blog/hello/"))
+	assert.Equal(t, "hello", slugFromURL("https://x.test/hello"))
+	assert.Equal(t, "", slugFromURL("https://x.test/"))
+	assert.Equal(t, "", slugFromURL("://not a url"))
 }

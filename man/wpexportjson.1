@@ -160,6 +160,9 @@ Concurrent downloads (default: 5)
 .BR \-\-rate\-limit " " \fIMS\fR
 Delay between API requests in milliseconds (prevents server rate limiting)
 .TP
+.BR \-\-from\-sitemap
+Recover posts from the site's main feed when the REST API serves none \- a site whose \fI/wp/v2/posts\fR answers 5xx for every request still publishes its feed. Recovered records carry title, address, date, author and body, and no IDs, taxonomy terms or featured images; \fBstats.recovered_posts\fR states how many there were. The feed lists recent items only, so this never replaces or merges with a collection the API did serve.
+.TP
 .BR \-\-no\-inventory\-check
 Skip the completeness check. After the export the site's own sitemap and main feed are read \- one or two requests \- and every address they list that the export does not carry is reported, grouped by path, and recorded in \fBmetadata.json\fR under \fBstats.uncovered\fR. Archive views a generator rebuilds itself (\fI/tag/\fR, \fI/category/\fR, date archives) are not counted. A site that publishes neither document says so and the export is unchanged.
 .TP

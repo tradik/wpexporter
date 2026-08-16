@@ -691,8 +691,12 @@ func (c *Client) GetMediaByID(id int) (*models.WordPressMedia, error) {
 // getAllContent is a generic function to retrieve all content with pagination
 func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) {
 	var allContent []models.WordPressPost
+
 	page := 1
-	perPage := 100
+	perPage := pageSizes[0]
+	// What the site says the collection holds, from its own header. A walk that
+	// ends with fewer records than this has missed something (#43).
+	stated := 0
 
 	for {
 		// Apply rate limiting between requests
@@ -700,52 +704,31 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 			c.applyRateLimit()
 		}
 
-		url := fmt.Sprintf("%s/%s?page=%d&per_page=%d", c.baseURL, endpoint, page, perPage)
+		result := c.fetchContentPage(endpoint, page, perPage, len(allContent))
 
-		// Every failure below returns what was already fetched alongside the
-		// error: the caller decides whether a gap is fatal, and an export
-		// missing one page of posts and saying so beats no export at all (#37).
-		resp, err := c.httpClient.R().Get(url)
-		if err != nil {
-			return allContent, &PartialError{Endpoint: endpoint, Page: page, Fetched: len(allContent), Err: err}
+		switch {
+		case result.err != nil:
+			return allContent, result.err
+		case result.retryWith > 0:
+			// The site refused this page size; the same page is asked for again
+			// at one it may accept (#43).
+			perPage = result.retryWith
+
+			continue
+		case result.done:
+			return c.checkedContent(endpoint, allContent, stated, page)
 		}
 
-		if resp.StatusCode() == 400 {
-			// No more pages
-			break
+		if stated == 0 {
+			stated = result.total
 		}
 
-		if resp.StatusCode() != 200 {
-			return allContent, &PartialError{
-				Endpoint: endpoint,
-				Page:     page,
-				Fetched:  len(allContent),
-				Err:      fmt.Errorf("API returned status %d", resp.StatusCode()),
-			}
-		}
-
-		var content []models.WordPressPost
-		if err := json.Unmarshal(resp.Body(), &content); err != nil {
-			return allContent, &PartialError{
-				Endpoint: endpoint,
-				Page:     page,
-				Fetched:  len(allContent),
-				Err:      fmt.Errorf("failed to parse response: %w", err),
-			}
-		}
-
-		if len(content) == 0 {
-			break
-		}
-
-		allContent = append(allContent, content...)
+		allContent = append(allContent, result.content...)
 		page++
 
-		// The walk ends when the site says so, with an empty page or a 400 —
-		// not when a page comes back short, because a host that caps per_page
-		// below what we asked for serves every page short. A site that never
-		// says stop is bounded here instead: without a ceiling one that repeats
-		// its first page for ever is followed until memory runs out (#37).
+		// A site that never says stop is bounded here: without a ceiling one
+		// that repeats its first page for ever is followed until memory runs
+		// out (#37).
 		if page > maxContentPages {
 			return allContent, &PartialError{
 				Endpoint: endpoint,
@@ -755,8 +738,80 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 			}
 		}
 	}
+}
 
-	return allContent, nil
+// fetchContentPage reads one page of a collection and says what the walk should
+// do next. Every failure carries what the caller had already fetched, because
+// an export missing one page and saying so beats no export at all (#37).
+func (c *Client) fetchContentPage(endpoint string, page, perPage, fetched int) pageResult {
+	url := fmt.Sprintf("%s/%s?page=%d&per_page=%d", c.baseURL, endpoint, page, perPage)
+
+	resp, err := c.httpClient.R().Get(url)
+	if err != nil {
+		return pageResult{err: &PartialError{Endpoint: endpoint, Page: page, Fetched: fetched, Err: err}}
+	}
+
+	if resp.StatusCode() == 400 {
+		// WordPress answers 400 both past the last page and for a parameter it
+		// will not accept. Treating the two alike is what made a collection
+		// that refuses per_page=100 export as zero records, silently (#43).
+		decided := classifyRefusal(resp.Body(), perPage, fetched)
+
+		switch {
+		case decided.retryWith > 0:
+			return pageResult{retryWith: decided.retryWith}
+		case decided.done:
+			return pageResult{done: true}
+		default:
+			return pageResult{err: &PartialError{
+				Endpoint: endpoint,
+				Page:     page,
+				Fetched:  fetched,
+				Err:      fmt.Errorf("the site refused the request (%s)", decided.code),
+			}}
+		}
+	}
+
+	if resp.StatusCode() != 200 {
+		return pageResult{err: &PartialError{
+			Endpoint: endpoint,
+			Page:     page,
+			Fetched:  fetched,
+			Err:      fmt.Errorf("API returned status %d", resp.StatusCode()),
+		}}
+	}
+
+	var content []models.WordPressPost
+	if err := json.Unmarshal(resp.Body(), &content); err != nil {
+		return pageResult{err: &PartialError{
+			Endpoint: endpoint,
+			Page:     page,
+			Fetched:  fetched,
+			Err:      fmt.Errorf("failed to parse response: %w", err),
+		}}
+	}
+
+	if len(content) == 0 {
+		return pageResult{done: true}
+	}
+
+	return pageResult{content: content, total: collectionTotal(resp.Header().Get(totalHeader))}
+}
+
+// checkedContent returns a finished walk, or the gap between what it read and
+// what the site said it holds. Reporting the shortfall is the difference
+// between an export that is wrong and one that knows it (#43).
+func (c *Client) checkedContent(endpoint string, content []models.WordPressPost, stated, page int) ([]models.WordPressPost, error) {
+	if stated > 0 && len(content) < stated {
+		return content, &PartialError{
+			Endpoint: endpoint,
+			Page:     page,
+			Fetched:  len(content),
+			Err:      fmt.Errorf("the site lists %d records here", stated),
+		}
+	}
+
+	return content, nil
 }
 
 // BruteForceContent attempts to discover content by ID enumeration
