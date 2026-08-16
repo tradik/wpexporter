@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.14] - 2026-08-16
+
+### Added
+- **`--limit` and `--limit-per-type`: export less than everything (#60).** The
+  smallest export of a site was the whole site. Every flag that bounded a run
+  bounded something else — an ID range, how far brute force walks, one file's
+  size, a whole kind of content — so a preview of the first five pages
+  downloaded five hundred, which is slow for whoever asked, unkind to the source
+  host and expensive for whoever pays for the bandwidth.
+
+  The cap is applied **while walking**, not after it: the walk stops as soon as
+  its budget is spent, and asks for only what it needs, so five documents from a
+  five-hundred-document site cost one request. Records come newest first, which
+  is the REST default and what makes the first five worth previewing.
+  `--limit-per-type` gives each kind its own budget; the two compose, whichever
+  is smaller.
+
+  Media follows the documents rather than the library: a limited export switches
+  on the `--relevant-media-only` logic and says so, since fetching 200 MB of
+  images for a five-page preview is the thing this exists to stop.
+
+  And the summary states the truncation — `Posts: 5 (limited from 75)`, from the
+  site's own `X-WP-Total` — because a truncated export that cannot say what it
+  truncated is the failure mode of every silent cap, and the same shape as the
+  gaps in #37 and the shortfalls in #43.
+
 ## [1.8.13] - 2026-08-16
 
 ### Fixed

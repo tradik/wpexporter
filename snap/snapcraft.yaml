@@ -1,6 +1,6 @@
 name: wpexporter
 base: core22
-version: "1.8.13"
+version: "1.8.14"
 title: wpexporter
 summary: Export WordPress content to JSON, Markdown, Shopify, and 14+ formats
 description: |

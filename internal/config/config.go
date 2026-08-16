@@ -92,6 +92,11 @@ type Config struct {
 	// structure, "flat" writes each as a single JSON string so it survives a
 	// store whose metadata model is key → list of strings (#49).
 	FrontmatterStyle string `mapstructure:"frontmatter_style" json:"frontmatter_style"`
+	// Limit caps the whole export at this many documents, newest first; 0 is
+	// unbounded. LimitPerType caps each kind — posts, pages, each custom type —
+	// on its own. A preview of a site should not download the site (#60).
+	Limit        int `mapstructure:"limit" json:"limit,omitempty"`
+	LimitPerType int `mapstructure:"limit_per_type" json:"limit_per_type,omitempty"`
 	// ReportA11y writes an accessibility report alongside the export.
 	ReportA11y bool `mapstructure:"report_a11y" json:"report_a11y"`
 	// ExtractMeta selects which meta tags beyond the named SEO fields are kept:
@@ -361,6 +366,10 @@ func (c *Config) Validate() error {
 
 	if c.FrontmatterStyle != "" && c.FrontmatterStyle != "nested" && c.FrontmatterStyle != "flat" {
 		return fmt.Errorf("frontmatter_style must be one of: nested, flat")
+	}
+
+	if c.Limit < 0 || c.LimitPerType < 0 {
+		return fmt.Errorf("limit and limit_per_type cannot be negative")
 	}
 
 	return nil

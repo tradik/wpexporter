@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -31,6 +32,13 @@ type Client struct {
 	httpClient *resty.Client
 	baseURL    string
 	cache      *cache.FileCache // Optional cache (nil if disabled)
+	// limits caps how much this client fetches, so a preview of a site does not
+	// download the site (#60).
+	limits limits
+	// stated remembers each collection's size as the site reported it, so a
+	// truncated export can say what it truncated.
+	stated   map[string]int
+	statedMu sync.Mutex
 }
 
 // NewClient creates a new WordPress API client
@@ -89,6 +97,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 		httpClient: httpClient,
 		baseURL:    baseURL,
 		cache:      nil, // Set via SetCache()
+		limits:     newLimits(cfg.Limit, cfg.LimitPerType),
 	}, nil
 }
 
@@ -762,8 +771,18 @@ func (c *Client) GetMediaByID(id int) (*models.WordPressMedia, error) {
 func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) {
 	var allContent []models.WordPressPost
 
+	// How much this collection may take, and what a page should ask for: there
+	// is no sense fetching a hundred records to keep five (#60).
+	budget := c.limits.budget()
+	if c.limits.exhausted() {
+		return nil, nil
+	}
+
 	page := 1
 	perPage := pageSizes[0]
+	if budget > 0 && budget < perPage {
+		perPage = budget
+	}
 	// What the site says the collection holds, from its own header. A walk that
 	// ends with fewer records than this has missed something (#43).
 	stated := 0
@@ -786,14 +805,27 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 
 			continue
 		case result.done:
+			c.limits.spend(len(allContent))
+
 			return c.checkedContent(endpoint, allContent, stated, page)
 		}
 
 		if stated == 0 {
 			stated = result.total
+			c.recordStated(endpoint, stated)
 		}
 
 		allContent = append(allContent, result.content...)
+
+		// Stop as soon as the budget is spent. The records come newest first,
+		// which is the REST default, so the first N are the N worth previewing.
+		if budget > 0 && len(allContent) >= budget {
+			allContent = allContent[:budget]
+			c.limits.spend(len(allContent))
+
+			return allContent, nil
+		}
+
 		page++
 
 		// A site that never says stop is bounded here: without a ceiling one
