@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.10] - 2026-08-16
+
+Two defects a reader of the migrated site can see.
+
+### Compatibility
+
+Additive: `sticky` appears only on a post that has it, and no key changes name
+or meaning. The one change in existing output is #50's, and it is the fix —
+emphasis that printed its asterisks now renders as emphasis.
+
+### Fixed
+- **Emphasis with a space inside the delimiters never closed (#50).** WordPress
+  content is full of `<strong>text </strong>`, with the space inside the tags,
+  which every browser renders without comment. Converted tag for tag that
+  becomes `**text **`, and in CommonMark a closing delimiter run preceded by
+  whitespace is not right-flanking: it closes nothing, so the reader is shown
+
+      Projekt \*\*\*bociany.pl \*\*\*realizowany jest przez Fundację…
+
+  157 of them across six unrelated migrations, every one printing raw asterisks
+  on a published page. The whitespace now moves out of the delimiters before the
+  conversion, where the HTML still says unambiguously which side it belongs to,
+  and a run holding nothing but space — `** **`, which means nothing in either
+  language — is dropped, leaving the space the page showed. Pinned in all four
+  positions the issue names, for `strong`, `b`, `em` and `i`.
+
+- **A pinned post landed wherever its date put it (#51).** WordPress lets an
+  editor pin a post to the top of the blog and the REST API says so plainly, but
+  the flag never reached the front matter, so a migrated listing sorted by date
+  alone put the site's deliberate first post sixth. `sticky: true` is now
+  exported, omitted when false, in both the markdown and `ssg` formats.
+
 ## [1.8.9] - 2026-08-16
 
 Three issues, one shape: an export that is not wrong so much as silently

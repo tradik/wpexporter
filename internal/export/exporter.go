@@ -603,6 +603,14 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 	builder.WriteString(fmt.Sprintf("type: \"%s\"\n", contentType))
 	builder.WriteString(fmt.Sprintf("link: \"%s\"\n", post.Link))
 
+	// A pinned post says so. WordPress lets an editor put a post at the top of
+	// the blog, and a listing sorted by date alone drops it wherever its date
+	// falls — sixth, on the site that reported this. Omitted when false, so it
+	// appears only where the editor asked for it (#51).
+	if post.Sticky {
+		builder.WriteString("sticky: true\n")
+	}
+
 	// A page whose body is a listing element says so, so a target points its
 	// own archive at this address instead of migrating a page over it (#41).
 	writePostLoopFrontMatter(&builder, post, contentType)

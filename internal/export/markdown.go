@@ -48,6 +48,11 @@ var (
 func htmlToMarkdown(input string) string {
 	md := mdScriptStyleRe.ReplaceAllString(input, "")
 
+	// Before any delimiter is written: a space inside <strong> becomes a space
+	// inside `**`, and a closing run preceded by whitespace closes nothing in
+	// CommonMark, so the reader is shown the asterisks (#50).
+	md = normalizeEmphasisSpacing(md)
+
 	// Headings: prefix a blank line so a heading that follows inline content starts
 	// its own block; the final blank-line collapse removes the extras.
 	md = mdHeadingOpenRe.ReplaceAllStringFunc(md, func(tag string) string {
