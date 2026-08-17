@@ -453,6 +453,12 @@ type ExportStats struct {
 	// the target's own listing, so they are stated rather than left to be found
 	// by reading the built HTML (#41).
 	PostLoopPages []string `json:"post_loop_pages,omitempty"`
+	// Notices are the facts about the site itself that shaped this export
+	// rather than any one collection: a WordPress older than the content API,
+	// a REST API reachable only at ?rest_route=. They are not gaps — nothing
+	// was skipped — but they explain a thin export, and a console line
+	// scrolls away (#66, #68).
+	Notices []string `json:"notices,omitempty"`
 }
 
 // WooCommerceProduct represents a WooCommerce product

@@ -33,13 +33,19 @@ var preBlockRe = regexp.MustCompile(`(?is)<pre\b[^>]*>(.*?)</pre\s*>`)
 // backtickRunRe finds the longest run of backticks in a block's content.
 var backtickRunRe = regexp.MustCompile("`+")
 
+// spaceBeforeFenceRe finds what the <pre> left behind on the line above it —
+// the space in "and <pre>". Trailing whitespace is not inert in Markdown: two
+// of them are a hard line break, and here they sit where the reader can neither
+// see nor delete them.
+var spaceBeforeFenceRe = regexp.MustCompile("[ \t]+\n\n(`{3,})")
+
 // minFence is CommonMark's shortest fence.
 const minFence = 3
 
 // convertPreBlocks turns every <pre> into a fenced block whose markers own
 // their lines and whose fence is long enough to hold the content.
 func convertPreBlocks(html string) string {
-	return preBlockRe.ReplaceAllStringFunc(html, func(block string) string {
+	fenced := preBlockRe.ReplaceAllStringFunc(html, func(block string) string {
 		content := preBlockRe.FindStringSubmatch(block)[1]
 		fence := strings.Repeat("`", fenceLength(content))
 
@@ -49,6 +55,8 @@ func convertPreBlocks(html string) string {
 		// document with it.
 		return "\n\n" + fence + "\n" + strings.Trim(content, "\n") + "\n" + fence + "\n\n"
 	})
+
+	return spaceBeforeFenceRe.ReplaceAllString(fenced, "\n\n$1")
 }
 
 // fenceLength is one longer than the longest backtick run inside, so the block

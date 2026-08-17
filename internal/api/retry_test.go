@@ -73,7 +73,18 @@ func TestGetPostsDoesNotRetryAnAnswer(t *testing.T) {
 
 	_, err := client.GetPosts()
 	require.Error(t, err)
-	assert.Equal(t, int32(1), attempts.Load(), "asked once, answered once")
+
+	// A 404 is an answer, so the backoff never repeats it. It does now cost the
+	// one-time route probe — the site may be serving its API at ?rest_route=
+	// instead (#66) — which is two requests at most and asked once per client,
+	// never per page.
+	first := attempts.Load()
+	assert.LessOrEqual(t, first, int32(3), "the answer is not retried; the probe runs once")
+
+	_, err = client.GetPages()
+	require.Error(t, err)
+	assert.LessOrEqual(t, attempts.Load()-first, int32(1),
+		"the second collection asks once and does not probe again")
 }
 
 // TestGetPostsKeepsWhatItFetched: the second half of #37. One unreadable page

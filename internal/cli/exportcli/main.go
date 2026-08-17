@@ -804,6 +804,11 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// but they do not end the export (#37).
 	var gaps []string
 
+	// Facts about the site itself rather than about any one collection: an API
+	// answering only at ?rest_route=, or a WordPress with no content API at all
+	// (#66, #68). They are learned while fetching, so they are collected after.
+	var notices []string
+
 	// Get content via API (respecting filter flags)
 	var posts []models.WordPressPost
 	if !cfg.NoPosts {
@@ -836,6 +841,10 @@ func runExport(cmd *cobra.Command, args []string) error {
 	} else {
 		logln("Skipping pages (--no-pages)")
 	}
+
+	// By now something has been asked for, so the client knows which spelling
+	// this site answers to — or that it answers to neither (#66, #68).
+	noteSiteAPI(apiClient, &notices)
 
 	var products []models.WooCommerceProduct
 	// What to say about the products, when "0" and "could not read them" would
@@ -1046,9 +1055,13 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 
 	logln("Fetching categories...")
+	// Taxonomy is not the export: a site whose categories route is missing —
+	// a WordPress older than the one that introduced wp/v2, a plugin that hid
+	// it — still has its posts and pages, and used to lose them all here before
+	// --from-sitemap could even be reached (#68).
 	categories, err := apiClient.GetCategories()
-	if err != nil {
-		return fmt.Errorf("failed to get categories: %w", err)
+	if err := noteIncomplete(&gaps, "categories", err); err != nil {
+		return err
 	}
 	logf("Found %d categories\n", len(categories))
 
@@ -1056,8 +1069,8 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if !cfg.NoTags {
 		logln("Fetching tags...")
 		tags, err = apiClient.GetTags()
-		if err != nil {
-			return fmt.Errorf("failed to get tags: %w", err)
+		if err := noteIncomplete(&gaps, "tags", err); err != nil {
+			return err
 		}
 		logf("Found %d tags\n", len(tags))
 	} else {
@@ -1134,6 +1147,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 		logf("Range rescan found %d new items\n", n)
 	}
 
+	// Asked again because a run told to skip posts and pages learns the shape of
+	// the site's API later than one that was not; noteSiteAPI says a thing once.
+	noteSiteAPI(apiClient, &notices)
+
+	fallBackToFeed(apiClient, cfg)
+
 	// Create export data
 	exportData := &models.ExportData{
 		Site:        *siteInfo,
@@ -1161,6 +1180,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 			TotalComments:    len(comments),
 			BruteForceFound:  bruteForceFound,
 			Incomplete:       gaps,
+			Notices:          notices,
 		},
 	}
 
@@ -1243,6 +1263,10 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// the same lines are in metadata.json, because a console scrolls away.
 	for _, gap := range gaps {
 		logf("Incomplete: %s\n", gap)
+	}
+
+	for _, notice := range notices {
+		logf("Note: %s\n", notice)
 	}
 
 	// And what the site says it has, against what this run wrote (#40). The

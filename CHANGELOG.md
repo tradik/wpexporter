@@ -8,6 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **A site serving its REST API at `?rest_route=` exported nothing (#66).**
+  WordPress publishes its API two ways — the pretty `/wp-json/wp/v2/…` and
+  `/?rest_route=/wp/v2/…`, which needs no permalink structure at all — and a
+  site with plain permalinks, or a security plugin hiding `/wp-json/`, serves
+  only the second. Every request 404d and the run ended with a message about
+  categories, on a site whose whole API was one question mark away.
+
+  Both spellings are now read. The discovery is lazy, because the exception must
+  not be charged to the rule: the pretty address is tried first, nothing is
+  probed until a request actually comes back 404, and a site that answers
+  normally spends no extra request at all. The site that needs the fallback pays
+  one. The spelling that was used is stated in the report and in
+  `stats.notices`, since the address there is not the one a reader would try by
+  hand.
+
+- **A WordPress older than the content API exported as an empty site (#68).**
+  The `wp/v2` routes arrived in WordPress 4.7; an older install answers
+  `rest_no_route` to both spellings of every one of them. The export came back
+  with zeroes across the board and no reason given, which is indistinguishable
+  from a site that has no content — and the reporter's site had eleven years of
+  it.
+
+  The run now names the cause once, records it in `stats.notices`, and reads
+  what such a site still publishes: its feed, the fallback `--from-sitemap`
+  exists for, turned on by itself because there was nothing for the operator to
+  have known in advance. `--no-inventory-check` still overrules it.
+
 - **A code fence inside the body turned the rest of the page into a code block
   (#69).** `<pre>` became "```" wherever it happened to sit, so a plugin that
   ships one inside a `<div>` — a reviews widget with a `<template>` in it — had

@@ -164,7 +164,7 @@ Delay between API requests in milliseconds (prevents server rate limiting)
 Form of the front-matter values that are not flat \- the \fBmeta\fR map and the \fBhreflangs\fR list. \fInested\fR (default) writes YAML structure, which is what a generator reading the files wants. \fIflat\fR writes each as a single JSON string, so it survives a store whose metadata model is key to list of strings and can be decoded back into the same structure; \fBjson_ld\fR already travels as text and is unchanged either way.
 .TP
 .BR \-\-from\-sitemap
-Recover posts from the site's main feed when the REST API serves none \- a site whose \fI/wp/v2/posts\fR answers 5xx for every request still publishes its feed. Recovered records carry title, address, date, author and body, and no IDs, taxonomy terms or featured images; \fBstats.recovered_posts\fR states how many there were. The feed lists recent items only, so this never replaces or merges with a collection the API did serve.
+Recover posts from the site's main feed when the REST API serves none \- a site whose \fI/wp/v2/posts\fR answers 5xx for every request still publishes its feed. Recovered records carry title, address, date, author and body, and no IDs, taxonomy terms or featured images; \fBstats.recovered_posts\fR states how many there were. The feed lists recent items only, so this never replaces or merges with a collection the API did serve. A WordPress older than 4.7 has no content API at all, so the run turns this on for itself there rather than handing back an empty export.
 .TP
 .BR \-\-no\-inventory\-check
 Skip the completeness check. After the export the site's own sitemap and main feed are read \- one or two requests \- and every address they list that the export does not carry is reported, grouped by path, and recorded in \fBmetadata.json\fR under \fBstats.uncovered\fR. Archive views a generator rebuilds itself (\fI/tag/\fR, \fI/category/\fR, date archives) are not counted. A site that publishes neither document says so and the export is unchanged.
@@ -208,6 +208,12 @@ Suppress all output, only return exit code
 .TP
 .BR \-\-config " " \fIFILE\fR
 Configuration file path
+.SH "THE SITE'S REST API"
+WordPress serves its REST API two ways: the pretty \fI/wp\-json/wp/v2/\&...\fR, and \fI/?rest_route=/wp/v2/\&...\fR, which works with no permalink structure at all. Sites serving only the second are common enough to matter \- permalinks set to plain, or a security plugin hiding \fI/wp\-json/\fR \- and they are read without being asked about.
+.PP
+The discovery is lazy, because the pretty spelling is what nearly every site answers to: it is tried first, nothing is probed until a request actually comes back \fB404\fR, and a site whose API works spends no extra request at all. The site that needs the fallback pays one. Which spelling was used is stated in the report and in \fBstats.notices\fR in \fBmetadata.json\fR, since the address there is not the one a reader would try by hand.
+.PP
+A WordPress older than \fB4.7\fR has neither spelling: the \fBwp/v2\fR content routes arrived in that release, and an older install answers \fBrest_no_route\fR to both. There is nothing to fall back to, so the run states it once, records it in \fBstats.notices\fR, and reads what the site still publishes in its feed \- an empty export that looks like an empty site is the failure this replaces.
 .SH "THE WPEXPORTER COMMAND"
 The toolkit installs four binaries. Three are the individual tools:
 .BR wpexportjson " (REST API, this page), " wpxmlrpc " (XML-RPC) and " wpmcp " (MCP server)."

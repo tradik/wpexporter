@@ -58,6 +58,23 @@ many. It is asked for rather than assumed, and never merges with or replaces a
 collection the API did serve: REST is the better source in every respect, and a
 feed lists recent items rather than the archive.
 
+A site serving its REST API at **`?rest_route=`** rather than `/wp-json/` is read
+without being asked about. That is the fallback spelling WordPress documents,
+served whenever permalinks are plain or a security plugin hides the pretty route,
+and the exporter used to stop at the first 404 with a message about categories
+(#66). It is discovered lazily: the pretty address is tried first, nothing is
+probed until one actually 404s, and a site that answers normally spends no extra
+request at all. The export is complete either way, and `stats.notices` in
+`metadata.json` names the spelling that was used, because the address in the
+report is not the one a reader would try by hand.
+
+A WordPress **older than 4.7** has no `wp/v2` content routes in either spelling —
+the content API arrived in that release — and answers `rest_no_route` to
+everything. There is nothing to fall back to, so the run says so once, records it
+in `stats.notices`, and reads the site's feed by itself rather than handing back
+an empty export that looks like an empty site (#68). `--no-inventory-check`
+overrules that, as it overrules everything else the inventory does.
+
 A post the editor **pinned to the top of the blog** carries `sticky: true`,
 omitted when false. A listing sorted by date alone buries it wherever its date
 falls — sixth, on the site that reported it (#51).

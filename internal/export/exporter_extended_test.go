@@ -234,9 +234,12 @@ func TestConvertHTMLToMarkdown(t *testing.T) {
 			expected: "- Item 1\n- Item 2",
 		},
 		{
-			name:     "Code blocks",
-			input:    "<code>inline code</code> and <pre>block code</pre>",
-			expected: "`inline code` and ```\nblock code\n```",
+			name:  "Code blocks",
+			input: "<code>inline code</code> and <pre>block code</pre>",
+			// A fence owns its lines. Written inline after "and", as this
+			// expected before #69, it opens nothing in CommonMark and prints
+			// its own backticks to the reader.
+			expected: "`inline code` and\n\n```\nblock code\n```",
 		},
 		{
 			name:     "Empty string",
