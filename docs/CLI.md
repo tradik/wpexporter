@@ -85,8 +85,8 @@ wpexportjson export --config config.yaml
 <tr><td><code>--flat-html</code></td><td>Convert HTML to Markdown (Bricks Builder, Elementor support)</td><td><code>false</code></td></tr>
 <tr><td><code>--basic-html</code></td><td>Clean HTML to basic elements (tables, lists, links - for Shopify)</td><td><code>false</code></td></tr>
 <tr><td><code>--ssg-sections</code></td><td>Markdown: emit <code>## Excerpt</code>/<code>## Content</code> sections and omit the duplicate body H1 (for ssg)</td><td><code>false</code></td></tr>
-<tr><td><code>--preserve-classes</code></td><td>CSS classes to preserve from HTML processing (comma-separated, supports wildcards like <code>klaviyo-form-*</code>)</td><td>-</td></tr>
-<tr><td><code>--preserve-ids</code></td><td>Element IDs to preserve from HTML processing (comma-separated, supports wildcards)</td><td>-</td></tr>
+<tr><td><code>--preserve-classes</code></td><td>CSS classes whose elements travel as HTML rather than being converted (comma-separated, wildcards like <code>klaviyo-form-*</code>). Applies to <code>markdown</code>/<code>ssg</code> as well as <code>--flat-html</code> and <code>--basic-html</code> — a heading's class is where a theme keeps its colour, and Markdown has nowhere to put it</td><td>-</td></tr>
+<tr><td><code>--preserve-ids</code></td><td>Element IDs whose elements travel as HTML rather than being converted (comma-separated, wildcards allowed)</td><td>-</td></tr>
 <tr><td><code>--assisted-crawl</code></td><td>Crawl URLs to extract SEO metadata (title, description, og tags)</td><td><code>false</code></td></tr>
 <tr><td><code>--exclude-tags</code></td><td>SEO tags to exclude (comma-separated: title,meta:description,og:title,canonical,lang,hreflangs)</td><td>-</td></tr>
 <tr><td><code>--crawl-content</code></td><td>Crawl pages with empty content (Bricks, Elementor page builders)</td><td><code>false</code></td></tr>

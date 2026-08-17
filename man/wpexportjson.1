@@ -97,10 +97,10 @@ Convert HTML to Markdown (Bricks Builder, Elementor support)
 Clean HTML to basic elements (tables, lists, links - for Shopify)
 .TP
 .BR \-\-preserve\-classes " " \fICLASSES\fR
-CSS classes to preserve from HTML processing (comma-separated, supports wildcards like klaviyo-form-*)
+CSS classes whose elements travel as the HTML they arrived as, rather than being converted (comma-separated, wildcards allowed: \fBklaviyo-form-*\fR, \fBtrx_addons_inline_*\fR, or \fB*\fR for every element carrying a class). Applies to \fBmarkdown\fR and \fBssg\fR as well as \fB\-\-flat\-html\fR and \fB\-\-basic\-html\fR: a heading's class is where themes of some families keep its colour, and a Markdown heading has nowhere to put it, so the migrated page renders the headline in the body colour instead.
 .TP
 .BR \-\-preserve\-ids " " \fIIDS\fR
-Element IDs to preserve from HTML processing (comma-separated, supports wildcards)
+Element IDs whose elements travel as the HTML they arrived as, rather than being converted (comma-separated, wildcards allowed).
 .TP
 .BR \-\-keep\-original\-urls
 Preserve original WordPress URLs in content (don't convert to local paths). Without this flag the
@@ -251,6 +251,13 @@ Export for Shopify, preserving Klaviyo forms:
 .RS
 wpexportjson export --url https://example.com -f shopify --basic-html \\
   --preserve-classes "klaviyo-form-*"
+.RE
+.SS "Keeping a Theme's Generated Classes"
+Migrate to Markdown while keeping the elements the theme colours through a generated class:
+.PP
+.RS
+wpexportjson export --url https://example.com -f markdown \\
+  --preserve-classes "trx_addons_inline_*"
 .RE
 .SS "Static Site Generator Source"
 Export a drop-in content source and check it for accessibility problems before publishing:

@@ -253,9 +253,9 @@ func init() {
 	exportCmd.Flags().BoolVar(&ssgSections, "ssg-sections", false,
 		"markdown: emit ## Excerpt/## Content sections and omit the duplicate body H1 (for ssg)")
 	exportCmd.Flags().StringVar(&preserveClasses, "preserve-classes", "",
-		"CSS classes to preserve from HTML processing (comma-separated, use with --flat-html or --basic-html)")
+		"CSS classes whose elements travel as HTML (comma-separated, wildcards allowed: trx_addons_inline_*)")
 	exportCmd.Flags().StringVar(&preserveIDs, "preserve-ids", "",
-		"element IDs to preserve from HTML processing (comma-separated, use with --flat-html or --basic-html)")
+		"element IDs whose elements travel as HTML (comma-separated, wildcards allowed)")
 	exportCmd.Flags().BoolVar(&keepOriginalURLs, "keep-original-urls", false,
 		"preserve original WordPress URLs in content (don't convert to local paths)")
 	exportCmd.Flags().StringVar(&mediaPathStyle, "media-path-style", "root",

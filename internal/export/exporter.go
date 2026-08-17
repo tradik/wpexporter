@@ -985,7 +985,20 @@ func (e *Exporter) escapeYAML(s string) string {
 // strips any leftover tags so Gutenberg block markup does not survive half-converted
 // (issue #21).
 func (e *Exporter) convertHTMLToMarkdown(html string) string {
-	return htmlToMarkdown(html)
+	return htmlToMarkdownKeeping(html, e.preserveRules())
+}
+
+// preserveRules are the classes and IDs --preserve-classes and --preserve-ids
+// named. They applied only to --flat-html and --basic-html until #67: a
+// heading's class is where a theme keeps its color, and Markdown has nowhere
+// to put it, so the operator can now say which elements travel as HTML here
+// too. Named nothing, the conversion is exactly what it was.
+func (e *Exporter) preserveRules() preserveRules {
+	if e.config == nil {
+		return preserveRules{}
+	}
+
+	return preserveRules{classes: e.config.PreserveClasses, ids: e.config.PreserveIDs}
 }
 
 // exportShopify exports data as Shopify-compatible CSV

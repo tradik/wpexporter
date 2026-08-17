@@ -23,6 +23,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `stats.notices`, since the address there is not the one a reader would try by
   hand.
 
+- **A heading's classes were dropped, and the theme's colour with them (#67).**
+  Themes of some families emit one generated class per element and a stylesheet
+  rule to match — `trx_addons_inline_158836093` is where a heading's colour
+  lives. Converted to `## Title`, the class has nowhere to go: the stylesheets
+  migrate fine and there is nothing left for them to match, so a front page's
+  headline renders in the body colour while a headline two sections down keeps
+  the theme's by accident, because that one styles its inner `<span>` too.
+
+  `--preserve-classes` and `--preserve-ids` now apply to the `markdown` and
+  `ssg` formats as well as to `--flat-html` and `--basic-html`, and an element
+  they name travels as the HTML it arrived as — including everything inside it.
+  Wildcards were already supported and are what this needs, since the classes
+  worth keeping are generated: `--preserve-classes 'trx_addons_inline_*'`, or
+  `'*'` for every element that carries a class at all. **Named nothing, the
+  conversion is exactly what it was**: a Gutenberg site's `wp-block-heading`
+  still becomes `##`, because keeping those would turn a clean Markdown export
+  into a wall of tags for everyone.
+
 - **A WordPress older than the content API exported as an empty site (#68).**
   The `wp/v2` routes arrived in WordPress 4.7; an older install answers
   `rest_no_route` to both spellings of every one of them. The export came back

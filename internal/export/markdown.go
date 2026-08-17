@@ -46,7 +46,19 @@ var (
 // orphaned opening tag behind (issue #21). Self-contained HTML (images, figures,
 // anchors) is passed through unchanged.
 func htmlToMarkdown(input string) string {
+	return htmlToMarkdownKeeping(input, preserveRules{})
+}
+
+// htmlToMarkdownKeeping converts the same way, leaving the elements the
+// operator named as the HTML they came in as — a heading whose class is where
+// the theme's color lives has nowhere to put it in Markdown (#67).
+func htmlToMarkdownKeeping(input string, keep preserveRules) string {
 	md := mdScriptStyleRe.ReplaceAllString(input, "")
+
+	// Before the first rule rewrites anything: an element kept whole has to be
+	// out of the way of every one of them, not just the one that would have
+	// converted its outer tag.
+	md, preservedElements := preserveElements(md, keep)
 
 	// Before any delimiter is written: a space inside <strong> becomes a space
 	// inside `**`, and a closing run preceded by whitespace closes nothing in
@@ -106,8 +118,11 @@ func htmlToMarkdown(input string) string {
 	md = closeDanglingFence(md)
 
 	// Last, so nothing above rewrites the markup of a list Markdown cannot
-	// number — a lettered, roman or reversed one, which travels as HTML.
-	return restorePreservedLists(md, preservedLists)
+	// number — a lettered, roman or reversed one, which travels as HTML — or of
+	// an element the operator asked to keep.
+	md = restorePreservedLists(md, preservedLists)
+
+	return restorePreserved(md, preservedElements)
 }
 
 // dedentOutsideCodeFences strips the leading whitespace of every line that is
