@@ -39,6 +39,10 @@ type Client struct {
 	// truncated export can say what it truncated.
 	stated   map[string]int
 	statedMu sync.Mutex
+	// probe remembers which spelling of the REST API this site answers to. It
+	// is filled in only after the ordinary one has failed, so a site that
+	// answers normally never pays for the question (#66).
+	probe routeProbe
 }
 
 // NewClient creates a new WordPress API client
@@ -97,7 +101,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 		httpClient: httpClient,
 		baseURL:    baseURL,
 		cache:      nil, // Set via SetCache()
-		limits:     newLimits(cfg.Limit, cfg.LimitPerType),
+		limits:     newLimits(cfg.Limit, cfg.LimitPerType, cfg.LimitByType),
 	}, nil
 }
 
@@ -211,9 +215,7 @@ type siteSettings struct {
 // that is not the root document — is not: the export can still proceed and
 // record which URL it was pointed at.
 func (c *Client) fetchAPIRootInfo() (models.SiteInfo, error) {
-	rootURL := strings.TrimSuffix(c.baseURL, "/wp/v2")
-
-	resp, err := c.httpClient.R().Get(rootURL)
+	resp, err := c.fetchProbing(c.apiRootURL)
 	if err != nil {
 		return models.SiteInfo{}, fmt.Errorf("failed to get site info: %w", err)
 	}
@@ -250,9 +252,7 @@ func (c *Client) fetchAPIRootInfo() (models.SiteInfo, error) {
 // reachable. An unauthenticated site returns 401 here, which is not an error:
 // the root document already supplied the identity fields.
 func (c *Client) mergeSettingsInfo(siteInfo *models.SiteInfo) {
-	settingsURL := strings.TrimSuffix(c.baseURL, "/wp/v2") + "/wp/v2/settings"
-
-	resp, err := c.httpClient.R().Get(settingsURL)
+	resp, err := c.httpClient.R().Get(c.endpointURL("settings", ""))
 	if err != nil || resp.StatusCode() != 200 {
 		return
 	}
@@ -351,8 +351,17 @@ func (c *Client) GetProducts() ([]models.WooCommerceProduct, error) {
 	}
 
 	var allProducts []models.WooCommerceProduct
+
+	budget, proceed := c.takeBudget(CollectionProducts)
+	if !proceed {
+		return nil, nil
+	}
+
 	page := 1
 	perPage := 100
+	if budget > 0 && budget < perPage {
+		perPage = budget
+	}
 
 	// WooCommerce uses a different API base
 	wooBaseURL := strings.Replace(c.baseURL, "/wp/v2", "/wc/v3", 1)
@@ -390,8 +399,18 @@ func (c *Client) GetProducts() ([]models.WooCommerceProduct, error) {
 		}
 
 		allProducts = append(allProducts, products...)
+
+		if budget > 0 && len(allProducts) >= budget {
+			allProducts = allProducts[:budget]
+			c.spendBudget(len(allProducts))
+
+			return allProducts, nil
+		}
+
 		page++
 	}
+
+	c.spendBudget(len(allProducts))
 
 	// Cache the result
 	c.saveToCache(cacheKey, allProducts)
@@ -434,8 +453,20 @@ func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
 	}
 
 	var allMedia []models.WordPressMedia
+
+	// The media listing was never capped: --limit bounded the documents and
+	// still walked the whole library, which on a site with 1204 attachments is
+	// thirteen requests nobody asked for (#62).
+	budget, proceed := c.takeBudget(CollectionMedia)
+	if !proceed {
+		return nil, nil
+	}
+
 	page := 1
 	perPage := 100
+	if budget > 0 && budget < perPage {
+		perPage = budget
+	}
 
 	for {
 		// Apply rate limiting between requests
@@ -443,9 +474,7 @@ func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
 			c.applyRateLimit()
 		}
 
-		url := fmt.Sprintf("%s/media?page=%d&per_page=%d", c.baseURL, page, perPage)
-
-		resp, err := c.httpClient.R().Get(url)
+		resp, err := c.fetchCollection("media", fmt.Sprintf("page=%d&per_page=%d", page, perPage))
 		if err != nil {
 			return allMedia, &PartialError{Endpoint: "media", Page: page, Fetched: len(allMedia), Err: err}
 		}
@@ -467,6 +496,8 @@ func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
 			}
 		}
 
+		c.recordStated(CollectionMedia, collectionTotal(resp.Header().Get(totalHeader)))
+
 		var media []models.WordPressMedia
 		if err := json.Unmarshal(resp.Body(), &media); err != nil {
 			return allMedia, &PartialError{
@@ -482,8 +513,18 @@ func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
 		}
 
 		allMedia = append(allMedia, media...)
+
+		if budget > 0 && len(allMedia) >= budget {
+			allMedia = allMedia[:budget]
+			c.spendBudget(len(allMedia))
+
+			return allMedia, nil
+		}
+
 		page++
 	}
+
+	c.spendBudget(len(allMedia))
 
 	// Cache the result
 	c.saveToCache(cacheKey, allMedia)
@@ -511,9 +552,7 @@ func (c *Client) GetCategories() ([]models.WordPressCategory, error) {
 			c.applyRateLimit()
 		}
 
-		url := fmt.Sprintf("%s/categories?page=%d&per_page=%d", c.baseURL, page, perPage)
-
-		resp, err := c.httpClient.R().Get(url)
+		resp, err := c.fetchCollection("categories", fmt.Sprintf("page=%d&per_page=%d", page, perPage))
 		if err != nil {
 			return allCategories, &PartialError{Endpoint: "categories", Page: page, Fetched: len(allCategories), Err: err}
 		}
@@ -578,9 +617,7 @@ func (c *Client) GetTags() ([]models.WordPressTag, error) {
 			c.applyRateLimit()
 		}
 
-		url := fmt.Sprintf("%s/tags?page=%d&per_page=%d", c.baseURL, page, perPage)
-
-		resp, err := c.httpClient.R().Get(url)
+		resp, err := c.fetchCollection("tags", fmt.Sprintf("page=%d&per_page=%d", page, perPage))
 		if err != nil {
 			return allTags, &PartialError{Endpoint: "tags", Page: page, Fetched: len(allTags), Err: err}
 		}
@@ -645,9 +682,7 @@ func (c *Client) GetUsers() ([]models.WordPressUser, error) {
 			c.applyRateLimit()
 		}
 
-		url := fmt.Sprintf("%s/users?page=%d&per_page=%d", c.baseURL, page, perPage)
-
-		resp, err := c.httpClient.R().Get(url)
+		resp, err := c.fetchCollection("users", fmt.Sprintf("page=%d&per_page=%d", page, perPage))
 		if err != nil {
 			return allUsers, &PartialError{Endpoint: "users", Page: page, Fetched: len(allUsers), Err: err}
 		}
@@ -773,8 +808,8 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 
 	// How much this collection may take, and what a page should ask for: there
 	// is no sense fetching a hundred records to keep five (#60).
-	budget := c.limits.budget()
-	if c.limits.exhausted() {
+	budget, proceed := c.takeBudget(endpoint)
+	if !proceed {
 		return nil, nil
 	}
 
@@ -805,7 +840,7 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 
 			continue
 		case result.done:
-			c.limits.spend(len(allContent))
+			c.spendBudget(len(allContent))
 
 			return c.checkedContent(endpoint, allContent, stated, page)
 		}
@@ -821,7 +856,7 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 		// which is the REST default, so the first N are the N worth previewing.
 		if budget > 0 && len(allContent) >= budget {
 			allContent = allContent[:budget]
-			c.limits.spend(len(allContent))
+			c.spendBudget(len(allContent))
 
 			return allContent, nil
 		}
@@ -846,9 +881,7 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 // do next. Every failure carries what the caller had already fetched, because
 // an export missing one page and saying so beats no export at all (#37).
 func (c *Client) fetchContentPage(endpoint string, page, perPage, fetched int) pageResult {
-	url := fmt.Sprintf("%s/%s?page=%d&per_page=%d", c.baseURL, endpoint, page, perPage)
-
-	resp, err := c.httpClient.R().Get(url)
+	resp, err := c.fetchCollection(endpoint, fmt.Sprintf("page=%d&per_page=%d", page, perPage))
 	if err != nil {
 		return pageResult{err: &PartialError{Endpoint: endpoint, Page: page, Fetched: fetched, Err: err}}
 	}

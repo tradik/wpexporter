@@ -79,7 +79,11 @@ var (
 	retries           int
 	userAgent         string
 	limit             int
-	limitPerType      int
+	limitPerType      string
+	limitPosts        int
+	limitPages        int
+	limitMedia        int
+	limitProducts     int
 	resume            bool
 	timeout           int
 	crawlContent      bool
@@ -162,14 +166,15 @@ Advanced:
       --scan-range START-END  Rescan a specific inclusive ID range (e.g. 100-200)
       --max-media-mb int      Per-file media download cap in MB (0 = default 2048)
       --assisted-crawl        Crawl URLs for SEO metadata
-      --crawl-content         Crawl pages with empty content (Bricks, Elementor)
+      --crawl-content         Take the rendered page where the stored body is not the page
       --relevant-media-only   Download only featured/content images
       --resume                Resume from checkpoint
       --rate-limit int        Delay between requests in ms
       --retries int           Retries for a 5xx, 429 or dropped connection (default 3)
       --user-agent string     Identify as something else (bot protection matches the default)
       --limit int             Export at most N documents in total, newest first
-      --limit-per-type int    Export at most N of each kind (posts, pages, each custom type)
+      --limit-per-type spec   At most N of each kind, or kind=N pairs: 5,media=10
+      --limit-posts int       At most N posts (same for --limit-pages/-media/-products)
       --zip                   Create ZIP archive
       --no-files              Remove files after ZIP (requires --zip)
 
@@ -224,8 +229,13 @@ func init() {
 	exportCmd.Flags().IntVar(&limit, "limit", 0,
 		"export at most N documents in total, newest first (0 = no limit); the walk stops when the "+
 			"budget is spent, so a preview of a site does not download the site")
-	exportCmd.Flags().IntVar(&limitPerType, "limit-per-type", 0,
-		"export at most N of each kind — posts, pages, each custom type (0 = no limit)")
+	exportCmd.Flags().StringVar(&limitPerType, "limit-per-type", "",
+		"at most N of each kind, or kind=N pairs — \"5\", \"posts=5,media=10\" or \"5,media=10\"; "+
+			"a kind is a collection name or a custom type's slug")
+	exportCmd.Flags().IntVar(&limitPosts, "limit-posts", 0, "export at most N posts (0 = no limit)")
+	exportCmd.Flags().IntVar(&limitPages, "limit-pages", 0, "export at most N pages (0 = no limit)")
+	exportCmd.Flags().IntVar(&limitMedia, "limit-media", 0, "export at most N media items (0 = no limit)")
+	exportCmd.Flags().IntVar(&limitProducts, "limit-products", 0, "export at most N products (0 = no limit)")
 	exportCmd.Flags().StringVar(&userAgent, "user-agent", "",
 		"the User-Agent to send; bot protection matches on the default, and a browser's string "+
 			"is the remedy that most often works against a 403 from a wall")
@@ -236,16 +246,16 @@ func init() {
 	exportCmd.Flags().StringVar(&pathFilter, "path-filter", "", "filter posts/pages by URL path pattern (e.g., /fr/arts/)")
 	exportCmd.Flags().BoolVar(&assistedCrawl, "assisted-crawl", false, "crawl URLs for SEO metadata")
 	exportCmd.Flags().StringVar(&excludeTags, "exclude-tags", "", "SEO tags to exclude (comma-separated: title,meta:description,og:title)")
-	exportCmd.Flags().BoolVar(&crawlContent, "crawl-content", false, "crawl pages with empty content (Bricks, Elementor)")
+	exportCmd.Flags().BoolVar(&crawlContent, "crawl-content", false, "take the rendered page where the stored body is empty or is page-builder markup")
 	exportCmd.Flags().BoolVar(&skipEmptyContent, "skip-empty-content", false, "skip posts/pages with empty content")
 	exportCmd.Flags().BoolVar(&flatHTML, "flat-html", false, "convert HTML to Markdown (Bricks Builder support)")
 	exportCmd.Flags().BoolVar(&basicHTML, "basic-html", false, "clean HTML to basic elements (tables, lists, links - for Shopify)")
 	exportCmd.Flags().BoolVar(&ssgSections, "ssg-sections", false,
 		"markdown: emit ## Excerpt/## Content sections and omit the duplicate body H1 (for ssg)")
 	exportCmd.Flags().StringVar(&preserveClasses, "preserve-classes", "",
-		"CSS classes to preserve from HTML processing (comma-separated, use with --flat-html or --basic-html)")
+		"CSS classes whose elements travel as HTML (comma-separated, wildcards allowed: trx_addons_inline_*)")
 	exportCmd.Flags().StringVar(&preserveIDs, "preserve-ids", "",
-		"element IDs to preserve from HTML processing (comma-separated, use with --flat-html or --basic-html)")
+		"element IDs whose elements travel as HTML (comma-separated, wildcards allowed)")
 	exportCmd.Flags().BoolVar(&keepOriginalURLs, "keep-original-urls", false,
 		"preserve original WordPress URLs in content (don't convert to local paths)")
 	exportCmd.Flags().StringVar(&mediaPathStyle, "media-path-style", "root",
@@ -463,8 +473,25 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	if cmd.Flags().Changed("limit") {
 		cfg.Limit = limit
 	}
-	if cmd.Flags().Changed("limit-per-type") {
-		cfg.LimitPerType = limitPerType
+	shortcuts := map[string]int{}
+	for name, value := range map[string]*int{
+		"posts": &limitPosts, "pages": &limitPages,
+		"media": &limitMedia, "products": &limitProducts,
+	} {
+		if cmd.Flags().Changed("limit-" + name) {
+			shortcuts[name] = *value
+		}
+	}
+
+	if cmd.Flags().Changed("limit-per-type") || len(shortcuts) > 0 {
+		conflicts, err := applyPerTypeLimits(cfg, limitPerType, shortcuts)
+		if err != nil {
+			return err
+		}
+
+		for _, conflict := range conflicts {
+			logf("Note: %s\n", conflict)
+		}
 	}
 	if cmd.Flags().Changed("resume") {
 		cfg.Resume = resume
@@ -767,7 +794,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// whole library: fetching 200 MB of images for a five-page preview is the
 	// thing #60 exists to stop. --relevant-media-only already has that logic,
 	// so the limit switches it on rather than growing a second copy.
-	if (cfg.Limit > 0 || cfg.LimitPerType > 0) && !cfg.RelevantMediaOnly {
+	if limitsActive(cfg) && !cfg.RelevantMediaOnly {
 		cfg.RelevantMediaOnly = true
 		logln("Limiting media to what the exported documents reference (--limit)")
 	}
@@ -776,6 +803,11 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// again in the summary and in metadata.json, and never silently dropped —
 	// but they do not end the export (#37).
 	var gaps []string
+
+	// Facts about the site itself rather than about any one collection: an API
+	// answering only at ?rest_route=, or a WordPress with no content API at all
+	// (#66, #68). They are learned while fetching, so they are collected after.
+	var notices []string
 
 	// Get content via API (respecting filter flags)
 	var posts []models.WordPressPost
@@ -809,6 +841,10 @@ func runExport(cmd *cobra.Command, args []string) error {
 	} else {
 		logln("Skipping pages (--no-pages)")
 	}
+
+	// By now something has been asked for, so the client knows which spelling
+	// this site answers to — or that it answers to neither (#66, #68).
+	noteSiteAPI(apiClient, &notices)
 
 	var products []models.WooCommerceProduct
 	// What to say about the products, when "0" and "could not read them" would
@@ -1019,9 +1055,13 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 
 	logln("Fetching categories...")
+	// Taxonomy is not the export: a site whose categories route is missing —
+	// a WordPress older than the one that introduced wp/v2, a plugin that hid
+	// it — still has its posts and pages, and used to lose them all here before
+	// --from-sitemap could even be reached (#68).
 	categories, err := apiClient.GetCategories()
-	if err != nil {
-		return fmt.Errorf("failed to get categories: %w", err)
+	if err := noteIncomplete(&gaps, "categories", err); err != nil {
+		return err
 	}
 	logf("Found %d categories\n", len(categories))
 
@@ -1029,8 +1069,8 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if !cfg.NoTags {
 		logln("Fetching tags...")
 		tags, err = apiClient.GetTags()
-		if err != nil {
-			return fmt.Errorf("failed to get tags: %w", err)
+		if err := noteIncomplete(&gaps, "tags", err); err != nil {
+			return err
 		}
 		logf("Found %d tags\n", len(tags))
 	} else {
@@ -1107,6 +1147,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 		logf("Range rescan found %d new items\n", n)
 	}
 
+	// Asked again because a run told to skip posts and pages learns the shape of
+	// the site's API later than one that was not; noteSiteAPI says a thing once.
+	noteSiteAPI(apiClient, &notices)
+
+	fallBackToFeed(apiClient, cfg)
+
 	// Create export data
 	exportData := &models.ExportData{
 		Site:        *siteInfo,
@@ -1134,6 +1180,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 			TotalComments:    len(comments),
 			BruteForceFound:  bruteForceFound,
 			Incomplete:       gaps,
+			Notices:          notices,
 		},
 	}
 
@@ -1203,7 +1250,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	} else {
 		logf("Products: %d\n", len(products))
 	}
-	logf("Media: %d\n", len(media))
+	logf("%s\n", countLine("Media", len(media), apiClient.StatedTotal("media"), apiClient.Limited()))
 	logf("Categories: %d\n", len(categories))
 	logf("Tags: %d\n", len(tags))
 	logf("Users: %d\n", len(users))
@@ -1216,6 +1263,10 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// the same lines are in metadata.json, because a console scrolls away.
 	for _, gap := range gaps {
 		logf("Incomplete: %s\n", gap)
+	}
+
+	for _, notice := range notices {
+		logf("Note: %s\n", notice)
 	}
 
 	// And what the site says it has, against what this run wrote (#40). The

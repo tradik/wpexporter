@@ -68,7 +68,12 @@ func fetchCustomTypes(client *api.Client, cfg *config.Config) []models.CustomTyp
 		}
 		logf("  %s: %d entries\n", t.Slug, len(posts))
 		sets = append(sets, models.CustomTypeSet{
-			Slug: t.Slug, Name: t.Name, RestBase: t.RestBase, Posts: posts,
+			Slug: t.Slug, Name: t.Name, RestBase: t.RestBase,
+			// A generator cannot build a listing it does not know exists, and
+			// the REST types document has said so all along (#64).
+			HasArchive:  t.HasArchive,
+			ArchiveLink: archiveLink(t),
+			Posts:       posts,
 		})
 	}
 	return sets
@@ -196,4 +201,22 @@ func enrichCustomTypes(sets []models.CustomTypeSet, enrich func([]models.WordPre
 			sets[i].Posts = enrich(sets[i].Posts)
 		}
 	}
+}
+
+// archiveLink is the address a type publishes its listing at: the slug it
+// registered explicitly, or its own, and empty when it has no archive.
+//
+// WordPress states both in the types document — has_archive is `true`, `false`
+// or the slug itself (#53) — so no extra request is needed to answer this.
+func archiveLink(t api.PostType) string {
+	if !t.HasArchive {
+		return ""
+	}
+
+	slug := t.ArchiveSlug
+	if slug == "" {
+		slug = t.Slug
+	}
+
+	return "/" + strings.Trim(slug, "/") + "/"
 }

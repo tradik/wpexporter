@@ -58,6 +58,23 @@ many. It is asked for rather than assumed, and never merges with or replaces a
 collection the API did serve: REST is the better source in every respect, and a
 feed lists recent items rather than the archive.
 
+A site serving its REST API at **`?rest_route=`** rather than `/wp-json/` is read
+without being asked about. That is the fallback spelling WordPress documents,
+served whenever permalinks are plain or a security plugin hides the pretty route,
+and the exporter used to stop at the first 404 with a message about categories
+(#66). It is discovered lazily: the pretty address is tried first, nothing is
+probed until one actually 404s, and a site that answers normally spends no extra
+request at all. The export is complete either way, and `stats.notices` in
+`metadata.json` names the spelling that was used, because the address in the
+report is not the one a reader would try by hand.
+
+A WordPress **older than 4.7** has no `wp/v2` content routes in either spelling —
+the content API arrived in that release — and answers `rest_no_route` to
+everything. There is nothing to fall back to, so the run says so once, records it
+in `stats.notices`, and reads the site's feed by itself rather than handing back
+an empty export that looks like an empty site (#68). `--no-inventory-check`
+overrules that, as it overrules everything else the inventory does.
+
 A post the editor **pinned to the top of the blog** carries `sticky: true`,
 omitted when false. A listing sorted by date alone buries it wherever its date
 falls — sixth, on the site that reported it (#51).
@@ -86,6 +103,20 @@ A page whose body the API **did not serve at all** — a front page assembled fr
 theme sections, which live in post meta — is reported as well, and named in
 `stats.empty_pages`. The export is correct and useless at the same time there;
 `--assisted-crawl --crawl-content` takes the rendered page instead (#46).
+
+That crawl reaches the pages the warning is about, which it used not to. A page
+builder's body is not empty — a King Composer front page is several kilobytes of
+`kc-elm` wrappers with a headline inside them — so the emptiness test passed it
+over and the recommended remedy fetched five pages of twenty, none of them the
+ones that needed it (#63). The body is now judged by what it amounts to: an
+ordinary page carries hundreds of characters of text per container element, a
+builder shell carries a handful, and a recognised class prefix (`kc-elm`,
+`vc_row`, `et_pb_`, `elementor-`, `fl-builder`, `brxe-`, `oxy-`) raises that
+threshold rather than being the whole rule — the next builder is on nobody's
+list, and a body that is all containers and no text renders to nothing whatever
+it is called. The run states how many of each it found. `--skip-empty-content`
+is unchanged and still asks its own question: a builder page is worth crawling
+and is not worth discarding.
 
 Two things hold for every platform format, and only for those: media URLs are
 **left absolute**, because the target platform imports the files from the live

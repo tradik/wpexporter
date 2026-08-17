@@ -7,12 +7,15 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tradik/wpexporter/internal/config"
 )
 
 // publicProductsBody is what the ordinary WordPress route serves: the catalog
@@ -125,7 +128,36 @@ func TestProductNoticesSayWhichFactTheyMean(t *testing.T) {
 	assert.Contains(t, partial, "no price, SKU, stock or variations")
 	assert.Contains(t, partial, "--auth-user", "the report names the remedy")
 
-	none := NoProductsNotice()
+	// The message states what happened, not what it concluded: the first
+	// version claimed the public route "published none either", which on a shop
+	// whose products were never reached cost the reporter a day (#65).
+	none := NoProductsNotice("https://x.test/wp-json/wp/v2/product", 404)
 	assert.Contains(t, none, "Products: 0")
 	assert.Contains(t, none, "refused the request")
+	assert.Contains(t, none, "/wp/v2/product answered 404", "the route and its answer, by name")
+
+	empty := NoProductsNotice("https://x.test/wp-json/wp/v2/product", 200)
+	assert.Contains(t, empty, "published none", "a route that answered and had nothing did say so")
+}
+
+// TestRefusalStatusReadsTheAnswer: the report needs the status the walk met,
+// and 0 when the failure was not a status at all.
+func TestRefusalStatusReadsTheAnswer(t *testing.T) {
+	assert.Zero(t, RefusalStatus(nil))
+	assert.Zero(t, RefusalStatus(errors.New("no such host")))
+
+	partial := &PartialError{Endpoint: "product", Page: 1, Err: fmt.Errorf("API returned status 404")}
+	assert.Equal(t, 404, RefusalStatus(partial))
+}
+
+// TestPublicProductRouteIsSingular: WooCommerce registers `product` with a
+// rest_base of "product", and a path derived by pluralising misses it every
+// time — which is what #65 suspected. It is singular, and named so a report can
+// say which spelling was tried.
+func TestPublicProductRouteIsSingular(t *testing.T) {
+	client, err := NewClient(&config.Config{URL: "https://x.test", Timeout: 5})
+	require.NoError(t, err)
+
+	assert.Equal(t, "https://x.test/wp-json/wp/v2/product", client.PublicProductRoute())
+	assert.NotContains(t, client.PublicProductRoute(), "/products")
 }

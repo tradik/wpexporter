@@ -169,3 +169,19 @@ func TestTypeSlugs(t *testing.T) {
 		t.Errorf("unexpected slugs: %+v", got)
 	}
 }
+
+// TestArchiveLinkNamesWhereTheListingLives: two types with the same shape in
+// metadata.json can have opposite truths — one serving /realizacje/ and one
+// 404ing — and nothing used to tell them apart (#64).
+func TestArchiveLinkNamesWhereTheListingLives(t *testing.T) {
+	if got := archiveLink(api.PostType{Slug: "realizacje", HasArchive: true}); got != "/realizacje/" {
+		t.Errorf("a type with an archive publishes it at its own slug, got %q", got)
+	}
+	// has_archive can be the slug itself, which is the address to use (#53).
+	if got := archiveLink(api.PostType{Slug: "product", HasArchive: true, ArchiveSlug: "shop"}); got != "/shop/" {
+		t.Errorf("an explicit archive slug is the address, got %q", got)
+	}
+	if got := archiveLink(api.PostType{Slug: "reviews"}); got != "" {
+		t.Errorf("a type with no archive claims no address, got %q", got)
+	}
+}

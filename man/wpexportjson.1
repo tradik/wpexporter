@@ -97,10 +97,10 @@ Convert HTML to Markdown (Bricks Builder, Elementor support)
 Clean HTML to basic elements (tables, lists, links - for Shopify)
 .TP
 .BR \-\-preserve\-classes " " \fICLASSES\fR
-CSS classes to preserve from HTML processing (comma-separated, supports wildcards like klaviyo-form-*)
+CSS classes whose elements travel as the HTML they arrived as, rather than being converted (comma-separated, wildcards allowed: \fBklaviyo-form-*\fR, \fBtrx_addons_inline_*\fR, or \fB*\fR for every element carrying a class). Applies to \fBmarkdown\fR and \fBssg\fR as well as \fB\-\-flat\-html\fR and \fB\-\-basic\-html\fR: a heading's class is where themes of some families keep its colour, and a Markdown heading has nowhere to put it, so the migrated page renders the headline in the body colour instead.
 .TP
 .BR \-\-preserve\-ids " " \fIIDS\fR
-Element IDs to preserve from HTML processing (comma-separated, supports wildcards)
+Element IDs whose elements travel as the HTML they arrived as, rather than being converted (comma-separated, wildcards allowed).
 .TP
 .BR \-\-keep\-original\-urls
 Preserve original WordPress URLs in content (don't convert to local paths). Without this flag the
@@ -122,7 +122,7 @@ Which meta tags to keep beyond the named SEO fields:
 keeps only the named fields; or a comma\-separated allow\-list such as \fBtwitter:card,article:author\fR.
 .TP
 .BR \-\-crawl\-content
-Crawl pages with empty content (Bricks, Elementor page builders)
+Take the rendered page wherever the stored body is not the page. Two cases: a body the REST API serves empty, and a body that is a page builder's scaffolding \- several kilobytes of nested wrappers with a headline somewhere inside, which renders to nothing without the plugin that builds it. The second is judged by what the body amounts to rather than by its length: an ordinary page carries hundreds of characters of text per container element and a shell carries a handful, and a known builder's class prefix (\fBkc-elm\fR, \fBvc_row\fR, \fBet_pb_\fR, \fBelementor-\fR, \fBfl-builder\fR, \fBbrxe-\fR, \fBoxy-\fR) raises the threshold rather than being the whole rule. The run states how many of each it found.
 .TP
 .BR \-\-exclude\-tags " " \fITAGS\fR
 SEO tags to exclude (comma-separated: title,meta:description,og:title,canonical,lang,hreflangs)
@@ -164,7 +164,7 @@ Delay between API requests in milliseconds (prevents server rate limiting)
 Form of the front-matter values that are not flat \- the \fBmeta\fR map and the \fBhreflangs\fR list. \fInested\fR (default) writes YAML structure, which is what a generator reading the files wants. \fIflat\fR writes each as a single JSON string, so it survives a store whose metadata model is key to list of strings and can be decoded back into the same structure; \fBjson_ld\fR already travels as text and is unchanged either way.
 .TP
 .BR \-\-from\-sitemap
-Recover posts from the site's main feed when the REST API serves none \- a site whose \fI/wp/v2/posts\fR answers 5xx for every request still publishes its feed. Recovered records carry title, address, date, author and body, and no IDs, taxonomy terms or featured images; \fBstats.recovered_posts\fR states how many there were. The feed lists recent items only, so this never replaces or merges with a collection the API did serve.
+Recover posts from the site's main feed when the REST API serves none \- a site whose \fI/wp/v2/posts\fR answers 5xx for every request still publishes its feed. Recovered records carry title, address, date, author and body, and no IDs, taxonomy terms or featured images; \fBstats.recovered_posts\fR states how many there were. The feed lists recent items only, so this never replaces or merges with a collection the API did serve. A WordPress older than 4.7 has no content API at all, so the run turns this on for itself there rather than handing back an empty export.
 .TP
 .BR \-\-no\-inventory\-check
 Skip the completeness check. After the export the site's own sitemap and main feed are read \- one or two requests \- and every address they list that the export does not carry is reported, grouped by path, and recorded in \fBmetadata.json\fR under \fBstats.uncovered\fR. Archive views a generator rebuilds itself (\fI/tag/\fR, \fI/category/\fR, date archives) are not counted. A site that publishes neither document says so and the export is unchanged.
@@ -172,8 +172,11 @@ Skip the completeness check. After the export the site's own sitemap and main fe
 .BR \-\-limit " " \fIN\fR
 Export at most \fIN\fR documents in total, newest first (default: no limit). The walk stops when the budget is spent rather than fetching everything and discarding the rest, so a preview of five pages costs one request instead of five hundred records. Media is limited to what the exported documents reference, and the summary states the truncation as \fBPosts: 5 (limited from 75)\fR.
 .TP
-.BR \-\-limit\-per\-type " " \fIN\fR
-Export at most \fIN\fR of each kind \- posts, pages, each custom type. Combines with \fB\-\-limit\fR, whichever is smaller.
+.BR \-\-limit\-per\-type " " \fISPEC\fR
+At most \fIN\fR of each kind, or \fIkind=N\fR pairs, or both: \fB5\fR, \fBposts=5,media=10\fR, \fB5,media=10\fR. A kind is a collection name (\fBposts\fR, \fBpages\fR, \fBmedia\fR, \fBproducts\fR) or a custom type's slug, since there can be any number of those. Combines with \fB\-\-limit\fR, whichever is smaller.
+.TP
+.BR \-\-limit\-posts ", " \-\-limit\-pages ", " \-\-limit\-media ", " \-\-limit\-products " " \fIN\fR
+Shortcuts for the kinds a preview is usually shaped around. Where one names a kind \fB\-\-limit\-per\-type\fR also names, the dedicated flag wins and the run says which value it used \- a silent choice between two numbers the operator asked for is worse than either.
 .TP
 .BR \-\-user\-agent " " \fISTRING\fR
 The User\-Agent to send (default: \fIWordPress\-Export\-JSON/1.0\fR). Bot protection matches on the default, so a browser's string is the remedy that most often works against a \fB403\fR served by a wall rather than by WordPress. A refusal that carries Cloudflare's marks is named as such in the report, with the remedies that apply to it.
@@ -205,6 +208,12 @@ Suppress all output, only return exit code
 .TP
 .BR \-\-config " " \fIFILE\fR
 Configuration file path
+.SH "THE SITE'S REST API"
+WordPress serves its REST API two ways: the pretty \fI/wp\-json/wp/v2/\&...\fR, and \fI/?rest_route=/wp/v2/\&...\fR, which works with no permalink structure at all. Sites serving only the second are common enough to matter \- permalinks set to plain, or a security plugin hiding \fI/wp\-json/\fR \- and they are read without being asked about.
+.PP
+The discovery is lazy, because the pretty spelling is what nearly every site answers to: it is tried first, nothing is probed until a request actually comes back \fB404\fR, and a site whose API works spends no extra request at all. The site that needs the fallback pays one. Which spelling was used is stated in the report and in \fBstats.notices\fR in \fBmetadata.json\fR, since the address there is not the one a reader would try by hand.
+.PP
+A WordPress older than \fB4.7\fR has neither spelling: the \fBwp/v2\fR content routes arrived in that release, and an older install answers \fBrest_no_route\fR to both. There is nothing to fall back to, so the run states it once, records it in \fBstats.notices\fR, and reads what the site still publishes in its feed \- an empty export that looks like an empty site is the failure this replaces.
 .SH "THE WPEXPORTER COMMAND"
 The toolkit installs four binaries. Three are the individual tools:
 .BR wpexportjson " (REST API, this page), " wpxmlrpc " (XML-RPC) and " wpmcp " (MCP server)."
@@ -242,6 +251,13 @@ Export for Shopify, preserving Klaviyo forms:
 .RS
 wpexportjson export --url https://example.com -f shopify --basic-html \\
   --preserve-classes "klaviyo-form-*"
+.RE
+.SS "Keeping a Theme's Generated Classes"
+Migrate to Markdown while keeping the elements the theme colours through a generated class:
+.PP
+.RS
+wpexportjson export --url https://example.com -f markdown \\
+  --preserve-classes "trx_addons_inline_*"
 .RE
 .SS "Static Site Generator Source"
 Export a drop-in content source and check it for accessibility problems before publishing:

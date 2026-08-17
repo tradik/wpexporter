@@ -97,6 +97,10 @@ type Config struct {
 	// on its own. A preview of a site should not download the site (#60).
 	Limit        int `mapstructure:"limit" json:"limit,omitempty"`
 	LimitPerType int `mapstructure:"limit_per_type" json:"limit_per_type,omitempty"`
+	// LimitByType caps one named kind each — "posts", "pages", "media",
+	// "products", or a custom type's slug. It beats LimitPerType for the kinds
+	// it names, because it is the more specific thing the operator said (#62).
+	LimitByType map[string]int `mapstructure:"limit_by_type" json:"limit_by_type,omitempty"`
 	// ReportA11y writes an accessibility report alongside the export.
 	ReportA11y bool `mapstructure:"report_a11y" json:"report_a11y"`
 	// ExtractMeta selects which meta tags beyond the named SEO fields are kept:
@@ -370,6 +374,12 @@ func (c *Config) Validate() error {
 
 	if c.Limit < 0 || c.LimitPerType < 0 {
 		return fmt.Errorf("limit and limit_per_type cannot be negative")
+	}
+
+	for kind, value := range c.LimitByType {
+		if value < 0 {
+			return fmt.Errorf("limit for %q cannot be negative", kind)
+		}
 	}
 
 	return nil

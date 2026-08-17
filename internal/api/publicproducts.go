@@ -23,6 +23,8 @@ package api
 import (
 	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 
 	"github.com/tradik/wpexporter/pkg/models"
 )
@@ -85,7 +87,55 @@ func PartialProductsNotice(count int) string {
 
 // NoProductsNotice tells "there are none" apart from "they could not be read",
 // which the summary used to print identically as `Products: 0`.
-func NoProductsNotice() string {
-	return "Products: 0 — the WooCommerce API refused the request (401: no consumer keys) and " +
-		"/wp/v2/product published none either."
+//
+// It names the route and what the route answered. The first version said the
+// public route "published none either", which is a claim rather than an
+// observation: on a shop whose products were simply never reached, that line
+// sent the operator hunting for a route bug that was not there, and cost them a
+// day (#65). A report may say what happened; it may not say what it concluded.
+func NoProductsNotice(route string, status int) string {
+	answered := "published none"
+	if status > 0 && status != 200 {
+		answered = fmt.Sprintf("answered %d", status)
+	}
+	if route == "" {
+		route = "/wp/v2/" + publicProductBase
+	}
+
+	return fmt.Sprintf("Products: 0 — the WooCommerce API refused the request "+
+		"(401: no consumer keys) and %s %s.", route, answered)
 }
+
+// PublicProductRoute is the address the fallback reads, so a report can name it
+// rather than leave the operator to guess which spelling was tried (#65).
+func (c *Client) PublicProductRoute() string {
+	return c.baseURL + "/" + publicProductBase
+}
+
+// RefusalStatus digs the HTTP status out of a walk's failure, or 0 when the
+// failure was not a status at all.
+func RefusalStatus(err error) int {
+	if err == nil {
+		return 0
+	}
+
+	var partial *PartialError
+	if !errors.As(err, &partial) || partial.Err == nil {
+		return 0
+	}
+
+	match := statusInMessageRe.FindStringSubmatch(partial.Err.Error())
+	if match == nil {
+		return 0
+	}
+
+	status, convErr := strconv.Atoi(match[1])
+	if convErr != nil {
+		return 0
+	}
+
+	return status
+}
+
+// statusInMessageRe reads the number back out of "API returned status 404".
+var statusInMessageRe = regexp.MustCompile(`status (\d{3})`)

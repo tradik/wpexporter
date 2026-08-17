@@ -24,14 +24,10 @@ import (
 // and returns the line the run should print about them.
 func recoverPublicProducts(client *api.Client) ([]models.WooCommerceProduct, string) {
 	products, err := client.GetPublicProducts()
-	if err != nil && len(products) == 0 {
-		// The public route is not there either — some shops keep `product` out
-		// of REST entirely. Nothing to recover, and the reason is worth stating.
-		return nil, api.NoProductsNotice()
-	}
-
 	if len(products) == 0 {
-		return nil, api.NoProductsNotice()
+		// The public route brought nothing. Say which route and what it
+		// answered rather than concluding on the operator's behalf (#65).
+		return nil, api.NoProductsNotice(client.PublicProductRoute(), api.RefusalStatus(err))
 	}
 
 	return products, api.PartialProductsNotice(len(products))

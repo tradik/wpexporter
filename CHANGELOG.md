@@ -5,6 +5,126 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.15] - 2026-08-17
+
+### Fixed
+- **A site serving its REST API at `?rest_route=` exported nothing (#66).**
+  WordPress publishes its API two ways — the pretty `/wp-json/wp/v2/…` and
+  `/?rest_route=/wp/v2/…`, which needs no permalink structure at all — and a
+  site with plain permalinks, or a security plugin hiding `/wp-json/`, serves
+  only the second. Every request 404d and the run ended with a message about
+  categories, on a site whose whole API was one question mark away.
+
+  Both spellings are now read. The discovery is lazy, because the exception must
+  not be charged to the rule: the pretty address is tried first, nothing is
+  probed until a request actually comes back 404, and a site that answers
+  normally spends no extra request at all. The site that needs the fallback pays
+  one. The spelling that was used is stated in the report and in
+  `stats.notices`, since the address there is not the one a reader would try by
+  hand.
+
+- **`--crawl-content` could not see the pages it was recommended for (#63).**
+  The export's own warning says to try `--assisted-crawl --crawl-content` on a
+  page whose body the API did not really serve — and the flag fired only on a
+  body that came back *empty*. A page builder's does not: a King Composer front
+  page is several kilobytes of `kc-elm` wrappers with one headline inside them.
+  So the remedy reached five pages of twenty and none of the ones the warning
+  was about, and the migration shipped forty nested divs in a single column: no
+  grid, no cards, no prices, because the layout only exists while the plugin is
+  rendering it.
+
+  The body is now judged by what it amounts to rather than by its length. An
+  ordinary page carries hundreds of characters of text per container element; a
+  builder shell carries a handful. A recognised class prefix — `kc-elm`,
+  `vc_row`, `et_pb_`, `elementor-`, `fl-builder`, `brxe-`, `oxy-` and the rest —
+  raises the threshold rather than being the whole rule, because the next
+  builder is on nobody's list and a body that is all containers and no text
+  renders to nothing whatever it is called. The run states how many of each it
+  found, since "5 with empty content" on a site of twenty builder pages is how
+  this went unnoticed. `--skip-empty-content` asks its own question and is
+  unchanged: a builder page is worth crawling and is not worth discarding.
+
+- **A heading's classes were dropped, and the theme's colour with them (#67).**
+  Themes of some families emit one generated class per element and a stylesheet
+  rule to match — `trx_addons_inline_158836093` is where a heading's colour
+  lives. Converted to `## Title`, the class has nowhere to go: the stylesheets
+  migrate fine and there is nothing left for them to match, so a front page's
+  headline renders in the body colour while a headline two sections down keeps
+  the theme's by accident, because that one styles its inner `<span>` too.
+
+  `--preserve-classes` and `--preserve-ids` now apply to the `markdown` and
+  `ssg` formats as well as to `--flat-html` and `--basic-html`, and an element
+  they name travels as the HTML it arrived as — including everything inside it.
+  Wildcards were already supported and are what this needs, since the classes
+  worth keeping are generated: `--preserve-classes 'trx_addons_inline_*'`, or
+  `'*'` for every element that carries a class at all. **Named nothing, the
+  conversion is exactly what it was**: a Gutenberg site's `wp-block-heading`
+  still becomes `##`, because keeping those would turn a clean Markdown export
+  into a wall of tags for everyone.
+
+- **A WordPress older than the content API exported as an empty site (#68).**
+  The `wp/v2` routes arrived in WordPress 4.7; an older install answers
+  `rest_no_route` to both spellings of every one of them. The export came back
+  with zeroes across the board and no reason given, which is indistinguishable
+  from a site that has no content — and the reporter's site had eleven years of
+  it.
+
+  The run now names the cause once, records it in `stats.notices`, and reads
+  what such a site still publishes: its feed, the fallback `--from-sitemap`
+  exists for, turned on by itself because there was nothing for the operator to
+  have known in advance. `--no-inventory-check` still overrules it.
+
+- **A code fence inside the body turned the rest of the page into a code block
+  (#69).** `<pre>` became "```" wherever it happened to sit, so a plugin that
+  ships one inside a `<div>` — a reviews widget with a `<template>` in it — had
+  a fence opened mid-element and closed mid-element. Everything between them,
+  and everything the closing marker pushed out of alignment after them, rendered
+  as source code: a grey box a screen and a half tall on a published page.
+
+  A fence now owns its lines, is longer than the longest run of backticks inside
+  it (CommonMark's own rule for content carrying ```), and a document never ends
+  inside one — an unclosed `<pre>`, which page builders emit, would otherwise
+  take the rest of the page and, on a generator's index, the next document too.
+
+- **The products report stated a conclusion rather than what happened (#65).**
+  `Products: 0 — … and /wp/v2/product published none either` claimed the public
+  route had nothing, on a shop whose products were simply never reached. That
+  sent the reporter hunting for a route bug that did not exist, and cost them a
+  day. The line now names the route and what it answered — `/wp/v2/product
+  answered 404` — and says "published none" only when the route did answer and
+  had nothing. A report may say what happened; it may not say what it concluded.
+
+### Added
+- **`custom_types[]` says whether a type has an archive, and where (#64).** Two
+  types with the same shape in `metadata.json` could have opposite truths — one
+  serving `/realizacje/`, one 404ing — and nothing told them apart, so a
+  generator could not build a listing it did not know existed. `has_archive` and
+  `archive_link` are now recorded, from the types document the export already
+  reads (#53): no extra request, and correct for a type that registered its
+  archive under a different slug.
+
+- **Limits have a shape, and every kind is capped (#62).** 1.8.14 gave the
+  export two caps, both single numbers. A preview usually wants different
+  amounts of different things — five posts say what a blog is, five media items
+  say almost nothing about a gallery site — so `--limit-per-type` now takes
+  `kind=N` pairs as well as a bare number, and both together:
+
+      --limit-per-type 5,media=10        five of each kind, ten media
+      --limit-per-type posts=5,media=10  five posts, ten media
+      --limit-posts 5 --limit-media 10   shortcuts for the common pair
+
+  A kind is a collection name or a custom type's slug, since there can be any
+  number of those. Where a kind is named twice the dedicated flag wins and **the
+  run says so**: a silent choice between two numbers the operator asked for is
+  worse than either of them.
+
+- **Media and products are capped at all.** The budget was consulted only by the
+  walk that fetches posts, pages and custom types, so `--limit 5` bounded the
+  documents and still listed the whole media library — thirteen requests on a
+  site with 1204 attachments, against a host that is doing us a favour by
+  answering. Both walks now take a budget, ask only for what they need, and
+  report their truncation the same way: `Media: 10 (limited from 1204)`.
+
 ## [1.8.14] - 2026-08-16
 
 ### Added
@@ -240,8 +360,6 @@ instead of being written into it, and what was removed is reported.
   first because it is what the whole site opens with, together with the remedy:
   `--assisted-crawl --crawl-content` takes the rendered page instead. A page
   already explained as a post loop (#41) is not explained twice.
-
-## [Unreleased]
 
 ### Changed
 - **The resume path is tested.** `internal/checkpoint` gained tests in 1.8.8;

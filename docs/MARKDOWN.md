@@ -58,11 +58,25 @@ flat_html_rules:
 
 ## Preserving HTML Elements
 
-Use `--preserve-classes` and `--preserve-ids` to keep certain elements intact during HTML processing with `--flat-html` or `--basic-html`. This is useful for:
+Use `--preserve-classes` and `--preserve-ids` to keep certain elements intact. They apply to the `markdown` and `ssg` formats as well as to `--flat-html` and `--basic-html`. This is useful for:
 
 - Newsletter signup forms (Klaviyo, Mailchimp)
 - Embedded widgets and third-party scripts
 - Custom interactive elements you don't want converted
+- **Elements a theme styles through a class**, which is the case Markdown cannot express at all
+
+That last one is worth spelling out (#67). Themes of some families emit one generated class per element and a stylesheet rule to match — `trx_addons_inline_158836093` is where a heading's colour lives. Converted to `## Title`, the class has nowhere to go: the stylesheets migrate fine, but there is nothing left for them to match, and the front page's headline renders in the body colour while a headline two sections down keeps the theme's by accident, because that section colours its inner `<span>` as well.
+
+```bash
+# Keep whatever the theme colours through a generated class
+wpexportjson export --url https://example.com -f markdown \
+  --preserve-classes "trx_addons_inline_*"
+
+# Keep every element that carries any class at all
+wpexportjson export --url https://example.com -f markdown --preserve-classes "*"
+```
+
+A preserved element travels as the HTML it arrived as — Markdown allows raw HTML — and nothing inside it is converted either, so a `<strong>` within it stays a `<strong>`. Name nothing and the conversion is exactly what it always was: a heading with no attributes still becomes `##`.
 
 ```bash
 # Preserve Klaviyo forms (with wildcard)

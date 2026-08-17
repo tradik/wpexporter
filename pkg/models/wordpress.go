@@ -374,10 +374,16 @@ type ExportData struct {
 // slug is the WordPress type name ("cpt_services"), Name its human label
 // ("Services") and RestBase the collection it was fetched from.
 type CustomTypeSet struct {
-	Slug     string          `json:"slug"`
-	Name     string          `json:"name"`
-	RestBase string          `json:"rest_base"`
-	Posts    []WordPressPost `json:"posts"`
+	Slug     string `json:"slug"`
+	Name     string `json:"name"`
+	RestBase string `json:"rest_base"`
+	// HasArchive reports whether the type publishes a listing of its own, and
+	// ArchiveLink is the address it publishes it at. Two types with the same
+	// shape in metadata.json can have opposite truths — one serving /realizacje/
+	// and one 404ing — and nothing here used to tell them apart (#64).
+	HasArchive  bool            `json:"has_archive,omitempty"`
+	ArchiveLink string          `json:"archive_link,omitempty"`
+	Posts       []WordPressPost `json:"posts"`
 }
 
 // SiteInfo represents WordPress site information
@@ -447,6 +453,12 @@ type ExportStats struct {
 	// the target's own listing, so they are stated rather than left to be found
 	// by reading the built HTML (#41).
 	PostLoopPages []string `json:"post_loop_pages,omitempty"`
+	// Notices are the facts about the site itself that shaped this export
+	// rather than any one collection: a WordPress older than the content API,
+	// a REST API reachable only at ?rest_route=. They are not gaps — nothing
+	// was skipped — but they explain a thin export, and a console line
+	// scrolls away (#66, #68).
+	Notices []string `json:"notices,omitempty"`
 }
 
 // WooCommerceProduct represents a WooCommerce product

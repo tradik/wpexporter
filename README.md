@@ -58,6 +58,8 @@ The three tools are also installed as standalone binaries, which behave identica
 - ⚡ **Concurrent Processing**: Fast parallel downloads and processing
 - 📊 **Progress Tracking**: Real-time progress bars and status updates
 - 🛠️ **Configurable**: Flexible configuration options via CLI or config file
+- 🔀 **Both REST API Spellings**: Reads a site that serves only `/?rest_route=` — plain permalinks, or a plugin hiding `/wp-json/` — and says so in the report; a site answering normally spends no extra request on the question
+- 🕰️ **Pre-4.7 WordPress**: An install older than the content API is named as such and read from its feed, instead of exporting as an empty site
 - 🌐 **No Authentication**: Works with public WordPress REST API
 
 ### wpxmlrpc (XML-RPC Client)
