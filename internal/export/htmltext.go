@@ -32,8 +32,10 @@ var (
 // back into a live tag would resurrect markup the source deliberately escaped.
 var htmlSignificantRunes = map[string]bool{"<": true, ">": true, "&": true, `"`: true, "'": true}
 
-// readMorePhrases open the "continue reading" link WordPress themes append to a
-// generated excerpt.
+// readMorePhrases are the seed: what a theme most often writes, for a site with
+// too few excerpts to learn its own phrase from. The method is in readmore.go —
+// this list is a starting point, never the answer, because "read more" exists
+// in every language and this list will never be finished.
 var readMorePhrases = []string{
 	"continue reading", "read more", "czytaj dalej", "weiterlesen",
 	"lire la suite", "leer más", "continua a leggere",
@@ -93,14 +95,14 @@ func plainText(rendered string) string {
 // description field: the theme's "continue reading" chrome is removed first,
 // since it is navigation rather than content and otherwise lands in
 // `<meta name="description">`.
-func plainTextExcerpt(rendered string) string {
-	return plainText(stripReadMoreAnchor(rendered))
+func plainTextExcerpt(rendered string, vocabulary readMoreVocabulary) string {
+	return plainText(stripReadMoreAnchor(rendered, vocabulary))
 }
 
 // stripReadMoreAnchor removes a trailing "Continue reading →" link. An excerpt
 // that legitimately ends in a link keeps it — only anchors that look like
 // read-more chrome are removed.
-func stripReadMoreAnchor(rendered string) string {
+func stripReadMoreAnchor(rendered string, vocabulary readMoreVocabulary) string {
 	loc := trailingAnchorPattern.FindStringSubmatchIndex(rendered)
 	if loc == nil {
 		return rendered
@@ -110,29 +112,12 @@ func stripReadMoreAnchor(rendered string) string {
 	inner := rendered[loc[4]:loc[5]]
 	closingTags := rendered[loc[6]:loc[7]]
 
-	if !isReadMoreAnchor(attrs, inner) {
+	if !vocabulary.isReadMore(attrs, inner) {
 		return rendered
 	}
 
 	// The wrapping tags the anchor sat inside are content structure, not chrome.
 	return strings.TrimSpace(rendered[:loc[0]]) + closingTags
-}
-
-// isReadMoreAnchor reports whether an anchor is theme-generated read-more chrome,
-// judged by WordPress's `more-link` class or by the link text.
-func isReadMoreAnchor(attrs, inner string) bool {
-	if strings.Contains(strings.ToLower(attrs), "more-link") {
-		return true
-	}
-
-	text := strings.ToLower(plainText(inner))
-	for _, phrase := range readMorePhrases {
-		if strings.HasPrefix(text, phrase) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // cleanImages rewrites every img tag in content: a missing alt is filled from the

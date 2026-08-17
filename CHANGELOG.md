@@ -89,10 +89,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   | `--crawl-content-mode auto\|empty\|always` | which pages `--crawl-content` re-reads |
   | `--builder-classes` | class prefixes marking this site's page-builder markup |
   | `--content-selector` | where this theme keeps the page: `tag`, `.class`, `#id`, `tag.class` |
+  | `--post-loop-markers` | this theme's listing elements |
+  | `--read-more-phrases` | the read-more text, when too few excerpts exist to learn it |
 
   An unknown value for a mode ends the run naming what was accepted, because a
   typo that falls back to a default produces an export the operator believes is
   something else.
+
+- **"Continue reading" is learned from the site rather than looked up.** The
+  read-more link a theme appends to every generated excerpt was recognized by
+  its text, matched against seven phrases in six European languages — a list
+  that can never be finished, since every language has such a phrase and a theme
+  author is free to write `→` and nothing else. Left in, it becomes a line of
+  chrome at the end of every summary on the migrated site; matched too eagerly,
+  it eats a post's own closing link.
+
+  Neither guessing nor a longer list: **a theme repeats itself**. The trailing
+  link text that ends three or more of a site's excerpts is the theme speaking,
+  in whatever language, and the text that ends one is that post's last sentence
+  and survives. On top of that, the marks that are markup rather than words —
+  `more-link`, `rel="bookmark"`, a link that is only an arrow — need no language
+  at all. The phrase list remains a seed for a site with too few excerpts to
+  learn from, and `--read-more-phrases` names one outright.
+
+- **Every text budget counts characters, not bytes.** "This page is empty
+  enough to report" was 120 bytes, "this body is a listing, not content" was
+  400, "this crawl found something" was 50 — and a byte is not a character
+  outside English. 400 bytes is 400 letters of English, 300 of Polish and 133 of
+  Japanese, so the same page was judged three different ways depending on the
+  language it happened to be written in, and the language it was fair to was
+  always English. All of them now count runes.
+
+- **A theme's own listing element can be named.** `--post-loop-markers` adds to
+  the recognized shortcodes, blocks and classes. These are identifiers rather
+  than words, so they read the same in every language — the gap was never
+  translation, it was that every theme shipping a listing element writes its own
+  name for it and the next one is on nobody's list.
 
 - **The sitemap and the feed are found by asking, not by guessing.** Their
   addresses were three fixed paths and `/feed/`, which hold for a default

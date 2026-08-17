@@ -134,6 +134,16 @@ type Config struct {
 	// uses may be one nobody has heard of, and its markup is no less
 	// unreadable for that (#63).
 	BuilderClasses []string `mapstructure:"builder_classes" json:"builder_classes,omitempty"`
+	// PostLoopMarkers name this theme's own listing element — a shortcode, a
+	// block or a class that renders an archive rather than storing one — added
+	// to the recognized ones. Every theme that ships one writes its own name
+	// for it (#41).
+	PostLoopMarkers []string `mapstructure:"post_loop_markers" json:"post_loop_markers,omitempty"`
+	// ReadMorePhrases name the "continue reading" text this theme appends to an
+	// excerpt, for a site with too few excerpts for the run to learn it from
+	// their repetition. Every language has such a phrase and no list of them
+	// can be finished, so the run learns rather than assumes.
+	ReadMorePhrases []string `mapstructure:"read_more_phrases" json:"read_more_phrases,omitempty"`
 	// ContentSelectors are CSS-ish selectors naming this theme's content area,
 	// tried before the built-in list. A theme can call it anything, and the
 	// alternative to naming it is an export of the whole body including the

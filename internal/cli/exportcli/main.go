@@ -113,6 +113,8 @@ var (
 	builderClasses     string
 	crawlContentMode   string
 	contentSelectors   string
+	postLoopMarkers    string
+	readMorePhrases    string
 	cacheEnabled       bool
 	cacheTTL           string
 	cacheDir           string
@@ -170,6 +172,8 @@ Content Filters:
       --builder-classes       Class prefixes marking this site's page-builder markup
       --crawl-content-mode    Which pages --crawl-content re-reads: auto|empty|always
       --content-selector      Where this theme keeps the page: tag, .class, #id
+      --post-loop-markers     This theme's listing elements (shortcode/block/class names)
+      --read-more-phrases     The read-more text this theme appends, if it cannot be learned
 
 Advanced:
       --brute-force           Enable brute force ID discovery
@@ -277,6 +281,10 @@ func init() {
 		"which pages --crawl-content re-reads: auto|empty|always")
 	exportCmd.Flags().StringVar(&contentSelectors, "content-selector", "",
 		"where this theme keeps the page: tag, .class, #id or tag.class (comma-separated, tried first)")
+	exportCmd.Flags().StringVar(&postLoopMarkers, "post-loop-markers", "",
+		"this theme's listing elements — shortcode, block or class names (comma-separated)")
+	exportCmd.Flags().StringVar(&readMorePhrases, "read-more-phrases", "",
+		"the read-more text this theme appends, when too few excerpts exist to learn it (comma-separated)")
 	exportCmd.Flags().BoolVar(&keepOriginalURLs, "keep-original-urls", false,
 		"preserve original WordPress URLs in content (don't convert to local paths)")
 	exportCmd.Flags().StringVar(&mediaPathStyle, "media-path-style", "root",
@@ -490,6 +498,12 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("content-selector") {
 		cfg.ContentSelectors = splitList(contentSelectors)
+	}
+	if cmd.Flags().Changed("post-loop-markers") {
+		cfg.PostLoopMarkers = splitList(postLoopMarkers)
+	}
+	if cmd.Flags().Changed("read-more-phrases") {
+		cfg.ReadMorePhrases = splitList(readMorePhrases)
 	}
 	if cmd.Flags().Changed("preserve-classes") && preserveClasses != "" {
 		cfg.PreserveClasses = strings.Split(preserveClasses, ",")

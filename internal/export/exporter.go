@@ -36,6 +36,10 @@ type Exporter struct {
 	shortcodeLeaks []shortcodeLeak
 	// rewriter localizes attachment URLs; nil when the export keeps original URLs.
 	rewriter *media.URLRewriter
+	// readMore is what this site's own excerpts revealed about the phrase its
+	// theme appends to them, so a "continue reading" in a language nobody
+	// listed is recognized as chrome all the same.
+	readMore readMoreVocabulary
 }
 
 // NewExporter creates a new exporter instance
@@ -619,7 +623,7 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 
 	// A page whose body is a listing element says so, so a target points its
 	// own archive at this address instead of migrating a page over it (#41).
-	writePostLoopFrontMatter(&builder, post, contentType)
+	e.writePostLoopFrontMatter(&builder, post, contentType)
 
 	// A child page states its parent, so a consumer can rebuild the tree the
 	// URL implies without re-deriving it from paths (#38). The slug travels
@@ -714,7 +718,7 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 	// reading" anchor is navigation rather than content and otherwise ends up in
 	// <meta name="description">. Kept even with --ssg-sections so consumers that
 	// read the frontmatter key still get it.
-	excerptText := plainTextExcerpt(post.Excerpt.Rendered)
+	excerptText := plainTextExcerpt(post.Excerpt.Rendered, e.readMore)
 	if excerptText != "" {
 		builder.WriteString(fmt.Sprintf("excerpt: \"%s\"\n", e.escapeYAML(excerptText)))
 	}

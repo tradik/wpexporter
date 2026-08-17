@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/schollz/progressbar/v3"
 
@@ -939,8 +940,12 @@ func parseContentSelector(raw string) (contentSelector, bool) {
 }
 
 // minCrawledContent is the shortest run of extracted markup worth calling
-// content. Below it the selector matched a wrapper rather than the page.
+// content, in characters. Below it the selector matched a wrapper rather than
+// the page.
 const minCrawledContent = 50
+
+// minVisibleCharacters is how few characters of text make a body empty.
+const minVisibleCharacters = 10
 
 func (c *Crawler) extractMainContent(html string) string {
 	// First, remove header, footer, nav, aside elements to isolate main content
@@ -951,7 +956,7 @@ func (c *Crawler) extractMainContent(html string) string {
 	// happen to be common rather than the set that exists (#63).
 	for _, selector := range c.siteContentSelectors() {
 		if content := c.extractBalancedTag(cleanedHTML, selector.tag, selector.attrs); content != "" {
-			if cleaned := c.cleanHTMLContent(content); len(cleaned) > minCrawledContent {
+			if cleaned := c.cleanHTMLContent(content); utf8.RuneCountInString(cleaned) > minCrawledContent {
 				return cleaned
 			}
 		}
@@ -974,7 +979,7 @@ func (c *Crawler) extractMainContent(html string) string {
 		content := c.extractBalancedTag(cleanedHTML, sel.tag, sel.attrs)
 		if content != "" {
 			cleaned := c.cleanHTMLContent(content)
-			if len(cleaned) > minCrawledContent {
+			if utf8.RuneCountInString(cleaned) > minCrawledContent {
 				return cleaned
 			}
 		}
@@ -1004,7 +1009,7 @@ func (c *Crawler) contentFromBody(html string) string {
 	}
 
 	cleaned := c.cleanHTMLContent(body)
-	if len(cleaned) <= minCrawledContent {
+	if utf8.RuneCountInString(cleaned) <= minCrawledContent {
 		return ""
 	}
 
@@ -1227,7 +1232,10 @@ func isContentEmpty(content string) bool {
 	stripped = strings.ReplaceAll(stripped, "\t", "")
 	stripped = strings.ReplaceAll(stripped, " ", "")
 
-	return len(stripped) < 10 // Less than 10 characters = empty
+	// Characters, not bytes. "Zapraszamy" is ten letters and thirteen bytes;
+	// ten Japanese characters are thirty. A byte threshold asks a different
+	// question of every alphabet, and the language it is fair to is English.
+	return utf8.RuneCountInString(stripped) < minVisibleCharacters
 }
 
 // FilterEmptyContent filters out posts with empty content

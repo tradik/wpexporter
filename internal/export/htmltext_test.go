@@ -68,7 +68,7 @@ func TestPlainTextExcerpt(t *testing.T) {
 		`<a href="https://hawanas.com/2010/07/21/389/" class="more-link">` +
 		`Continue reading <span class="meta-nav">&rarr;</span></a></p>`
 
-	assert.Equal(t, "Some swimming text…", plainTextExcerpt(in))
+	assert.Equal(t, "Some swimming text…", plainTextExcerpt(in, seededVocabulary()))
 }
 
 func TestStripReadMoreAnchor(t *testing.T) {
@@ -116,9 +116,15 @@ func TestStripReadMoreAnchor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, stripReadMoreAnchor(tt.in))
+			assert.Equal(t, tt.want, stripReadMoreAnchor(tt.in, seededVocabulary()))
 		})
 	}
+}
+
+// seededVocabulary knows only what a one-document conversion knows: the
+// structural marks and the seeded phrases, with nothing learned from a site.
+func seededVocabulary() readMoreVocabulary {
+	return newReadMoreVocabulary(nil, nil)
 }
 
 func TestCleanImages(t *testing.T) {

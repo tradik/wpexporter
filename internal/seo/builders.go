@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"unicode/utf8"
 )
 
 // builderClassRe matches the class prefixes the page builders stamp on their
@@ -55,7 +56,8 @@ var (
 )
 
 // shellTextPerContainer is the ratio that catches a builder nobody has heard
-// of, in characters of visible text per container element. A page of prose runs
+// of, in visible characters per container element — characters rather than
+// bytes, so the question is the same one on every alphabet. A page of prose runs
 // into the hundreds; the reported front page, forty wrappers around one
 // headline, is under ten.
 const shellTextPerContainer = 20
@@ -130,7 +132,10 @@ func visibleTextLength(content string) int {
 	text = htmlTagRe.ReplaceAllString(text, " ")
 	text = strings.ReplaceAll(text, "&nbsp;", " ")
 
-	return len(strings.Join(strings.Fields(text), " "))
+	// Characters, not bytes: 20 bytes is 20 letters of English and under 7 of
+	// Japanese, so a byte budget silently asks a different question of every
+	// alphabet — and never of the English one.
+	return utf8.RuneCountInString(strings.Join(strings.Fields(text), " "))
 }
 
 // siteBuilderClass matches the prefixes this operator named for their own site.

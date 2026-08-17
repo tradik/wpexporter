@@ -248,21 +248,21 @@ func (e *Exporter) writeSSGFrontMatter(builder *strings.Builder, post models.Wor
 	if tags := e.tagIDs.identities(post.Tags); len(tags) > 0 {
 		writeYAMLList(builder, "tag_slugs", slugsOf(tags))
 	}
-	writeYAMLString(builder, "description", e.escapeYAML(ssgDescription(post)))
+	writeYAMLString(builder, "description", e.escapeYAML(e.ssgDescription(post)))
 
 	// The editor pinned this post to the top of the blog; a listing sorted by
 	// date alone would bury it (#51).
 	if post.Sticky {
 		builder.WriteString("sticky: true\n")
 	}
-	writeYAMLString(builder, "excerpt", e.escapeYAML(plainTextExcerpt(post.Excerpt.Rendered)))
+	writeYAMLString(builder, "excerpt", e.escapeYAML(plainTextExcerpt(post.Excerpt.Rendered, e.readMore)))
 
 	if post.FeaturedMedia > 0 {
 		writeYAMLString(builder, "featured_image", e.escapeYAML(e.mediaMap[post.FeaturedMedia]))
 	}
 
 	// The page renders an archive rather than storing one (#41).
-	writePostLoopFrontMatter(builder, post, contentType)
+	e.writePostLoopFrontMatter(builder, post, contentType)
 
 	// Everything else the page declared. A generator ignores keys it does not
 	// recognize, but it cannot recover one the export dropped — and plugins put
@@ -293,14 +293,14 @@ func ssgTitle(post models.WordPressPost) string {
 
 // ssgDescription collapses WordPress's three spellings of a description into the
 // one key a generator reads, preferring the most deliberate source.
-func ssgDescription(post models.WordPressPost) string {
+func (e *Exporter) ssgDescription(post models.WordPressPost) string {
 	for _, candidate := range []string{post.SEO.MetaDescription, post.SEO.OGDescription} {
 		if description := plainText(candidate); description != "" {
 			return description
 		}
 	}
 
-	return plainTextExcerpt(post.Excerpt.Rendered)
+	return plainTextExcerpt(post.Excerpt.Rendered, e.readMore)
 }
 
 // primaryCategory returns the post's first named category.
@@ -336,7 +336,40 @@ func (e *Exporter) cleanContent(content string) string {
 
 // buildLookupMaps populates the ID-to-name maps the writers read, plus the alt
 // text index keyed on every URL form the content may carry.
+// learnReadMore reads the site's own excerpts before any of them is written, so
+// the phrase its theme appends is known in whatever language it is written in.
+//
+// A theme repeats itself: the trailing link text that ends three excerpts is
+// the theme speaking, and the one that ends a single excerpt is that post's
+// last sentence, which is content and has to survive.
+func (e *Exporter) learnReadMore(data *models.ExportData) {
+	excerpts := make([]string, 0, len(data.Posts)+len(data.Pages))
+
+	for _, post := range data.Posts {
+		excerpts = append(excerpts, post.Excerpt.Rendered)
+	}
+
+	for _, page := range data.Pages {
+		excerpts = append(excerpts, page.Excerpt.Rendered)
+	}
+
+	for _, set := range data.CustomTypes {
+		for _, entry := range set.Posts {
+			excerpts = append(excerpts, entry.Excerpt.Rendered)
+		}
+	}
+
+	var configured []string
+	if e.config != nil {
+		configured = e.config.ReadMorePhrases
+	}
+
+	e.readMore = newReadMoreVocabulary(excerpts, configured)
+}
+
 func (e *Exporter) buildLookupMaps(data *models.ExportData) {
+	e.learnReadMore(data)
+
 	e.categoryMap = make(map[int]string, len(data.Categories))
 	for _, category := range data.Categories {
 		e.categoryMap[category.ID] = category.Name
