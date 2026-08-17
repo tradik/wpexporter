@@ -5,6 +5,93 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **The catalog was fetched, counted and written nowhere (#65).** 282 products
+  came over the network, `stats.total_products` said 282, and `ls out/` showed
+  `pages/`, `posts/` and no catalog: `-f json` kept them, so it was the document
+  writers alone — they had never been taught that a shop has documents. For a
+  shop being migrated to a static site this is the whole migration, and every
+  `/produkt/<slug>/` link in its own navigation ended at a 404 on the built
+  site.
+
+  Products are now written as the documents they are: `products/<slug>.md` for
+  `markdown`, and for `ssg` at the path the permalink states, so the old address
+  still resolves. The commerce facts travel in front matter — `sku`, `price`,
+  `regular_price`, `sale_price`, `on_sale`, `stock_status`,
+  `product_categories`, `product_tags`, `images` — each omitted where the shop
+  did not set it.
+
+  And a collection the budget never reached now says so: `Products: 0` under a
+  `--limit` read as "this shop has no products", which is what sent the reporter
+  hunting for a route bug that did not exist. It reads `Products: 0 (none within
+  --limit)`.
+
+- **A heading's classes were dropped again, because the fix was an opt-in
+  (#67).** 1.8.15 put the remedy behind `--preserve-classes`, which the reporter
+  had no reason to guess at, and the migrated headline lost the theme's color
+  exactly as before. A silence the operator has to know the cure for is still a
+  silence.
+
+  A heading now keeps itself, as HTML, when it carries a class that means
+  something. The line is drawn at boilerplate: `wp-block-heading`,
+  `has-text-align-center`, `entry-title`, `screen-reader-text` and their kind
+  are what WordPress stamps on every heading on every site and say nothing a
+  `##` is missing, so those still convert. A theme's `sc_item_title`, a
+  generated `trx_addons_inline_158836093`, a framework's `text-center` — those
+  are styling this format cannot express. **`--no-preserve-styling` is the way
+  back to the 1.8.14 conversion**, and `--preserve-classes`/`--preserve-ids`
+  still name elements explicitly.
+
+- **The route probe read any 200 as an API (#66).** The reporter's site answers
+  its own HTML to every `?rest_route=` address, because to a WordPress with no
+  REST API that is a URL like any other. The probe believed it, the run switched
+  to a spelling that serves nothing, every collection failed to parse — and the
+  note printed beneath two `Incomplete:` lines and a 1.6 KB export read *"the
+  export used it and is complete"*.
+
+  A 200 now has to carry JSON that is not a refusal. Neither note concludes
+  anything any more: the collections above them say what was read, and a note
+  has no business summarizing them. This is the lesson of #65 applied to the
+  code that learned it.
+
+- **A `<template>` arrived on the page as a block of source (#69).** The fences
+  were well formed after 1.8.15 and still there, around the same reviews widget.
+  A `<template>` is markup a plugin clones at run time: it renders nothing where
+  it sits, and it is no more content than a `<script>` is. It is stripped now,
+  along with the empty fence it leaves behind.
+
+- **`--crawl-content` still walked past the pages it was recommended for
+  (#63).** 1.8.15 treated a recognized builder class as evidence toward a
+  text-per-container threshold; the reporter's front page — forty `kc-elm`
+  wrappers, none of its three sections in the export — cleared the threshold and
+  was skipped again. The class decides by itself now, because what it means is
+  that the stored body is an instruction to render, and an instruction is never
+  the page. The match is anchored inside a `class` attribute so a page merely
+  mentioning a builder is not re-read from the network.
+
+  Content extraction also falls back to the page body when no selector matches a
+  theme's markup, and **a page crawled to no effect is named** rather than
+  quietly counted as if it had worked.
+
+### Added
+- **The sitemap can be the whole source, not a patch (#68).** `--from-sitemap`
+  recovered *posts from the feed*, which is right for a site whose
+  `/wp/v2/posts` answers 500 (#40) and no answer at all for a WordPress older
+  than the content API: that site has no REST routes in either spelling, its
+  content is in pages, and its feed lists a handful of recent items where its
+  sitemap lists everything. 1.8.15 read the sitemap, printed the addresses and
+  exported none of them — a README, a `metadata.json` of zeroes, and eleven
+  years of content left on a server answering 200 to anyone who asks.
+
+  Those addresses are now fetched and written, with `stats.recovered_pages`
+  saying how many: they carry title, address, SEO metadata and the rendered
+  body, and no IDs, terms, authors or dates, because a published page is what
+  the site shows a reader rather than what its database holds. Only addresses no
+  exported document already covers, only with `--from-sitemap`, and the limit
+  flags bound the walk.
+
 ## [1.8.15] - 2026-08-17
 
 ### Fixed

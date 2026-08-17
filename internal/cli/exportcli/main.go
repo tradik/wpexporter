@@ -108,6 +108,7 @@ var (
 	excludeMediaTypes string
 	preserveClasses   string
 	preserveIDs       string
+	noPreserveStyling bool
 	cacheEnabled      bool
 	cacheTTL          string
 	cacheDir          string
@@ -159,6 +160,7 @@ Content Filters:
       --link-style            link/canonical_url/hreflangs: absolute (default) or root
       --frontmatter-style     structured values: nested (default) or flat (JSON strings)
       --report-a11y           Write a11y-report.md (WCAG 2.2 contrast + missing alt text)
+      --no-preserve-styling   Convert every heading to ##, dropping theme classes
 
 Advanced:
       --brute-force           Enable brute force ID discovery
@@ -256,6 +258,8 @@ func init() {
 		"CSS classes whose elements travel as HTML (comma-separated, wildcards allowed: trx_addons_inline_*)")
 	exportCmd.Flags().StringVar(&preserveIDs, "preserve-ids", "",
 		"element IDs whose elements travel as HTML (comma-separated, wildcards allowed)")
+	exportCmd.Flags().BoolVar(&noPreserveStyling, "no-preserve-styling", false,
+		"convert every heading to ## even where its classes carry styling Markdown cannot express")
 	exportCmd.Flags().BoolVar(&keepOriginalURLs, "keep-original-urls", false,
 		"preserve original WordPress URLs in content (don't convert to local paths)")
 	exportCmd.Flags().StringVar(&mediaPathStyle, "media-path-style", "root",
@@ -448,6 +452,9 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 		for i := range cfg.ExcludeMediaTypes {
 			cfg.ExcludeMediaTypes[i] = strings.TrimSpace(cfg.ExcludeMediaTypes[i])
 		}
+	}
+	if cmd.Flags().Changed("no-preserve-styling") {
+		cfg.NoPreserveStyling = noPreserveStyling
 	}
 	if cmd.Flags().Changed("preserve-classes") && preserveClasses != "" {
 		cfg.PreserveClasses = strings.Split(preserveClasses, ",")
@@ -1199,6 +1206,11 @@ func runExport(cmd *cobra.Command, args []string) error {
 		// what makes such a site exportable at all (#40).
 		recoverPostsFromFeed(cfg, inventory, exportData)
 
+		// And on a site with no content API at all, the sitemap is not a check
+		// on the export — it is the export. Its addresses answer 200 to anyone
+		// who asks, and 1.8.15 listed them and fetched none (#68).
+		recoverPagesFromSitemap(cfg, seo.NewCrawler(cfg), inventory, exportData)
+
 		exportData.Stats.Uncovered = checkCoverage(inventory, exportData)
 	}
 
@@ -1248,7 +1260,8 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if productsNotice != "" {
 		logf("%s\n", productsNotice)
 	} else {
-		logf("Products: %d\n", len(products))
+		logf("%s\n", countLine("Products", len(products),
+			apiClient.StatedTotal("products"), apiClient.Limited()))
 	}
 	logf("%s\n", countLine("Media", len(media), apiClient.StatedTotal("media"), apiClient.Limited()))
 	logf("Categories: %d\n", len(categories))

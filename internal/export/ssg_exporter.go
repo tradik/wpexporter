@@ -39,6 +39,11 @@ func (e *Exporter) exportSSG(data *models.ExportData) error {
 		return fmt.Errorf("failed to export custom post types: %w", err)
 	}
 
+	// The catalog, at the addresses the shop's own navigation links to (#65).
+	if err := e.exportSSGProducts(data.Products); err != nil {
+		return fmt.Errorf("failed to export products: %w", err)
+	}
+
 	if err := e.exportMetadata(data); err != nil {
 		return fmt.Errorf("failed to export metadata: %w", err)
 	}

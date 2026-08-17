@@ -11,17 +11,26 @@ package export
 // one happens to style its inner span as well.
 //
 // Markdown allows raw HTML, so the remedy is to leave such an element alone.
-// What it must not do is decide for itself which classes matter: a Gutenberg
-// site carries `wp-block-heading` on every heading it has, and keeping those as
-// HTML would turn a clean Markdown export into a wall of tags for every user of
-// this tool. So the operator names them, with the flags that already exist for
-// exactly this — `--preserve-classes` and `--preserve-ids`, wildcards included,
-// which until now only applied to `--flat-html` and `--basic-html`.
+// 1.8.15 made that an opt-in — `--preserve-classes`, which the reporter had no
+// reason to guess at — and the export lost the colors again. A silence the
+// operator has to know the cure for is still a silence.
 //
-//	--preserve-classes 'trx_addons_inline_*'   keep what the theme colors
+// So a heading now keeps itself, by default, when it carries a class that means
+// something. The line is drawn at boilerplate: `wp-block-heading`,
+// `has-text-align-center`, `screen-reader-text` and their kind are what
+// WordPress and its blocks stamp on every heading on every site, they say
+// nothing a Markdown heading cannot, and keeping those as HTML would turn a
+// clean export into a wall of tags for everyone. Anything else — a theme's
+// `sc_item_title`, a generated `trx_addons_inline_158836093`, a `text-center`
+// from a framework — is styling this format cannot express, and dropping it
+// silently is how a headline changes color in migration.
+//
+// `--preserve-classes` and `--preserve-ids` still name elements explicitly,
+// wildcards included, and still apply to `--flat-html` and `--basic-html`:
+//
+//	--preserve-classes 'trx_addons_inline_*'   keep exactly this family
 //	--preserve-classes '*'                     keep every element that has a class
-//
-// Named nothing, an export converts exactly as it did before.
+//	--no-preserve-styling                      keep nothing; convert as 1.8.14 did
 
 import (
 	"fmt"
@@ -35,17 +44,57 @@ import (
 // match or mangle it.
 const preservedMarker = "\x00wpx-keep-%d\x00"
 
-// preserveRules are the classes and IDs the operator asked to keep. The zero
-// value keeps nothing, which is what nearly every run wants.
+// preserveRules are what this run keeps as HTML: the classes and IDs the
+// operator named, and — unless they turned it off — any heading whose classes
+// are not boilerplate.
 type preserveRules struct {
 	classes []string
 	ids     []string
+	// styledHeadings keeps a heading carrying a class Markdown cannot express.
+	// On by default because the loss it prevents is invisible until somebody
+	// opens the migrated site and finds the headline in the wrong color (#67).
+	styledHeadings bool
 }
 
 // empty reports a rule set with nothing to do, so the whole pass can be skipped
 // rather than compiling patterns for a run that named none.
 func (r preserveRules) empty() bool {
-	return len(r.classes) == 0 && len(r.ids) == 0
+	return len(r.classes) == 0 && len(r.ids) == 0 && !r.styledHeadings
+}
+
+// boilerplateClassRe matches the classes WordPress, its block editor and its
+// alignment and color utilities stamp on headings everywhere. They describe
+// nothing a Markdown heading is missing, so a heading wearing only these
+// converts as it always has.
+var boilerplateClassRe = regexp.MustCompile(`^(wp-block-[\w-]+|has-[\w-]+|is-[\w-]+|` +
+	`align[\w-]*|screen-reader-text|entry-title|post-title|page-title|widget-title|` +
+	`section-title|title|heading|subtitle|sr-only)$`)
+
+// headingTagRe matches an opening heading tag and captures its attributes.
+var headingTagRe = regexp.MustCompile(`(?is)^<h[1-6]\b([^>]*)>$`)
+
+// classValueRe reads a class attribute's value.
+var classValueRe = regexp.MustCompile(`(?is)\bclass\s*=\s*["']([^"']*)["']`)
+
+// keepsItsStyling reports a heading whose classes carry something a `##` cannot.
+func keepsItsStyling(openTag string) bool {
+	attrs := headingTagRe.FindStringSubmatch(openTag)
+	if attrs == nil {
+		return false
+	}
+
+	classes := classValueRe.FindStringSubmatch(attrs[1])
+	if classes == nil {
+		return false
+	}
+
+	for _, class := range strings.Fields(classes[1]) {
+		if !boilerplateClassRe.MatchString(class) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // openTagRe finds an element's opening tag. Attributes are captured so the
@@ -81,7 +130,10 @@ func preserveElements(html string, rules preserveRules) (string, []string) {
 		name := html[offset+tag[2] : offset+tag[3]]
 		attrs := html[offset+tag[4] : offset+tag[5]]
 
-		if !matchesAny(attrs, matchers) {
+		named := matchesAny(attrs, matchers)
+		styled := rules.styledHeadings && keepsItsStyling(html[start:offset+tag[1]])
+
+		if !named && !styled {
 			offset = start + 1
 
 			continue

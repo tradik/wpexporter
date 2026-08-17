@@ -215,6 +215,12 @@ func (e *Exporter) exportMarkdown(data *models.ExportData) error {
 		return fmt.Errorf("failed to export custom post types: %w", err)
 	}
 
+	// And the shop's catalog, which was fetched and counted and written nowhere
+	// until a reporter looked for it (#65).
+	if err := e.exportProductsMarkdown(data.Products); err != nil {
+		return fmt.Errorf("failed to export products: %w", err)
+	}
+
 	// Export metadata
 	if err := e.exportMetadata(data); err != nil {
 		return fmt.Errorf("failed to export metadata: %w", err)
@@ -988,17 +994,23 @@ func (e *Exporter) convertHTMLToMarkdown(html string) string {
 	return htmlToMarkdownKeeping(html, e.preserveRules())
 }
 
-// preserveRules are the classes and IDs --preserve-classes and --preserve-ids
-// named. They applied only to --flat-html and --basic-html until #67: a
-// heading's class is where a theme keeps its color, and Markdown has nowhere
-// to put it, so the operator can now say which elements travel as HTML here
-// too. Named nothing, the conversion is exactly what it was.
+// preserveRules are what this export keeps as HTML.
+//
+// --preserve-classes and --preserve-ids name elements explicitly; they applied
+// only to --flat-html and --basic-html until #67. On top of them, a heading
+// carrying a class that is not boilerplate keeps itself by default, because a
+// theme's class is where the heading's color lives and losing it silently is
+// how a migrated headline changes color. --no-preserve-styling turns that off.
 func (e *Exporter) preserveRules() preserveRules {
 	if e.config == nil {
 		return preserveRules{}
 	}
 
-	return preserveRules{classes: e.config.PreserveClasses, ids: e.config.PreserveIDs}
+	return preserveRules{
+		classes:        e.config.PreserveClasses,
+		ids:            e.config.PreserveIDs,
+		styledHeadings: !e.config.NoPreserveStyling,
+	}
 }
 
 // exportShopify exports data as Shopify-compatible CSV

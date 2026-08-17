@@ -68,12 +68,38 @@ request at all. The export is complete either way, and `stats.notices` in
 `metadata.json` names the spelling that was used, because the address in the
 report is not the one a reader would try by hand.
 
+On a site with no content API, **the sitemap is the source rather than a
+check**. Its addresses are fetched and written as pages, with
+`stats.recovered_pages` saying how many; they carry title, address, SEO metadata
+and the rendered body, and no IDs, terms, authors or dates, because a published
+page is what the site shows a reader rather than what its database holds. Only
+addresses no exported document already covers, only under `--from-sitemap`, and
+the limit flags bound the walk (#68).
+
 A WordPress **older than 4.7** has no `wp/v2` content routes in either spelling —
 the content API arrived in that release — and answers `rest_no_route` to
 everything. There is nothing to fall back to, so the run says so once, records it
 in `stats.notices`, and reads the site's feed by itself rather than handing back
 an empty export that looks like an empty site (#68). `--no-inventory-check`
 overrules that, as it overrules everything else the inventory does.
+
+**A shop's catalog is written down.** `markdown` puts each product at
+`products/<slug>.md`; `ssg` puts it at the path its permalink states, so the
+`/produkt/<slug>/` links in the site's own navigation still resolve on the built
+site. The commerce facts travel in front matter — `sku`, `price`,
+`regular_price`, `sale_price`, `on_sale`, `stock_status`, `product_categories`,
+`product_tags`, `images` — each omitted where the shop did not set it, and the
+long description is the body. Until #65 the products were fetched, counted in
+`stats.total_products` and written nowhere by either format.
+
+**A heading keeps its own styling.** A `<h2 class="sc_item_title
+trx_addons_inline_158836093">` travels as HTML rather than as `##`, because that
+generated class is where the theme's color rule keys on and a Markdown heading
+has nowhere to put it (#67). Boilerplate does not count: `wp-block-heading`,
+`has-text-align-center`, `entry-title`, `screen-reader-text` and their kind are
+what WordPress stamps on every heading everywhere and say nothing a `##` is
+missing, so those convert as they always have. `--no-preserve-styling` converts
+everything, `--preserve-classes` and `--preserve-ids` name elements explicitly.
 
 A post the editor **pinned to the top of the blog** carries `sticky: true`,
 omitted when false. A listing sorted by date alone buries it wherever its date

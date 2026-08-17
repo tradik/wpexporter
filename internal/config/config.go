@@ -105,18 +105,23 @@ type Config struct {
 	ReportA11y bool `mapstructure:"report_a11y" json:"report_a11y"`
 	// ExtractMeta selects which meta tags beyond the named SEO fields are kept:
 	// "all" (default), "none", or a comma-separated allow-list of tag names.
-	ExtractMeta       string         `mapstructure:"extract_meta" json:"extract_meta"`
-	NoTags            bool           `mapstructure:"no_tags" json:"no_tags"`                                   // Skip exporting tags
-	NoMenus           bool           `mapstructure:"no_menus" json:"no_menus"`                                 // Skip exporting navigation menus
-	NoComments        bool           `mapstructure:"no_comments" json:"no_comments"`                           // Skip exporting reader comments (#35)
-	NoInventoryCheck  bool           `mapstructure:"no_inventory_check" json:"no_inventory_check"`             // Skip the sitemap/feed check (#40)
-	FromSitemap       bool           `mapstructure:"from_sitemap" json:"from_sitemap"`                         // Recover posts from the feed (#40)
-	Quiet             bool           `mapstructure:"quiet" json:"quiet"`                                       // Suppress all output
-	NoIDs             bool           `mapstructure:"no_ids" json:"no_ids"`                                     // Exclude numeric IDs from frontmatter
-	ExcludeTags       []string       `mapstructure:"exclude_tags" json:"exclude_tags,omitempty"`               // SEO tags to exclude from extraction
-	ExcludeMediaTypes []string       `mapstructure:"exclude_media_types" json:"exclude_media_types,omitempty"` // Media types to exclude from download
-	PreserveClasses   []string       `mapstructure:"preserve_classes" json:"preserve_classes,omitempty"`       // Classes to preserve
-	PreserveIDs       []string       `mapstructure:"preserve_ids" json:"preserve_ids,omitempty"`               // IDs to preserve
+	ExtractMeta       string   `mapstructure:"extract_meta" json:"extract_meta"`
+	NoTags            bool     `mapstructure:"no_tags" json:"no_tags"`                                   // Skip exporting tags
+	NoMenus           bool     `mapstructure:"no_menus" json:"no_menus"`                                 // Skip exporting navigation menus
+	NoComments        bool     `mapstructure:"no_comments" json:"no_comments"`                           // Skip exporting reader comments (#35)
+	NoInventoryCheck  bool     `mapstructure:"no_inventory_check" json:"no_inventory_check"`             // Skip the sitemap/feed check (#40)
+	FromSitemap       bool     `mapstructure:"from_sitemap" json:"from_sitemap"`                         // Recover posts from the feed (#40)
+	Quiet             bool     `mapstructure:"quiet" json:"quiet"`                                       // Suppress all output
+	NoIDs             bool     `mapstructure:"no_ids" json:"no_ids"`                                     // Exclude numeric IDs from frontmatter
+	ExcludeTags       []string `mapstructure:"exclude_tags" json:"exclude_tags,omitempty"`               // SEO tags to exclude from extraction
+	ExcludeMediaTypes []string `mapstructure:"exclude_media_types" json:"exclude_media_types,omitempty"` // Media types to exclude from download
+	PreserveClasses   []string `mapstructure:"preserve_classes" json:"preserve_classes,omitempty"`       // Classes to preserve
+	PreserveIDs       []string `mapstructure:"preserve_ids" json:"preserve_ids,omitempty"`               // IDs to preserve
+	// NoPreserveStyling converts every heading to `##` even when its classes
+	// carry styling Markdown cannot express. The default keeps such a heading
+	// as HTML, because losing it changes how the migrated page looks and says
+	// nothing (#67); this is the way back to the 1.8.14 conversion.
+	NoPreserveStyling bool           `mapstructure:"no_preserve_styling" json:"no_preserve_styling,omitempty"`
 	FlatHTMLRules     []FlatHTMLRule `mapstructure:"flat_html_rules" json:"flat_html_rules,omitempty"`
 	Cache             bool           `mapstructure:"cache" json:"cache"`             // Enable caching of API responses and crawl data
 	CacheTTL          string         `mapstructure:"cache_ttl" json:"cache_ttl"`     // Cache TTL (e.g., "24h", "0" for unlimited)

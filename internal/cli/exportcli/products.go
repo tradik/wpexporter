@@ -40,9 +40,18 @@ func recoverPublicProducts(client *api.Client) ([]models.WooCommerceProduct, str
 // every silent cap — the same shape as the gaps in #37 and the shortfalls in
 // #43, and worth the same sentence (#60).
 func countLine(label string, exported, stated int, limited bool) string {
-	if limited && stated > exported {
+	switch {
+	case limited && stated > exported:
 		return fmt.Sprintf("%s: %d (limited from %d)", label, exported, stated)
-	}
 
-	return fmt.Sprintf("%s: %d", label, exported)
+	// A collection the budget never reached. `Products: 0` under a --limit
+	// reads as "this shop has no products", which is what sent the reporter of
+	// #65 looking for a route bug: the budget was spent on pages before the
+	// catalog was asked for, and nothing said so.
+	case limited && exported == 0:
+		return label + ": 0 (none within --limit)"
+
+	default:
+		return fmt.Sprintf("%s: %d", label, exported)
+	}
 }

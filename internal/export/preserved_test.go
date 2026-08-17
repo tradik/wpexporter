@@ -19,10 +19,12 @@ const themedHeading = `<h2 class="sc_item_title sc_title_title trx_addons_inline
 // headline in the body color while a headline two sections down keeps the
 // theme's by accident — two identical headings, two different results.
 func TestHeadingKeepsTheClassThatColorsIt(t *testing.T) {
-	lost := htmlToMarkdown(themedHeading)
-	assert.NotContains(t, lost, "trx_addons_inline_158836093",
-		"the default is unchanged: a heading becomes a heading")
-	assert.Contains(t, lost, "## ")
+	// What reopened this: 1.8.15 made the remedy an opt-in the reporter had no
+	// reason to guess at, and the headline lost its color again. A heading
+	// wearing a class that means something now keeps itself.
+	byDefault := htmlToMarkdownKeeping(themedHeading, preserveRules{styledHeadings: true})
+	assert.Contains(t, byDefault, "trx_addons_inline_158836093")
+	assert.NotContains(t, byDefault, "## ")
 
 	kept := htmlToMarkdownKeeping(themedHeading, preserveRules{classes: []string{"trx_addons_inline_*"}})
 	assert.Contains(t, kept, `class="sc_item_title sc_title_title trx_addons_inline_158836093"`,
@@ -133,4 +135,50 @@ func TestExporterReadsTheOperatorsRules(t *testing.T) {
 	bare := &Exporter{}
 	assert.True(t, bare.preserveRules().empty())
 	assert.Contains(t, bare.convertHTMLToMarkdown("<h2>Title</h2>"), "## Title")
+}
+
+// TestBoilerplateHeadingsStillConvert: the line the default rule is drawn at.
+// WordPress and its blocks stamp these on every heading on every site; they say
+// nothing a `##` is missing, and keeping them as HTML would turn a clean export
+// into a wall of tags for everyone.
+func TestBoilerplateHeadingsStillConvert(t *testing.T) {
+	styled := preserveRules{styledHeadings: true}
+
+	for _, heading := range []string{
+		`<h2>Plain</h2>`,
+		`<h2 class="wp-block-heading">Gutenberg</h2>`,
+		`<h2 class="wp-block-heading has-text-align-center has-large-font-size">Aligned</h2>`,
+		`<h1 class="entry-title">Theme title</h1>`,
+		`<h2 class="screen-reader-text">Hidden label</h2>`,
+	} {
+		out := htmlToMarkdownKeeping(heading, styled)
+		assert.NotContains(t, out, "<h", "should convert: %s", heading)
+	}
+}
+
+// TestHeadingsWorthKeeping: anything that is not boilerplate is styling this
+// format cannot express, whoever emitted it.
+func TestHeadingsWorthKeeping(t *testing.T) {
+	styled := preserveRules{styledHeadings: true}
+
+	for _, heading := range []string{
+		`<h2 class="sc_item_title trx_addons_inline_158836093">Theme</h2>`,
+		`<h2 class="text-center">Framework</h2>`,
+		`<h3 class="wp-block-heading kc-elm">Builder</h3>`,
+	} {
+		out := htmlToMarkdownKeeping(heading, styled)
+		assert.Contains(t, out, "<h", "should be kept: %s", heading)
+	}
+}
+
+// TestNoPreserveStylingIsTheWayBack: an operator who wants the 1.8.14
+// conversion says so, and gets exactly it.
+func TestNoPreserveStylingIsTheWayBack(t *testing.T) {
+	exporter := NewExporter(&config.Config{NoPreserveStyling: true})
+
+	assert.True(t, exporter.preserveRules().empty())
+	assert.Equal(t, htmlToMarkdown(themedHeading), exporter.convertHTMLToMarkdown(themedHeading))
+
+	byDefault := NewExporter(&config.Config{})
+	assert.True(t, byDefault.preserveRules().styledHeadings)
 }
