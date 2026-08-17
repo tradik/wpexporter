@@ -7,7 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **A code fence inside the body turned the rest of the page into a code block
+  (#69).** `<pre>` became "```" wherever it happened to sit, so a plugin that
+  ships one inside a `<div>` — a reviews widget with a `<template>` in it — had
+  a fence opened mid-element and closed mid-element. Everything between them,
+  and everything the closing marker pushed out of alignment after them, rendered
+  as source code: a grey box a screen and a half tall on a published page.
+
+  A fence now owns its lines, is longer than the longest run of backticks inside
+  it (CommonMark's own rule for content carrying ```), and a document never ends
+  inside one — an unclosed `<pre>`, which page builders emit, would otherwise
+  take the rest of the page and, on a generator's index, the next document too.
+
+- **The products report stated a conclusion rather than what happened (#65).**
+  `Products: 0 — … and /wp/v2/product published none either` claimed the public
+  route had nothing, on a shop whose products were simply never reached. That
+  sent the reporter hunting for a route bug that did not exist, and cost them a
+  day. The line now names the route and what it answered — `/wp/v2/product
+  answered 404` — and says "published none" only when the route did answer and
+  had nothing. A report may say what happened; it may not say what it concluded.
+
 ### Added
+- **`custom_types[]` says whether a type has an archive, and where (#64).** Two
+  types with the same shape in `metadata.json` could have opposite truths — one
+  serving `/realizacje/`, one 404ing — and nothing told them apart, so a
+  generator could not build a listing it did not know existed. `has_archive` and
+  `archive_link` are now recorded, from the types document the export already
+  reads (#53): no extra request, and correct for a type that registered its
+  archive under a different slug.
+
 - **Limits have a shape, and every kind is capped (#62).** 1.8.14 gave the
   export two caps, both single numbers. A preview usually wants different
   amounts of different things — five posts say what a blog is, five media items

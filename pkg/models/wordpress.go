@@ -374,10 +374,16 @@ type ExportData struct {
 // slug is the WordPress type name ("cpt_services"), Name its human label
 // ("Services") and RestBase the collection it was fetched from.
 type CustomTypeSet struct {
-	Slug     string          `json:"slug"`
-	Name     string          `json:"name"`
-	RestBase string          `json:"rest_base"`
-	Posts    []WordPressPost `json:"posts"`
+	Slug     string `json:"slug"`
+	Name     string `json:"name"`
+	RestBase string `json:"rest_base"`
+	// HasArchive reports whether the type publishes a listing of its own, and
+	// ArchiveLink is the address it publishes it at. Two types with the same
+	// shape in metadata.json can have opposite truths — one serving /realizacje/
+	// and one 404ing — and nothing here used to tell them apart (#64).
+	HasArchive  bool            `json:"has_archive,omitempty"`
+	ArchiveLink string          `json:"archive_link,omitempty"`
+	Posts       []WordPressPost `json:"posts"`
 }
 
 // SiteInfo represents WordPress site information

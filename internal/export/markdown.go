@@ -66,8 +66,13 @@ func htmlToMarkdown(input string) string {
 	md = mdEmOpenRe.ReplaceAllString(md, "*")
 	md = mdEmCloseRe.ReplaceAllString(md, "*")
 
-	md = mdPreOpenRe.ReplaceAllString(md, "```\n")
-	md = mdPreCloseRe.ReplaceAllString(md, "\n```")
+	// A fence owns its lines and is longer than anything inside it, so a <pre>
+	// a plugin ships inside a <div> cannot take the rest of the page with it
+	// (#69). The tag-by-tag rules below still catch a stray half of a <pre>,
+	// which is malformed markup rather than a block.
+	md = convertPreBlocks(md)
+	md = mdPreOpenRe.ReplaceAllString(md, "\n```\n")
+	md = mdPreCloseRe.ReplaceAllString(md, "\n```\n")
 	md = mdCodeOpenRe.ReplaceAllString(md, "`")
 	md = mdCodeCloseRe.ReplaceAllString(md, "`")
 
@@ -95,6 +100,10 @@ func htmlToMarkdown(input string) string {
 	// UTF-8 output, so typographic entities are noise; HTML-significant ones stay
 	// encoded (decoding them would turn escaped markup into live markup).
 	md = decodeTypographicEntities(md)
+
+	// A document that ends inside a fence takes the rest of the page with it —
+	// and on a generator's index, the next document too (#69).
+	md = closeDanglingFence(md)
 
 	// Last, so nothing above rewrites the markup of a list Markdown cannot
 	// number — a lettered, roman or reversed one, which travels as HTML.
