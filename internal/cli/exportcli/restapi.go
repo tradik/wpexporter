@@ -16,16 +16,24 @@ package exportcli
 // lose it.
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/tradik/wpexporter/internal/api"
 	"github.com/tradik/wpexporter/internal/config"
 )
 
 // restRouteNotice is what the run says about a site serving its API at
-// ?rest_route= — nothing failed, but the address in the report is not the one a
-// reader would try by hand.
+// ?rest_route= — the address in the report is not the one a reader would try by
+// hand.
+//
+// It states the spelling and stops. Its first draft ended "the export used it
+// and is complete", which the whole rest of the report is entitled to
+// contradict: the collections below it say what was read and what was not, and
+// a note has no business summarizing them (#66).
 const restRouteNotice = "This site serves its REST API at /?rest_route= rather than /wp-json/ — " +
 	"the fallback spelling WordPress uses when permalinks are plain or a plugin hides the " +
-	"pretty route. The export used it and is complete."
+	"pretty route. The addresses this export was read from are not the ones /wp-json/ would show."
 
 // noteSiteAPI records, at most once, what the client learned about this site's
 // REST API. It is called after the collections rather than before them because
@@ -73,4 +81,25 @@ func fallBackToFeed(client *api.Client, cfg *config.Config) {
 
 	cfg.FromSitemap = true
 	logln("Reading the site's feed instead — there is no content API to read (--from-sitemap).")
+}
+
+// noteUnreadSitemaps records the sitemap-index children a bound kept this run
+// from reading.
+//
+// The inventory decides what the export is reported as missing (#40) and, on a
+// site with no content API, what it fetches at all (#68). A bound that silently
+// halved it would make every count downstream wrong while looking exactly like
+// a count that was right — so the run names the documents it did not open.
+func noteUnreadSitemaps(client *api.Client, notices *[]string) {
+	unread := client.UnreadSitemaps()
+	if len(unread) == 0 {
+		return
+	}
+
+	notice := fmt.Sprintf("--max-sitemap-documents stopped this run from reading %d sitemap "+
+		"document(s); the addresses they list are not counted here: %s",
+		len(unread), strings.Join(unread, ", "))
+
+	*notices = append(*notices, notice)
+	logf("\n%s\n", notice)
 }

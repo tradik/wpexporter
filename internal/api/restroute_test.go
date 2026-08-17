@@ -170,7 +170,9 @@ func TestRestAPIAbsentOnPre47(t *testing.T) {
 	assert.True(t, client.RestAPIAbsent(), "neither spelling serves content routes")
 	assert.False(t, client.UsesRestRouteFallback(), "there is nothing to fall back to")
 	assert.Contains(t, RestAPINotice(), "4.7")
-	assert.Contains(t, RestAPINotice(), "--from-sitemap")
+	assert.Contains(t, RestAPINotice(), "sitemap")
+	assert.NotContains(t, RestAPINotice(), "complete",
+		"the note says what happened, never what it concluded (#65, #66)")
 }
 
 // TestAnswersContentRejectsARefusal: the 200 that means no. A pre-4.7 site
@@ -238,4 +240,44 @@ func TestA404OnOneCollectionIsNotAFallback(t *testing.T) {
 	pages, err := client.GetPages()
 	require.NoError(t, err)
 	assert.Empty(t, pages)
+}
+
+// TestASiteAnsweringHTMLHasNoAPI: the correction the reporter of #66 sent after
+// checking their own site. It answers 200 to every /?rest_route= address — with
+// the site's HTML, because to a WordPress with no REST API that is a URL like
+// any other. Read as an API, the run switched to a spelling that serves nothing,
+// failed to parse every collection, and printed "the export used it and is
+// complete" under two incomplete lines and a 1.6 KB export.
+func TestASiteAnsweringHTMLHasNoAPI(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("rest_route") == "" {
+			w.WriteHeader(http.StatusNotFound)
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(`<!DOCTYPE html><html lang="en"><head><title>Home</title></head></html>`))
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := NewClient(&config.Config{URL: server.URL, Timeout: 5, Retries: 0})
+	require.NoError(t, err)
+
+	_, err = client.GetPosts()
+	require.Error(t, err)
+
+	assert.False(t, client.UsesRestRouteFallback(), "a page of HTML is not an API")
+	assert.True(t, client.RestAPIAbsent(), "and the run says so rather than claiming success")
+}
+
+// TestIsRESTDocument: what a 200 has to carry to count. A collection answers
+// with an array, which does not fit the refusal's shape — reading that failure
+// as "not an API" would reject every working endpoint there is.
+func TestIsRESTDocument(t *testing.T) {
+	assert.True(t, isRESTDocument([]byte(`[{"id":1}]`)), "a collection is an array")
+	assert.True(t, isRESTDocument([]byte(`{"post":{"slug":"post"}}`)))
+	assert.False(t, isRESTDocument([]byte(`{"code":"rest_no_route"}`)))
+	assert.False(t, isRESTDocument([]byte(`<!DOCTYPE html><html></html>`)))
+	assert.False(t, isRESTDocument(nil))
 }

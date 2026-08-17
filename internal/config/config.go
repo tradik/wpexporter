@@ -105,23 +105,66 @@ type Config struct {
 	ReportA11y bool `mapstructure:"report_a11y" json:"report_a11y"`
 	// ExtractMeta selects which meta tags beyond the named SEO fields are kept:
 	// "all" (default), "none", or a comma-separated allow-list of tag names.
-	ExtractMeta       string         `mapstructure:"extract_meta" json:"extract_meta"`
-	NoTags            bool           `mapstructure:"no_tags" json:"no_tags"`                                   // Skip exporting tags
-	NoMenus           bool           `mapstructure:"no_menus" json:"no_menus"`                                 // Skip exporting navigation menus
-	NoComments        bool           `mapstructure:"no_comments" json:"no_comments"`                           // Skip exporting reader comments (#35)
-	NoInventoryCheck  bool           `mapstructure:"no_inventory_check" json:"no_inventory_check"`             // Skip the sitemap/feed check (#40)
-	FromSitemap       bool           `mapstructure:"from_sitemap" json:"from_sitemap"`                         // Recover posts from the feed (#40)
-	Quiet             bool           `mapstructure:"quiet" json:"quiet"`                                       // Suppress all output
-	NoIDs             bool           `mapstructure:"no_ids" json:"no_ids"`                                     // Exclude numeric IDs from frontmatter
-	ExcludeTags       []string       `mapstructure:"exclude_tags" json:"exclude_tags,omitempty"`               // SEO tags to exclude from extraction
-	ExcludeMediaTypes []string       `mapstructure:"exclude_media_types" json:"exclude_media_types,omitempty"` // Media types to exclude from download
-	PreserveClasses   []string       `mapstructure:"preserve_classes" json:"preserve_classes,omitempty"`       // Classes to preserve
-	PreserveIDs       []string       `mapstructure:"preserve_ids" json:"preserve_ids,omitempty"`               // IDs to preserve
-	FlatHTMLRules     []FlatHTMLRule `mapstructure:"flat_html_rules" json:"flat_html_rules,omitempty"`
-	Cache             bool           `mapstructure:"cache" json:"cache"`             // Enable caching of API responses and crawl data
-	CacheTTL          string         `mapstructure:"cache_ttl" json:"cache_ttl"`     // Cache TTL (e.g., "24h", "0" for unlimited)
-	CacheDir          string         `mapstructure:"cache_dir" json:"cache_dir"`     // Cache directory path
-	CacheClear        bool           `mapstructure:"cache_clear" json:"cache_clear"` // Clear cache before export
+	ExtractMeta       string   `mapstructure:"extract_meta" json:"extract_meta"`
+	NoTags            bool     `mapstructure:"no_tags" json:"no_tags"`                                   // Skip exporting tags
+	NoMenus           bool     `mapstructure:"no_menus" json:"no_menus"`                                 // Skip exporting navigation menus
+	NoComments        bool     `mapstructure:"no_comments" json:"no_comments"`                           // Skip exporting reader comments (#35)
+	NoInventoryCheck  bool     `mapstructure:"no_inventory_check" json:"no_inventory_check"`             // Skip the sitemap/feed check (#40)
+	FromSitemap       bool     `mapstructure:"from_sitemap" json:"from_sitemap"`                         // Recover posts from the feed (#40)
+	Quiet             bool     `mapstructure:"quiet" json:"quiet"`                                       // Suppress all output
+	NoIDs             bool     `mapstructure:"no_ids" json:"no_ids"`                                     // Exclude numeric IDs from frontmatter
+	ExcludeTags       []string `mapstructure:"exclude_tags" json:"exclude_tags,omitempty"`               // SEO tags to exclude from extraction
+	ExcludeMediaTypes []string `mapstructure:"exclude_media_types" json:"exclude_media_types,omitempty"` // Media types to exclude from download
+	PreserveClasses   []string `mapstructure:"preserve_classes" json:"preserve_classes,omitempty"`       // Classes to preserve
+	PreserveIDs       []string `mapstructure:"preserve_ids" json:"preserve_ids,omitempty"`               // IDs to preserve
+	// PreserveStyling decides what survives a conversion that has nowhere to
+	// put a class. Sites differ too much for one answer: "auto" (the default)
+	// keeps a heading whose classes are not boilerplate, "none" converts
+	// everything as 1.8.14 did, and "all" keeps every element carrying a class,
+	// which is what a site whose whole layout is styled needs (#67).
+	PreserveStyling string `mapstructure:"preserve_styling" json:"preserve_styling,omitempty"`
+	// CrawlContentMode decides which pages --crawl-content re-reads: "auto"
+	// (the default) the ones whose stored body is empty or is a page builder's
+	// scaffolding, "empty" only the empty ones as 1.8.14 did, and "always"
+	// every page, for an operator who already knows how their site is built
+	// and would rather not guess which rule fired (#63).
+	CrawlContentMode string `mapstructure:"crawl_content_mode" json:"crawl_content_mode,omitempty"`
+	// BuilderClasses are class prefixes that mark a page builder's scaffolding
+	// on this site, added to the ones already recognized. The builder a site
+	// uses may be one nobody has heard of, and its markup is no less
+	// unreadable for that (#63).
+	BuilderClasses []string `mapstructure:"builder_classes" json:"builder_classes,omitempty"`
+	// MaxSitemapDocuments bounds how many child documents of a sitemap index
+	// the inventory reads. Zero, the default, is no bound: a bound this tool
+	// invented about sites it had not seen made a large site's count quietly
+	// wrong. Set it to spare the requests, and the run names what it did not
+	// read.
+	MaxSitemapDocuments int `mapstructure:"max_sitemap_documents" json:"max_sitemap_documents,omitempty"`
+	// PostLoopMarkers name this theme's own listing element — a shortcode, a
+	// block or a class that renders an archive rather than storing one — added
+	// to the recognized ones. Every theme that ships one writes its own name
+	// for it (#41).
+	PostLoopMarkers []string `mapstructure:"post_loop_markers" json:"post_loop_markers,omitempty"`
+	// ReadMorePhrases name the "continue reading" text this theme appends to an
+	// excerpt, for a site with too few excerpts for the run to learn it from
+	// their repetition. Every language has such a phrase and no list of them
+	// can be finished, so the run learns rather than assumes.
+	ReadMorePhrases []string `mapstructure:"read_more_phrases" json:"read_more_phrases,omitempty"`
+	// ContentSelectors are CSS-ish selectors naming this theme's content area,
+	// tried before the built-in list. A theme can call it anything, and the
+	// alternative to naming it is an export of the whole body including the
+	// chrome (#63).
+	ContentSelectors []string `mapstructure:"content_selectors" json:"content_selectors,omitempty"`
+	// BoilerplateClasses are classes this site's theme stamps on everything and
+	// which mean nothing a Markdown heading is missing, added to the ones every
+	// WordPress emits. One tool's idea of meaningless cannot fit every theme
+	// ever written (#67).
+	BoilerplateClasses []string       `mapstructure:"boilerplate_classes" json:"boilerplate_classes,omitempty"`
+	FlatHTMLRules      []FlatHTMLRule `mapstructure:"flat_html_rules" json:"flat_html_rules,omitempty"`
+	Cache              bool           `mapstructure:"cache" json:"cache"`             // Enable caching of API responses and crawl data
+	CacheTTL           string         `mapstructure:"cache_ttl" json:"cache_ttl"`     // Cache TTL (e.g., "24h", "0" for unlimited)
+	CacheDir           string         `mapstructure:"cache_dir" json:"cache_dir"`     // Cache directory path
+	CacheClear         bool           `mapstructure:"cache_clear" json:"cache_clear"` // Clear cache before export
 }
 
 // FlatHTMLRule defines a custom HTML to Markdown conversion rule

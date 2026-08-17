@@ -36,6 +36,10 @@ type Exporter struct {
 	shortcodeLeaks []shortcodeLeak
 	// rewriter localizes attachment URLs; nil when the export keeps original URLs.
 	rewriter *media.URLRewriter
+	// readMore is what this site's own excerpts revealed about the phrase its
+	// theme appends to them, so a "continue reading" in a language nobody
+	// listed is recognized as chrome all the same.
+	readMore readMoreVocabulary
 }
 
 // NewExporter creates a new exporter instance
@@ -213,6 +217,12 @@ func (e *Exporter) exportMarkdown(data *models.ExportData) error {
 	// consumer sees Services as Services rather than as untyped pages (#28).
 	if err := e.exportCustomTypesMarkdown(data.CustomTypes); err != nil {
 		return fmt.Errorf("failed to export custom post types: %w", err)
+	}
+
+	// And the shop's catalog, which was fetched and counted and written nowhere
+	// until a reporter looked for it (#65).
+	if err := e.exportProductsMarkdown(data.Products); err != nil {
+		return fmt.Errorf("failed to export products: %w", err)
 	}
 
 	// Export metadata
@@ -613,7 +623,7 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 
 	// A page whose body is a listing element says so, so a target points its
 	// own archive at this address instead of migrating a page over it (#41).
-	writePostLoopFrontMatter(&builder, post, contentType)
+	e.writePostLoopFrontMatter(&builder, post, contentType)
 
 	// A child page states its parent, so a consumer can rebuild the tree the
 	// URL implies without re-deriving it from paths (#38). The slug travels
@@ -708,7 +718,7 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 	// reading" anchor is navigation rather than content and otherwise ends up in
 	// <meta name="description">. Kept even with --ssg-sections so consumers that
 	// read the frontmatter key still get it.
-	excerptText := plainTextExcerpt(post.Excerpt.Rendered)
+	excerptText := plainTextExcerpt(post.Excerpt.Rendered, e.readMore)
 	if excerptText != "" {
 		builder.WriteString(fmt.Sprintf("excerpt: \"%s\"\n", e.escapeYAML(excerptText)))
 	}
@@ -988,17 +998,26 @@ func (e *Exporter) convertHTMLToMarkdown(html string) string {
 	return htmlToMarkdownKeeping(html, e.preserveRules())
 }
 
-// preserveRules are the classes and IDs --preserve-classes and --preserve-ids
-// named. They applied only to --flat-html and --basic-html until #67: a
-// heading's class is where a theme keeps its color, and Markdown has nowhere
-// to put it, so the operator can now say which elements travel as HTML here
-// too. Named nothing, the conversion is exactly what it was.
+// preserveRules are what this export keeps as HTML.
+//
+// --preserve-classes and --preserve-ids name elements explicitly; they applied
+// only to --flat-html and --basic-html until #67. On top of them,
+// --preserve-styling decides how much a conversion holds on to when it has
+// nowhere to put a class: a heading whose classes mean something (auto),
+// nothing (none), or every element that carries one (all). What counts as
+// meaningless is extended per site with --boilerplate-classes.
 func (e *Exporter) preserveRules() preserveRules {
 	if e.config == nil {
 		return preserveRules{}
 	}
 
-	return preserveRules{classes: e.config.PreserveClasses, ids: e.config.PreserveIDs}
+	return preserveRules{
+		classes:        e.config.PreserveClasses,
+		ids:            e.config.PreserveIDs,
+		styledHeadings: e.config.PreserveStyling != StylingNone,
+		styledAnything: e.config.PreserveStyling == StylingAll,
+		ignored:        compileClassPatterns(e.config.BoilerplateClasses),
+	}
 }
 
 // exportShopify exports data as Shopify-compatible CSV

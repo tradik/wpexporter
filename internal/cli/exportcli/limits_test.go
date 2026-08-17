@@ -111,3 +111,16 @@ func TestNegativeLimitsAreRefused(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "media")
 }
+
+// TestCountLineNamesACollectionTheBudgetNeverReached: `Products: 0` under a
+// --limit reads as "this shop has no products", which is what sent the reporter
+// of #65 hunting for a route bug that did not exist. The budget was spent on
+// pages before the catalog was asked for, and the line said nothing about it.
+func TestCountLineNamesACollectionTheBudgetNeverReached(t *testing.T) {
+	assert.Equal(t, "Products: 0 (none within --limit)", countLine("Products", 0, 0, true))
+	assert.Equal(t, "Products: 6 (limited from 282)", countLine("Products", 6, 282, true))
+
+	// Without a limit, zero means zero and saying more would be an invention.
+	assert.Equal(t, "Products: 0", countLine("Products", 0, 0, false))
+	assert.Equal(t, "Media: 12", countLine("Media", 12, 12, true))
+}

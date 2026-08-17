@@ -99,6 +99,30 @@ Clean HTML to basic elements (tables, lists, links - for Shopify)
 .BR \-\-preserve\-classes " " \fICLASSES\fR
 CSS classes whose elements travel as the HTML they arrived as, rather than being converted (comma-separated, wildcards allowed: \fBklaviyo-form-*\fR, \fBtrx_addons_inline_*\fR, or \fB*\fR for every element carrying a class). Applies to \fBmarkdown\fR and \fBssg\fR as well as \fB\-\-flat\-html\fR and \fB\-\-basic\-html\fR: a heading's class is where themes of some families keep its colour, and a Markdown heading has nowhere to put it, so the migrated page renders the headline in the body colour instead.
 .TP
+.BR \-\-preserve\-styling " " \fIMODE\fR
+How much a conversion holds on to when it has nowhere to put a class. \fIauto\fR (default) keeps a heading whose classes are not boilerplate \- on themes of some families a generated class like \fBtrx_addons_inline_158836093\fR is where the heading's color rule keys on, and dropping it renders the migrated headline in the body color. \fInone\fR converts everything, which is the 1.8.14 behaviour. \fIall\fR keeps every element carrying a class, for a site whose whole layout is styling. Boilerplate never counts under \fIauto\fR: \fBwp-block-heading\fR, \fBhas-text-align-center\fR, \fBentry-title\fR and their kind are what WordPress stamps on every heading on every site; \fB\-\-boilerplate\-classes\fR adds whatever this theme stamps on top of them.
+.TP
+.BR \-\-boilerplate\-classes " " \fICLASSES\fR
+Classes this theme puts on everything and that mean nothing a Markdown heading is missing, added to the ones every WordPress emits (comma-separated, wildcards allowed). One tool's idea of a meaningless class cannot fit every theme ever written.
+.TP
+.BR \-\-crawl\-content\-mode " " \fIMODE\fR
+Which pages \fB\-\-crawl\-content\fR re-reads. \fIauto\fR (default) takes the ones whose stored body is empty or is a page builder's scaffolding; \fIempty\fR takes only the empty ones, which is the 1.8.14 question; \fIalways\fR takes every page, for an operator who already knows how their site is built and would rather say so than guess which rule fired.
+.TP
+.BR \-\-builder\-classes " " \fICLASSES\fR
+Class prefixes marking this site's page-builder markup, added to the recognized ones (\fBkc-elm\fR, \fBvc_row\fR, \fBet_pb_\fR, \fBelementor-\fR, \fBfl-builder\fR, \fBbrxe-\fR, \fBoxy-\fR and the rest). The builder a site uses may be one nobody has heard of, and its markup is no less unreadable for that.
+.TP
+.BR \-\-content\-selector " " \fISELECTORS\fR
+Where this theme keeps the page, tried before the built-in list: \fBtag\fR, \fB.class\fR, \fB#id\fR or \fBtag.class\fR, comma-separated. A theme can call its content area anything, and the alternative to naming it is an export of the whole body, chrome included.
+.TP
+.BR \-\-max\-sitemap\-documents " " \fIN\fR
+Read at most \fIN\fR child documents of a sitemap index (default: \fB0\fR, all of them). WordPress writes one child per 2,000 URLs, so a bound of twenty silently told a 60,000-product shop it published 40,000 addresses. Set this to spare the requests \- they are XML listings, one request each with the run's rate limit between them \- and the run will name the documents it did not open.
+.TP
+.BR \-\-post\-loop\-markers " " \fIMARKERS\fR
+This theme's listing elements \- shortcode, block or class names \- added to the recognized ones (comma-separated). These are identifiers rather than words, so they read the same in every language; what they need is company, since every theme shipping a listing element writes its own name for it.
+.TP
+.BR \-\-read\-more\-phrases " " \fIPHRASES\fR
+The "continue reading" text this theme appends to a generated excerpt (comma-separated). Normally there is nothing to set: a theme repeats itself, so the trailing link text ending three or more of a site's excerpts is taken to be the theme's, in whatever language, while text ending a single excerpt is that post's own last sentence and survives. This names the phrase for a site with too few excerpts to learn from.
+.TP
 .BR \-\-preserve\-ids " " \fIIDS\fR
 Element IDs whose elements travel as the HTML they arrived as, rather than being converted (comma-separated, wildcards allowed).
 .TP
@@ -164,7 +188,7 @@ Delay between API requests in milliseconds (prevents server rate limiting)
 Form of the front-matter values that are not flat \- the \fBmeta\fR map and the \fBhreflangs\fR list. \fInested\fR (default) writes YAML structure, which is what a generator reading the files wants. \fIflat\fR writes each as a single JSON string, so it survives a store whose metadata model is key to list of strings and can be decoded back into the same structure; \fBjson_ld\fR already travels as text and is unchanged either way.
 .TP
 .BR \-\-from\-sitemap
-Recover posts from the site's main feed when the REST API serves none \- a site whose \fI/wp/v2/posts\fR answers 5xx for every request still publishes its feed. Recovered records carry title, address, date, author and body, and no IDs, taxonomy terms or featured images; \fBstats.recovered_posts\fR states how many there were. The feed lists recent items only, so this never replaces or merges with a collection the API did serve. A WordPress older than 4.7 has no content API at all, so the run turns this on for itself there rather than handing back an empty export.
+Recover posts from the site's main feed when the REST API serves none \- a site whose \fI/wp/v2/posts\fR answers 5xx for every request still publishes its feed. Recovered records carry title, address, date, author and body, and no IDs, taxonomy terms or featured images; \fBstats.recovered_posts\fR states how many there were. The feed lists recent items only, so this never replaces or merges with a collection the API did serve. It also reads the sitemap as a source rather than as a check: every address it lists that no exported document covers is fetched and written as a page, with \fBstats.recovered_pages\fR stating how many. Those pages carry title, address, SEO metadata and the rendered body, and no IDs, terms, authors or dates. A WordPress older than 4.7 has no content API at all, so the run turns this on for itself there rather than handing back an empty export.
 .TP
 .BR \-\-no\-inventory\-check
 Skip the completeness check. After the export the site's own sitemap and main feed are read \- one or two requests \- and every address they list that the export does not carry is reported, grouped by path, and recorded in \fBmetadata.json\fR under \fBstats.uncovered\fR. Archive views a generator rebuilds itself (\fI/tag/\fR, \fI/category/\fR, date archives) are not counted. A site that publishes neither document says so and the export is unchanged.

@@ -49,69 +49,77 @@ func logln(args ...interface{}) {
 }
 
 var (
-	cfgFile           string
-	url               string
-	output            string
-	format            string
-	bruteForce        bool
-	maxID             int
-	scanRange         string
-	maxMediaMB        int
-	downloadMedia     bool
-	noMedia           bool
-	relevantMediaOnly bool
-	concurrent        int
-	verbose           bool
-	createZip         bool
-	noFiles           bool
-	noPosts           bool
-	noPages           bool
-	noProducts        bool
-	noCustomTypes     bool
-	customTypes       string
-	noUsers           bool
-	pathFilter        string
-	assistedCrawl     bool
-	authUser          string
-	authPass          string
-	authToken         string
-	rateLimit         int
-	retries           int
-	userAgent         string
-	limit             int
-	limitPerType      string
-	limitPosts        int
-	limitPages        int
-	limitMedia        int
-	limitProducts     int
-	resume            bool
-	timeout           int
-	crawlContent      bool
-	skipEmptyContent  bool
-	flatHTML          bool
-	basicHTML         bool
-	ssgSections       bool
-	keepOriginalURLs  bool
-	mediaPathStyle    string
-	linkStyle         string
-	frontmatterStyle  string
-	reportA11y        bool
-	extractMeta       string
-	noTags            bool
-	noMenus           bool
-	noComments        bool
-	noInventoryCheck  bool
-	fromSitemap       bool
-	quiet             bool
-	noIDs             bool
-	excludeTags       string
-	excludeMediaTypes string
-	preserveClasses   string
-	preserveIDs       string
-	cacheEnabled      bool
-	cacheTTL          string
-	cacheDir          string
-	cacheClear        bool
+	cfgFile             string
+	url                 string
+	output              string
+	format              string
+	bruteForce          bool
+	maxID               int
+	scanRange           string
+	maxMediaMB          int
+	downloadMedia       bool
+	noMedia             bool
+	relevantMediaOnly   bool
+	concurrent          int
+	verbose             bool
+	createZip           bool
+	noFiles             bool
+	noPosts             bool
+	noPages             bool
+	noProducts          bool
+	noCustomTypes       bool
+	customTypes         string
+	noUsers             bool
+	pathFilter          string
+	assistedCrawl       bool
+	authUser            string
+	authPass            string
+	authToken           string
+	rateLimit           int
+	retries             int
+	userAgent           string
+	limit               int
+	limitPerType        string
+	limitPosts          int
+	limitPages          int
+	limitMedia          int
+	limitProducts       int
+	resume              bool
+	timeout             int
+	crawlContent        bool
+	skipEmptyContent    bool
+	flatHTML            bool
+	basicHTML           bool
+	ssgSections         bool
+	keepOriginalURLs    bool
+	mediaPathStyle      string
+	linkStyle           string
+	frontmatterStyle    string
+	reportA11y          bool
+	extractMeta         string
+	noTags              bool
+	noMenus             bool
+	noComments          bool
+	noInventoryCheck    bool
+	fromSitemap         bool
+	quiet               bool
+	noIDs               bool
+	excludeTags         string
+	excludeMediaTypes   string
+	preserveClasses     string
+	preserveIDs         string
+	preserveStyling     string
+	boilerplateClasses  string
+	builderClasses      string
+	crawlContentMode    string
+	contentSelectors    string
+	postLoopMarkers     string
+	maxSitemapDocuments int
+	readMorePhrases     string
+	cacheEnabled        bool
+	cacheTTL            string
+	cacheDir            string
+	cacheClear          bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -159,6 +167,15 @@ Content Filters:
       --link-style            link/canonical_url/hreflangs: absolute (default) or root
       --frontmatter-style     structured values: nested (default) or flat (JSON strings)
       --report-a11y           Write a11y-report.md (WCAG 2.2 contrast + missing alt text)
+      --preserve-styling      What a conversion keeps when it cannot express a class:
+                              auto (default) | none | all
+      --boilerplate-classes   Classes this theme stamps on everything (comma-separated)
+      --builder-classes       Class prefixes marking this site's page-builder markup
+      --crawl-content-mode    Which pages --crawl-content re-reads: auto|empty|always
+      --content-selector      Where this theme keeps the page: tag, .class, #id
+      --post-loop-markers     This theme's listing elements (shortcode/block/class names)
+      --max-sitemap-documents Read at most N sitemap-index children (0 = all)
+      --read-more-phrases     The read-more text this theme appends, if it cannot be learned
 
 Advanced:
       --brute-force           Enable brute force ID discovery
@@ -256,6 +273,22 @@ func init() {
 		"CSS classes whose elements travel as HTML (comma-separated, wildcards allowed: trx_addons_inline_*)")
 	exportCmd.Flags().StringVar(&preserveIDs, "preserve-ids", "",
 		"element IDs whose elements travel as HTML (comma-separated, wildcards allowed)")
+	exportCmd.Flags().StringVar(&preserveStyling, "preserve-styling", export.StylingAuto,
+		"what a conversion holds on to when it cannot express a class: auto|none|all")
+	exportCmd.Flags().StringVar(&boilerplateClasses, "boilerplate-classes", "",
+		"classes this theme stamps on everything and that mean nothing (comma-separated, wildcards)")
+	exportCmd.Flags().StringVar(&builderClasses, "builder-classes", "",
+		"class prefixes marking this site's page-builder markup (comma-separated, wildcards)")
+	exportCmd.Flags().StringVar(&crawlContentMode, "crawl-content-mode", seo.CrawlAuto,
+		"which pages --crawl-content re-reads: auto|empty|always")
+	exportCmd.Flags().StringVar(&contentSelectors, "content-selector", "",
+		"where this theme keeps the page: tag, .class, #id or tag.class (comma-separated, tried first)")
+	exportCmd.Flags().IntVar(&maxSitemapDocuments, "max-sitemap-documents", 0,
+		"read at most N child documents of a sitemap index (0 = all; the run names what it skipped)")
+	exportCmd.Flags().StringVar(&postLoopMarkers, "post-loop-markers", "",
+		"this theme's listing elements — shortcode, block or class names (comma-separated)")
+	exportCmd.Flags().StringVar(&readMorePhrases, "read-more-phrases", "",
+		"the read-more text this theme appends, when too few excerpts exist to learn it (comma-separated)")
 	exportCmd.Flags().BoolVar(&keepOriginalURLs, "keep-original-urls", false,
 		"preserve original WordPress URLs in content (don't convert to local paths)")
 	exportCmd.Flags().StringVar(&mediaPathStyle, "media-path-style", "root",
@@ -448,6 +481,36 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 		for i := range cfg.ExcludeMediaTypes {
 			cfg.ExcludeMediaTypes[i] = strings.TrimSpace(cfg.ExcludeMediaTypes[i])
 		}
+	}
+	if cmd.Flags().Changed("preserve-styling") {
+		cfg.PreserveStyling = preserveStyling
+	}
+	if err := checkMode("preserve-styling", cfg.PreserveStyling, export.StylingModes); err != nil {
+		return err
+	}
+	if err := checkMode("crawl-content-mode", cfg.CrawlContentMode, seo.CrawlModes); err != nil {
+		return err
+	}
+	if cmd.Flags().Changed("boilerplate-classes") {
+		cfg.BoilerplateClasses = splitList(boilerplateClasses)
+	}
+	if cmd.Flags().Changed("builder-classes") {
+		cfg.BuilderClasses = splitList(builderClasses)
+	}
+	if cmd.Flags().Changed("crawl-content-mode") {
+		cfg.CrawlContentMode = crawlContentMode
+	}
+	if cmd.Flags().Changed("content-selector") {
+		cfg.ContentSelectors = splitList(contentSelectors)
+	}
+	if cmd.Flags().Changed("max-sitemap-documents") {
+		cfg.MaxSitemapDocuments = maxSitemapDocuments
+	}
+	if cmd.Flags().Changed("post-loop-markers") {
+		cfg.PostLoopMarkers = splitList(postLoopMarkers)
+	}
+	if cmd.Flags().Changed("read-more-phrases") {
+		cfg.ReadMorePhrases = splitList(readMorePhrases)
 	}
 	if cmd.Flags().Changed("preserve-classes") && preserveClasses != "" {
 		cfg.PreserveClasses = strings.Split(preserveClasses, ",")
@@ -1193,11 +1256,17 @@ func runExport(cmd *cobra.Command, args []string) error {
 		logln("\nReading the site's own inventory...")
 		inventory := apiClient.FetchInventory()
 		logf("Inventory: %s\n", inventory.Describe())
+		noteUnreadSitemaps(apiClient, &notices)
 
 		// A site whose /wp/v2/posts answers 500 for every request still serves
 		// its feed. Recovering titles, addresses, dates and bodies from it is
 		// what makes such a site exportable at all (#40).
 		recoverPostsFromFeed(cfg, inventory, exportData)
+
+		// And on a site with no content API at all, the sitemap is not a check
+		// on the export — it is the export. Its addresses answer 200 to anyone
+		// who asks, and 1.8.15 listed them and fetched none (#68).
+		recoverPagesFromSitemap(cfg, seo.NewCrawler(cfg), inventory, exportData)
 
 		exportData.Stats.Uncovered = checkCoverage(inventory, exportData)
 	}
@@ -1248,7 +1317,8 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if productsNotice != "" {
 		logf("%s\n", productsNotice)
 	} else {
-		logf("Products: %d\n", len(products))
+		logf("%s\n", countLine("Products", len(products),
+			apiClient.StatedTotal("products"), apiClient.Limited()))
 	}
 	logf("%s\n", countLine("Media", len(media), apiClient.StatedTotal("media"), apiClient.Limited()))
 	logf("Categories: %d\n", len(categories))

@@ -17,6 +17,8 @@ package export
 // first, because it is the one the whole site opens with.
 
 import (
+	"unicode/utf8"
+
 	"fmt"
 	"net/url"
 	"strings"
@@ -24,7 +26,7 @@ import (
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
-// emptyPageTextBudget is how little visible text makes a page "empty enough to
+// emptyPageTextBudget is how few visible characters make a page "empty enough to
 // be worth reporting".
 //
 // Not zero: a builder page often keeps a heading and a sentence in the editor
@@ -46,10 +48,10 @@ func (e *Exporter) reportEmptyPages(data *models.ExportData) {
 	for i := range data.Pages {
 		page := &data.Pages[i]
 
-		if postLoopHint(page.Content.Rendered) != "" {
+		if postLoopHintWith(page.Content.Rendered, e.postLoopMarkers()) != "" {
 			continue
 		}
-		if len(visibleText(page.Content.Rendered)) > emptyPageTextBudget {
+		if utf8.RuneCountInString(visibleText(page.Content.Rendered)) > emptyPageTextBudget {
 			continue
 		}
 

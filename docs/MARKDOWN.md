@@ -65,6 +65,18 @@ Use `--preserve-classes` and `--preserve-ids` to keep certain elements intact. T
 - Custom interactive elements you don't want converted
 - **Elements a theme styles through a class**, which is the case Markdown cannot express at all
 
+**A heading with styling keeps itself by default.** A heading carrying a class
+that is not boilerplate — a theme's `sc_item_title`, a generated
+`trx_addons_inline_158836093`, a framework's `text-center` — travels as HTML,
+because that class is where the styling lives and a `##` has nowhere to put it.
+Headings wearing only what WordPress stamps on everything (`wp-block-heading`,
+`has-text-align-center`, `entry-title`, `screen-reader-text`) convert as they
+always have. How much is kept is `--preserve-styling`: `auto` (the default,
+headings that mean something), `none` (convert everything, the 1.8.14
+behaviour), `all` (every element carrying a class, for a site whose whole layout
+is styling). `--boilerplate-classes` adds whatever *this* theme stamps on
+everything to the list of classes that do not count.
+
 That last one is worth spelling out (#67). Themes of some families emit one generated class per element and a stylesheet rule to match — `trx_addons_inline_158836093` is where a heading's colour lives. Converted to `## Title`, the class has nowhere to go: the stylesheets migrate fine, but there is nothing left for them to match, and the front page's headline renders in the body colour while a headline two sections down keeps the theme's by accident, because that section colours its inner `<span>` as well.
 
 ```bash

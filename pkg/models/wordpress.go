@@ -432,6 +432,11 @@ type ExportStats struct {
 	// terms, no featured image — so a consumer that needs to know says so by
 	// reading this rather than by guessing (#40).
 	RecoveredPosts int `json:"recovered_posts,omitempty"`
+	// RecoveredPages counts the pages rebuilt by reading what the site
+	// publishes, because it has no content API to read them from — a WordPress
+	// older than 4.7. They carry title, address, SEO metadata and the rendered
+	// body, and no IDs, terms, authors or dates (#68).
+	RecoveredPages int `json:"recovered_pages,omitempty"`
 	// EmptyPages names the pages whose body the REST API did not serve — a
 	// front page built from theme sections, whose content is assembled at
 	// render time and stored where the API cannot see it. The export is correct

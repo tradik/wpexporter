@@ -104,3 +104,29 @@ func countOpenFences(md string) int {
 
 	return 1
 }
+
+// TestTemplateIsNotContent: the verification that reopened #69. The fences were
+// well formed after the first fix and still there, so the widget's markup
+// arrived on the page as a grey box of source. A <template> is what a plugin
+// clones at run time — it renders nothing where it sits, and it is no more
+// content than a <script> is.
+func TestTemplateIsNotContent(t *testing.T) {
+	out := htmlToMarkdown(`<p>Reviews</p><div class="wp-review-widget">` +
+		`<pre><template id="tpl"><div class="review">{{author}}</div></template></pre>` +
+		`</div><p>After the widget.</p>`)
+
+	assert.NotContains(t, out, "```", "nothing is left to fence")
+	assert.NotContains(t, out, "{{author}}")
+	assert.Contains(t, out, "Reviews")
+	assert.Contains(t, out, "After the widget.")
+}
+
+// TestPreWithRealCodeStillFences: the other half of the same rule. A <pre> that
+// holds code holds content, and dropping it would lose what a documentation
+// page is for.
+func TestPreWithRealCodeStillFences(t *testing.T) {
+	out := htmlToMarkdown("<p>Run:</p><pre>go build ./...</pre>")
+
+	assert.Contains(t, out, "```")
+	assert.Contains(t, out, "go build ./...")
+}

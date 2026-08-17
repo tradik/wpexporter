@@ -27,15 +27,23 @@ package seo
 import (
 	"regexp"
 	"strings"
+	"sync"
+	"unicode/utf8"
 )
 
 // builderClassRe matches the class prefixes the page builders stamp on their
-// wrappers. Each is the visible half of a plugin that renders at request time:
-// King Composer, WPBakery, Divi, Elementor, Beaver Builder, Bricks, Fusion,
-// Oxygen, Themify.
-var builderClassRe = regexp.MustCompile(`(?i)\b(kc-elm|kc_row|kc_column|vc_row|wpb_|et_pb_|` +
-	`elementor-|fl-builder|fl-row|brxe-|fusion-builder|fusion-fullwidth|oxy-|ct-section|` +
-	`tb_|themify_builder)`)
+// wrappers: King Composer, WPBakery, Divi, Elementor, Beaver Builder, Bricks,
+// Fusion, Oxygen, Themify. Each is the visible half of a plugin that renders at
+// request time.
+//
+// The match is anchored inside a class attribute rather than taken anywhere in
+// the body. Now that one of these names decides the question by itself, a page
+// that merely mentions `elementor-` in a link or a comment must not be re-read
+// from the network on the strength of it.
+var builderClassRe = regexp.MustCompile(`(?i)class\s*=\s*["'][^"']*\b(kc-elm|kc_row|kc_column|` +
+	`vc_row|vc_column|wpb_|et_pb_|elementor-element|elementor-section|elementor-widget|` +
+	`fl-builder|fl-row|fl-module|brxe-|fusion-builder|fusion-fullwidth|oxy-|ct-section|` +
+	`themify_builder)`)
 
 // containerTagRe counts the elements a builder nests to make a layout.
 var containerTagRe = regexp.MustCompile(`(?i)<(div|section|article|aside|header|footer)\b`)
@@ -47,43 +55,74 @@ var (
 	htmlCommentRe = regexp.MustCompile(`(?is)<!--.*?-->`)
 )
 
-// Thresholds in characters of visible text per container element. A page of
-// prose runs into the hundreds; the reported front page, with forty wrappers
-// around one headline, is under ten. The known-builder figure is the more
-// generous of the two: a wrapper carrying a recognized class is evidence in
-// itself, so less is asked of the ratio.
+// shellTextPerContainer is the ratio that catches a builder nobody has heard
+// of, in visible characters per container element — characters rather than
+// bytes, so the question is the same one on every alphabet. A page of prose runs
+// into the hundreds; the reported front page, forty wrappers around one
+// headline, is under ten.
+const shellTextPerContainer = 20
+
+// minContainers keeps an ordinary short page out of the ratio test. A page with
+// four divs and a sentence in it is a page, not a shell.
+const minContainers = 6
+
+// Modes of --crawl-content-mode. Which pages are worth re-reading is a property
+// of the site: a shop built entirely in a builder wants every page taken from
+// the rendered HTML, a site with two odd pages wants only those, and an
+// operator who already knows which would rather say so than guess which rule
+// fired (#63).
 const (
-	builderTextPerContainer = 60
-	shellTextPerContainer   = 20
-	// minContainers keeps an ordinary short page out of it. A page with four
-	// divs and a sentence in it is a page, not a shell.
-	minContainers = 6
+	// CrawlAuto re-reads the pages whose stored body is empty or is a page
+	// builder's scaffolding.
+	CrawlAuto = "auto"
+	// CrawlEmpty re-reads only the pages the API served empty, as 1.8.14 did.
+	CrawlEmpty = "empty"
+	// CrawlAlways re-reads every page.
+	CrawlAlways = "always"
 )
+
+// CrawlModes are the accepted answers, so a typo is refused rather than
+// silently read as the narrowest one.
+var CrawlModes = []string{CrawlAuto, CrawlEmpty, CrawlAlways}
 
 // needsRenderedContent reports whether the crawler should fetch the page the
 // visitor sees instead of trusting what the API stored.
-//
-// Two cases: a body the API served empty, which is what this always caught, and
-// a body that is a page builder's scaffolding, which is what it did not (#63).
-func needsRenderedContent(content string) bool {
-	return isContentEmpty(content) || storedAsBuilderMarkup(content)
+func (c *Crawler) needsRenderedContent(content string) bool {
+	switch c.config.CrawlContentMode {
+	case CrawlAlways:
+		return true
+	case CrawlEmpty:
+		return isContentEmpty(content)
+	default:
+		return isContentEmpty(content) || c.storedAsBuilderMarkup(content)
+	}
 }
 
-// storedAsBuilderMarkup reports a body that renders to nothing without its
-// plugin: many containers, almost no text.
-func storedAsBuilderMarkup(content string) bool {
+// storedAsBuilderMarkup reports a body that renders to nothing without the
+// plugin that builds it.
+//
+// A recognized builder's class is the whole answer where it appears. 1.8.15
+// treated it as evidence toward a ratio instead, and the reporter's front page
+// — forty `kc-elm` wrappers, none of its three sections in the export — cleared
+// the ratio and was walked past again (#63). What that class means is that the
+// stored body is an instruction to render, and an instruction is never the
+// page: whatever text sits between the wrappers, the grid, the cards and the
+// prices are produced at request time and are not in there.
+//
+// Everything else is caught by shape, because the next builder is on nobody's
+// list: many containers and almost no text renders to nothing whatever it is
+// called.
+func (c *Crawler) storedAsBuilderMarkup(content string) bool {
+	if builderClassRe.MatchString(content) || c.siteBuilderClass(content) {
+		return true
+	}
+
 	containers := len(containerTagRe.FindAllString(content, -1))
 	if containers < minContainers {
 		return false
 	}
 
-	perContainer := visibleTextLength(content) / containers
-
-	if builderClassRe.MatchString(content) {
-		return perContainer < builderTextPerContainer
-	}
-
-	return perContainer < shellTextPerContainer
+	return visibleTextLength(content)/containers < shellTextPerContainer
 }
 
 // visibleTextLength is how much of the body a reader would actually see, with
@@ -93,5 +132,68 @@ func visibleTextLength(content string) int {
 	text = htmlTagRe.ReplaceAllString(text, " ")
 	text = strings.ReplaceAll(text, "&nbsp;", " ")
 
-	return len(strings.Join(strings.Fields(text), " "))
+	// Characters, not bytes: 20 bytes is 20 letters of English and under 7 of
+	// Japanese, so a byte budget silently asks a different question of every
+	// alphabet — and never of the English one.
+	return utf8.RuneCountInString(strings.Join(strings.Fields(text), " "))
+}
+
+// siteBuilderClass matches the prefixes this operator named for their own site.
+//
+// The built-in list is the builders anyone would recognize, and the next
+// builder is on nobody's list — a theme with its own layout shortcodes emits
+// markup no less unreadable for being unknown. --builder-classes is how a site
+// says which its is, and it is matched inside a class attribute like the rest.
+func (c *Crawler) siteBuilderClass(content string) bool {
+	if c.config == nil {
+		return false
+	}
+
+	for _, prefix := range c.config.BuilderClasses {
+		prefix = strings.TrimSpace(prefix)
+		if prefix == "" {
+			continue
+		}
+
+		if siteBuilderMatcher(prefix).MatchString(content) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// siteBuilderMatchers caches one compiled pattern per named prefix: the check
+// runs once per page, and recompiling a regular expression per page per prefix
+// is a cost a thousand-page site would notice.
+var (
+	siteBuilderMatchers = map[string]*regexp.Regexp{}
+	siteBuilderMu       sync.Mutex
+)
+
+// siteBuilderMatcher compiles, once, the pattern for one named prefix.
+func siteBuilderMatcher(prefix string) *regexp.Regexp {
+	siteBuilderMu.Lock()
+	defer siteBuilderMu.Unlock()
+
+	if matcher, ok := siteBuilderMatchers[prefix]; ok {
+		return matcher
+	}
+
+	matcher := regexp.MustCompile(`(?i)class\s*=\s*["'][^"']*\b` + wildcardClassPattern(prefix))
+	siteBuilderMatchers[prefix] = matcher
+
+	return matcher
+}
+
+// wildcardClassPattern turns a shell-style name into a regular expression, and
+// treats a bare prefix as one: `kc-elm` names the family `kc-elm…`, which is
+// what an operator reading their own markup means by it.
+func wildcardClassPattern(prefix string) string {
+	parts := strings.Split(prefix, "*")
+	for i, part := range parts {
+		parts[i] = regexp.QuoteMeta(part)
+	}
+
+	return strings.Join(parts, `[^"'\s]*`)
 }

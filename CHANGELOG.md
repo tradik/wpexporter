@@ -5,6 +5,179 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.16] - 2026-08-17
+
+### Fixed
+- **The catalog was fetched, counted and written nowhere (#65).** 282 products
+  came over the network, `stats.total_products` said 282, and `ls out/` showed
+  `pages/`, `posts/` and no catalog: `-f json` kept them, so it was the document
+  writers alone — they had never been taught that a shop has documents. For a
+  shop being migrated to a static site this is the whole migration, and every
+  `/produkt/<slug>/` link in its own navigation ended at a 404 on the built
+  site.
+
+  Products are now written as the documents they are: `products/<slug>.md` for
+  `markdown`, and for `ssg` at the path the permalink states, so the old address
+  still resolves. The commerce facts travel in front matter — `sku`, `price`,
+  `regular_price`, `sale_price`, `on_sale`, `stock_status`,
+  `product_categories`, `product_tags`, `images` — each omitted where the shop
+  did not set it.
+
+  And a collection the budget never reached now says so: `Products: 0` under a
+  `--limit` read as "this shop has no products", which is what sent the reporter
+  hunting for a route bug that did not exist. It reads `Products: 0 (none within
+  --limit)`.
+
+- **A heading's classes were dropped again, because the fix was an opt-in
+  (#67).** 1.8.15 put the remedy behind `--preserve-classes`, which the reporter
+  had no reason to guess at, and the migrated headline lost the theme's color
+  exactly as before. A silence the operator has to know the cure for is still a
+  silence.
+
+  A heading now keeps itself, as HTML, when it carries a class that means
+  something. The line is drawn at boilerplate: `wp-block-heading`,
+  `has-text-align-center`, `entry-title`, `screen-reader-text` and their kind
+  are what WordPress stamps on every heading on every site and say nothing a
+  `##` is missing, so those still convert. A theme's `sc_item_title`, a
+  generated `trx_addons_inline_158836093`, a framework's `text-center` — those
+  are styling this format cannot express. **`--no-preserve-styling` is the way
+  back to the 1.8.14 conversion**, and `--preserve-classes`/`--preserve-ids`
+  still name elements explicitly.
+
+- **The route probe read any 200 as an API (#66).** The reporter's site answers
+  its own HTML to every `?rest_route=` address, because to a WordPress with no
+  REST API that is a URL like any other. The probe believed it, the run switched
+  to a spelling that serves nothing, every collection failed to parse — and the
+  note printed beneath two `Incomplete:` lines and a 1.6 KB export read *"the
+  export used it and is complete"*.
+
+  A 200 now has to carry JSON that is not a refusal. Neither note concludes
+  anything any more: the collections above them say what was read, and a note
+  has no business summarizing them. This is the lesson of #65 applied to the
+  code that learned it.
+
+- **A `<template>` arrived on the page as a block of source (#69).** The fences
+  were well formed after 1.8.15 and still there, around the same reviews widget.
+  A `<template>` is markup a plugin clones at run time: it renders nothing where
+  it sits, and it is no more content than a `<script>` is. It is stripped now,
+  along with the empty fence it leaves behind.
+
+- **`--crawl-content` still walked past the pages it was recommended for
+  (#63).** 1.8.15 treated a recognized builder class as evidence toward a
+  text-per-container threshold; the reporter's front page — forty `kc-elm`
+  wrappers, none of its three sections in the export — cleared the threshold and
+  was skipped again. The class decides by itself now, because what it means is
+  that the stored body is an instruction to render, and an instruction is never
+  the page. The match is anchored inside a `class` attribute so a page merely
+  mentioning a builder is not re-read from the network.
+
+  Content extraction also falls back to the page body when no selector matches a
+  theme's markup, and **a page crawled to no effect is named** rather than
+  quietly counted as if it had worked.
+
+### Changed
+- **Sites differ, so the rules that read them take more than one answer.** The
+  fixes above each drew a line — which classes matter, which pages are worth
+  re-reading, where a theme keeps its content — and each line was drawn from one
+  reporter's site. Every one of them is now the default rather than the whole
+  rule:
+
+  | flag | what it answers |
+  |---|---|
+  | `--preserve-styling auto\|none\|all` | how much a conversion holds on to when it cannot express a class |
+  | `--boilerplate-classes` | classes this theme stamps on everything and that mean nothing |
+  | `--crawl-content-mode auto\|empty\|always` | which pages `--crawl-content` re-reads |
+  | `--builder-classes` | class prefixes marking this site's page-builder markup |
+  | `--content-selector` | where this theme keeps the page: `tag`, `.class`, `#id`, `tag.class` |
+  | `--post-loop-markers` | this theme's listing elements |
+  | `--read-more-phrases` | the read-more text, when too few excerpts exist to learn it |
+  | `--max-sitemap-documents` | how many sitemap-index children to read (0 = all) |
+
+  An unknown value for a mode ends the run naming what was accepted, because a
+  typo that falls back to a default produces an export the operator believes is
+  something else.
+
+- **The sitemap index is read to the end.** It stopped at twenty child
+  documents — a number this tool invented about sites it had not seen. WordPress
+  writes one child per 2,000 URLs, so a shop with 60,000 products has thirty of
+  them and was quietly told it published 40,000 addresses: every count
+  downstream was wrong while looking exactly like a count that was right, and on
+  a site with no content API (#68) those unread documents are pages that are
+  never fetched at all. **The default is now no bound.**
+  `--max-sitemap-documents N` sets one for an operator who would rather not
+  spend the requests, and the run then names the documents it did not open.
+
+- **A type of yours called `section` is no longer dropped in silence.** The
+  bookkeeping test asks whether a slug *contains* `layout`, `template`, `block`,
+  `section`, `popup` or `widget` — right for a theme's saved fragments, wrong
+  for a magazine whose content type is literally called `section`, which lost a
+  whole type with no line in the report to say where it went. Every type set
+  aside is now named, together with the remedy: `--custom-types <slug>` insists,
+  and a type named there is content whatever the rule thinks of its slug.
+
+- **"Continue reading" is learned from the site rather than looked up.** The
+  read-more link a theme appends to every generated excerpt was recognized by
+  its text, matched against seven phrases in six European languages — a list
+  that can never be finished, since every language has such a phrase and a theme
+  author is free to write `→` and nothing else. Left in, it becomes a line of
+  chrome at the end of every summary on the migrated site; matched too eagerly,
+  it eats a post's own closing link.
+
+  Neither guessing nor a longer list: **a theme repeats itself**. The trailing
+  link text that ends three or more of a site's excerpts is the theme speaking,
+  in whatever language, and the text that ends one is that post's last sentence
+  and survives. On top of that, the marks that are markup rather than words —
+  `more-link`, `rel="bookmark"`, a link that is only an arrow — need no language
+  at all. The phrase list remains a seed for a site with too few excerpts to
+  learn from, and `--read-more-phrases` names one outright.
+
+- **Every text budget counts characters, not bytes.** "This page is empty
+  enough to report" was 120 bytes, "this body is a listing, not content" was
+  400, "this crawl found something" was 50 — and a byte is not a character
+  outside English. 400 bytes is 400 letters of English, 300 of Polish and 133 of
+  Japanese, so the same page was judged three different ways depending on the
+  language it happened to be written in, and the language it was fair to was
+  always English. All of them now count runes.
+
+- **A theme's own listing element can be named.** `--post-loop-markers` adds to
+  the recognized shortcodes, blocks and classes. These are identifiers rather
+  than words, so they read the same in every language — the gap was never
+  translation, it was that every theme shipping a listing element writes its own
+  name for it and the next one is on nobody's list.
+
+- **The sitemap and the feed are found by asking, not by guessing.** Their
+  addresses were three fixed paths and `/feed/`, which hold for a default
+  WordPress and break on the sites that need them most. `robots.txt` names the
+  sitemap — every SEO plugin writes that line, and it is the only way to find
+  one at a path nobody would guess — and it is read only once the known paths
+  have failed, so a site that answers normally pays nothing. The home page's
+  `<link rel="alternate">` names the feed, which is how every feed reader in
+  existence finds one: `/feed/` is a permalink, and a site with permalinks set
+  to plain — the same site that serves its REST API only at `?rest_route=` —
+  has no such address at all.
+
+- **The sitemap walk is held to the same rules as every collection.** It honors
+  `--path-filter`, so an operator asking for `/fr/` gets the whole export
+  filtered rather than the half of it the API happened to serve, and it honors
+  `--limit-per-type pages=N` and `--limit-pages` as well as `--limit`.
+
+### Added
+- **The sitemap can be the whole source, not a patch (#68).** `--from-sitemap`
+  recovered *posts from the feed*, which is right for a site whose
+  `/wp/v2/posts` answers 500 (#40) and no answer at all for a WordPress older
+  than the content API: that site has no REST routes in either spelling, its
+  content is in pages, and its feed lists a handful of recent items where its
+  sitemap lists everything. 1.8.15 read the sitemap, printed the addresses and
+  exported none of them — a README, a `metadata.json` of zeroes, and eleven
+  years of content left on a server answering 200 to anyone who asks.
+
+  Those addresses are now fetched and written, with `stats.recovered_pages`
+  saying how many: they carry title, address, SEO metadata and the rendered
+  body, and no IDs, terms, authors or dates, because a published page is what
+  the site shows a reader rather than what its database holds. Only addresses no
+  exported document already covers, only with `--from-sitemap`, and the limit
+  flags bound the walk.
+
 ## [1.8.15] - 2026-08-17
 
 ### Fixed

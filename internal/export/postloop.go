@@ -22,12 +22,19 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
 // postLoopMarkers are the elements that render an archive rather than store
 // one. Each is matched literally, case-insensitively, against the raw body.
+//
+// These are identifiers rather than words — a shortcode name, a block name, a
+// CSS class — so they read the same on a Polish site as on an English one, and
+// nothing here needs translating. What they do need is company: every theme
+// that ships its own listing element writes its own name for it, and the next
+// one is on nobody's list. `--post-loop-markers` adds this site's.
 var postLoopMarkers = []string{
 	"fusion_blog",            // Avada / Fusion Builder
 	"elementor-widget-posts", // Elementor Posts widget
@@ -43,8 +50,14 @@ var postLoopMarkers = []string{
 	"et_pb_blog",    // Divi blog module
 }
 
-// postLoopTextBudget is how much visible text a page may carry and still count
-// as "generated, not stored".
+// postLoopTextBudget is how many visible characters a page may carry and still
+// count as "generated, not stored".
+//
+// Characters rather than bytes: a budget counted in bytes is a different budget
+// on every alphabet. 400 bytes is 400 letters of English, 300 of Polish and 133
+// of Japanese — so the same listing page would be judged three ways depending
+// on the language it is written in, and the sites that suffer are never the
+// English ones.
 //
 // Not zero: a listing page usually has a heading and a line of introduction
 // above the loop, and that copy is worth migrating. Well below the length of a
@@ -69,6 +82,12 @@ var (
 // An article about Elementor mentioning the Posts widget keeps its own content
 // and is not a listing.
 func postLoopHint(content string) string {
+	return postLoopHintWith(content, nil)
+}
+
+// postLoopHintWith asks the same question, with this site's own listing
+// elements added to the recognized ones.
+func postLoopHintWith(content string, extra []string) string {
 	if strings.TrimSpace(content) == "" {
 		return ""
 	}
@@ -76,7 +95,7 @@ func postLoopHint(content string) string {
 	lower := strings.ToLower(content)
 
 	matched := ""
-	for _, marker := range postLoopMarkers {
+	for _, marker := range allPostLoopMarkers(extra) {
 		if strings.Contains(lower, marker) {
 			matched = marker
 			break
@@ -87,7 +106,7 @@ func postLoopHint(content string) string {
 		return ""
 	}
 
-	if len(visibleText(content)) > postLoopTextBudget {
+	if utf8.RuneCountInString(visibleText(content)) > postLoopTextBudget {
 		return ""
 	}
 
@@ -111,7 +130,7 @@ func visibleText(content string) string {
 // on the other side.
 func (e *Exporter) notePostLoopPages(data *models.ExportData) {
 	for i := range data.Pages {
-		hint := postLoopHint(data.Pages[i].Content.Rendered)
+		hint := postLoopHintWith(data.Pages[i].Content.Rendered, e.postLoopMarkers())
 		if hint == "" {
 			continue
 		}
@@ -128,12 +147,12 @@ func (e *Exporter) notePostLoopPages(data *models.ExportData) {
 // writePostLoopFrontMatter states, in the document itself, that its body is a
 // listing element. A target that understands the key can point its own archive
 // here; one that does not ignores two lines.
-func writePostLoopFrontMatter(builder *strings.Builder, post models.WordPressPost, contentType string) {
+func (e *Exporter) writePostLoopFrontMatter(builder *strings.Builder, post models.WordPressPost, contentType string) {
 	if contentType != "page" {
 		return
 	}
 
-	hint := postLoopHint(post.Content.Rendered)
+	hint := postLoopHintWith(post.Content.Rendered, e.postLoopMarkers())
 	if hint == "" {
 		return
 	}
@@ -154,4 +173,35 @@ func postLoopNotice(link, hint string) string {
 	return "Warning: " + address + " renders a post loop (" + hint + ") — its content is " +
 		"generated, not stored. Point your generator's listing at this URL rather " +
 		"than migrating the page."
+}
+
+// allPostLoopMarkers is the recognized listing elements plus this site's own.
+//
+// Additive rather than replacing: a site running Elementor and a theme with its
+// own blog shortcode has both, and asking the operator to re-list what the tool
+// already knows is how a list goes stale.
+func allPostLoopMarkers(extra []string) []string {
+	if len(extra) == 0 {
+		return postLoopMarkers
+	}
+
+	markers := make([]string, 0, len(postLoopMarkers)+len(extra))
+	markers = append(markers, postLoopMarkers...)
+
+	for _, marker := range extra {
+		if marker = strings.ToLower(strings.TrimSpace(marker)); marker != "" {
+			markers = append(markers, marker)
+		}
+	}
+
+	return markers
+}
+
+// postLoopMarkers is what this site named for its own theme, if anything.
+func (e *Exporter) postLoopMarkers() []string {
+	if e.config == nil {
+		return nil
+	}
+
+	return e.config.PostLoopMarkers
 }

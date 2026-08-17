@@ -8,6 +8,7 @@ package export
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -125,4 +126,36 @@ func TestVisibleTextIgnoresMarkupAndShortcodes(t *testing.T) {
 	assert.Equal(t, "Hello there", visibleText(
 		`<div class="x"><script>var a = "lots of text in here";</script>`+
 			`<p>Hello   there</p>[fusion_blog columns="3"]</div>`))
+}
+
+// TestSiteNamesItsOwnListingElement: the marker list is identifiers rather than
+// words — a shortcode name reads the same on a Polish site as on an English one
+// — so the gap was never language. It is coverage: every theme that ships a
+// listing element writes its own name for it, and the next one is on nobody's
+// list.
+func TestSiteNamesItsOwnListingElement(t *testing.T) {
+	body := `<div class="zzt-posts-grid" data-count="6"></div>`
+
+	assert.Empty(t, postLoopHint(body), "nothing recognizes it yet")
+	assert.Equal(t, "zzt-posts-grid", postLoopHintWith(body, []string{"zzt-posts-grid", "  "}))
+
+	// Additive: a site running Elementor and its own shortcode has both.
+	assert.Equal(t, "elementor-widget-posts",
+		postLoopHintWith(`<div class="elementor-widget-posts"></div>`, []string{"zzt-posts-grid"}))
+}
+
+// TestTextBudgetCountsCharactersNotBytes: a budget counted in bytes is a
+// different budget on every alphabet. 400 bytes is 400 letters of English, 300
+// of Polish and 133 of Japanese, so the same listing page was judged three ways
+// depending on the language it was written in — and never against the English
+// one.
+func TestTextBudgetCountsCharactersNotBytes(t *testing.T) {
+	// A listing element with a Japanese introduction above it: 200 characters,
+	// 600 bytes. Counted in bytes this page was over the budget and read as
+	// ordinary content, so its listing was never reported.
+	intro := strings.Repeat("お", 200)
+	body := `<p>` + intro + `</p><div class="elementor-widget-posts"></div>`
+
+	assert.Greater(t, len(visibleText(body)), postLoopTextBudget, "over budget in bytes")
+	assert.Equal(t, "elementor-widget-posts", postLoopHint(body), "within budget in characters")
 }

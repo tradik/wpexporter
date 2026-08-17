@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/schollz/progressbar/v3"
 
@@ -604,7 +605,7 @@ func (c *Crawler) EnrichPostsWithSEOAndContent(posts []models.WordPressPost) []m
 	// empty, or a page builder's scaffolding, which is not empty and holds
 	// nothing (#63).
 	for i, post := range posts {
-		needsContent := needsRenderedContent(post.Content.Rendered)
+		needsContent := c.needsRenderedContent(post.Content.Rendered)
 		jobs <- job{index: i, url: post.Link, needsContent: needsContent}
 	}
 	close(jobs)
@@ -617,22 +618,55 @@ func (c *Crawler) EnrichPostsWithSEOAndContent(posts []models.WordPressPost) []m
 
 	// Collect results
 	enrichedContent := 0
+	var unreadable []string
 	for result := range results {
 		// Always set SEO data
 		posts[result.index].SEO = result.result.SEO
 
-		// Only set content if it was empty and we got content
-		if result.hadEmpty && result.result.Content != "" {
+		// Only set content if the stored body was not the page and the crawl
+		// found one
+		switch {
+		case !result.hadEmpty:
+		case result.result.Content != "":
 			posts[result.index].Content.Rendered = result.result.Content
 			enrichedContent++
+		default:
+			unreadable = append(unreadable, posts[result.index].Link)
 		}
 		_ = progress.Add(1)
 	}
 
 	_ = progress.Finish()
 	c.logf("Enriched %d posts/pages with crawled content\n", enrichedContent)
+	c.reportUnreadable(unreadable)
 
 	return posts
+}
+
+// reportUnreadable names the pages that were re-read from the site and gave
+// nothing back.
+//
+// They keep the stored body they were crawled to replace, which for a page
+// builder is the wrappers and none of the page. Silence here is how a run
+// reports "Enriched 7" on a site of twenty builder pages and looks like it
+// worked (#63).
+func (c *Crawler) reportUnreadable(unreadable []string) {
+	if len(unreadable) == 0 {
+		return
+	}
+
+	c.logf("%d page(s) were re-read from the site and no content element was found; "+
+		"they keep the body the API stored:\n", len(unreadable))
+
+	for i, link := range unreadable {
+		if i == unreadableNamed {
+			c.logf("  … and %d more\n", len(unreadable)-unreadableNamed)
+
+			break
+		}
+
+		c.logf("  %s\n", link)
+	}
 }
 
 // extractSEOAndContent fetches a URL once and extracts both SEO metadata and content
@@ -713,7 +747,7 @@ func (c *Crawler) EnrichPostsWithContent(posts []models.WordPressPost) []models.
 		switch {
 		case isContentEmpty(post.Content.Rendered):
 			emptyPosts = append(emptyPosts, i)
-		case storedAsBuilderMarkup(post.Content.Rendered):
+		case c.needsRenderedContent(post.Content.Rendered):
 			emptyPosts = append(emptyPosts, i)
 			shells++
 		}
@@ -774,16 +808,20 @@ func (c *Crawler) EnrichPostsWithContent(posts []models.WordPressPost) []models.
 
 	// Collect results
 	enriched := 0
+	var unreadable []string
 	for result := range results {
 		if result.content != "" {
 			posts[result.postIndex].Content.Rendered = result.content
 			enriched++
+		} else {
+			unreadable = append(unreadable, posts[result.postIndex].Link)
 		}
 		_ = progress.Add(1)
 	}
 
 	_ = progress.Finish()
 	c.logf("Enriched %d posts/pages with crawled content\n", enriched)
+	c.reportUnreadable(unreadable)
 
 	return posts
 }
@@ -839,15 +877,93 @@ func (c *Crawler) fetchHTML(pageURL string) string {
 }
 
 // extractMainContent extracts the main content from HTML
+// unreadableNamed is how many addresses the report lists before summarizing the
+// rest. Enough to act on, short of a wall of URLs on a site where every page is
+// built the same way.
+const unreadableNamed = 5
+
+// contentSelector is one place a theme might keep the page: a tag, and an
+// attribute pattern narrowing which of them.
+type contentSelector struct {
+	tag   string
+	attrs string
+}
+
+// siteContentSelectors reads what the operator named for their own site.
+//
+// The spelling is deliberately small — `tag`, `.class`, `#id`, or `tag.class` —
+// rather than a CSS engine: the extraction below is a balanced-tag scan, and a
+// selector language it cannot honor would promise more than it does.
+func (c *Crawler) siteContentSelectors() []contentSelector {
+	if c.config == nil {
+		return nil
+	}
+
+	selectors := make([]contentSelector, 0, len(c.config.ContentSelectors))
+
+	for _, raw := range c.config.ContentSelectors {
+		if selector, ok := parseContentSelector(raw); ok {
+			selectors = append(selectors, selector)
+		}
+	}
+
+	return selectors
+}
+
+// parseContentSelector reads one of the four shapes accepted.
+func parseContentSelector(raw string) (contentSelector, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return contentSelector{}, false
+	}
+
+	tag, rest := raw, ""
+	if cut := strings.IndexAny(raw, ".#"); cut >= 0 {
+		tag, rest = raw[:cut], raw[cut:]
+	}
+
+	if tag == "" {
+		// A bare `.class` or `#id`: any element wearing it.
+		tag = "div"
+	}
+
+	switch {
+	case rest == "":
+		return contentSelector{tag: tag}, true
+	case strings.HasPrefix(rest, "."):
+		return contentSelector{tag: tag,
+			attrs: `class\s*=\s*["'][^"']*\b` + regexp.QuoteMeta(rest[1:]) + `\b[^"']*["']`}, true
+	default:
+		return contentSelector{tag: tag,
+			attrs: `id\s*=\s*["']?` + regexp.QuoteMeta(rest[1:]) + `["']?`}, true
+	}
+}
+
+// minCrawledContent is the shortest run of extracted markup worth calling
+// content, in characters. Below it the selector matched a wrapper rather than
+// the page.
+const minCrawledContent = 50
+
+// minVisibleCharacters is how few characters of text make a body empty.
+const minVisibleCharacters = 10
+
 func (c *Crawler) extractMainContent(html string) string {
 	// First, remove header, footer, nav, aside elements to isolate main content
 	cleanedHTML := c.removeNonContentElements(html)
 
+	// What this site's theme calls its content area comes first: a theme can
+	// name it anything, and the built-in list below is the set of names that
+	// happen to be common rather than the set that exists (#63).
+	for _, selector := range c.siteContentSelectors() {
+		if content := c.extractBalancedTag(cleanedHTML, selector.tag, selector.attrs); content != "" {
+			if cleaned := c.cleanHTMLContent(content); utf8.RuneCountInString(cleaned) > minCrawledContent {
+				return cleaned
+			}
+		}
+	}
+
 	// Try to find main content area using balanced tag extraction
-	contentSelectors := []struct {
-		tag   string
-		attrs string
-	}{
+	contentSelectors := []contentSelector{
 		{"main", `id\s*=\s*["']?content["']?`},
 		{"main", ""},
 		{"article", `class\s*=\s*["'][^"']*(?:post|page|entry)[^"']*["']`},
@@ -863,7 +979,7 @@ func (c *Crawler) extractMainContent(html string) string {
 		content := c.extractBalancedTag(cleanedHTML, sel.tag, sel.attrs)
 		if content != "" {
 			cleaned := c.cleanHTMLContent(content)
-			if len(cleaned) > 50 {
+			if utf8.RuneCountInString(cleaned) > minCrawledContent {
 				return cleaned
 			}
 		}
@@ -875,7 +991,29 @@ func (c *Crawler) extractMainContent(html string) string {
 		return bricksContent
 	}
 
-	return ""
+	return c.contentFromBody(cleanedHTML)
+}
+
+// contentFromBody is the last resort: the page's body with its chrome already
+// removed. A theme that names its content area nothing the selectors above know
+// — a King Composer front page whose sections sit straight inside the layout —
+// otherwise yields "" and the page keeps the builder markup it was crawled to
+// replace, without a word said (#63).
+//
+// Some chrome survives this, which is the trade being made: a page with the
+// footer in it is worth more than a page with nothing in it.
+func (c *Crawler) contentFromBody(html string) string {
+	body := c.extractBalancedTag(html, "body", "")
+	if body == "" {
+		body = html
+	}
+
+	cleaned := c.cleanHTMLContent(body)
+	if utf8.RuneCountInString(cleaned) <= minCrawledContent {
+		return ""
+	}
+
+	return cleaned
 }
 
 // removeNonContentElements removes header, footer, nav, aside, and other non-content elements
@@ -1094,7 +1232,10 @@ func isContentEmpty(content string) bool {
 	stripped = strings.ReplaceAll(stripped, "\t", "")
 	stripped = strings.ReplaceAll(stripped, " ", "")
 
-	return len(stripped) < 10 // Less than 10 characters = empty
+	// Characters, not bytes. "Zapraszamy" is ten letters and thirteen bytes;
+	// ten Japanese characters are thirty. A byte threshold asks a different
+	// question of every alphabet, and the language it is fair to is English.
+	return utf8.RuneCountInString(stripped) < minVisibleCharacters
 }
 
 // FilterEmptyContent filters out posts with empty content

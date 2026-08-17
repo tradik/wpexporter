@@ -34,6 +34,18 @@ func (f *PathFilter) FilterPosts(posts []models.WordPressPost) []models.WordPres
 	return filtered
 }
 
+// MatchesURL reports whether one address passes the filter, for the callers
+// that hold an address rather than a record — the sitemap walk asks about
+// addresses it has not fetched yet (#68), and it must be held to the same rule
+// as every collection, or an operator asking for /fr/ gets the whole site.
+func (f *PathFilter) MatchesURL(link string) bool {
+	if f.Pattern == "" {
+		return true
+	}
+
+	return f.matchesPattern(link)
+}
+
 // matchesPattern checks if the URL path contains the filter pattern
 func (f *PathFilter) matchesPattern(link string) bool {
 	if link == "" {

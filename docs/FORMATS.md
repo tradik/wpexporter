@@ -43,6 +43,18 @@ element: the listing itself is produced at render time and cannot be exported.
 Point the target's own archive at that address rather than migrating a page
 over it.
 
+The sitemap index is read to the end. It used to stop at twenty child
+documents, which is a number this tool invented: WordPress writes one child per
+2,000 URLs, so a shop with 60,000 products was quietly told it published 40,000
+addresses. `--max-sitemap-documents N` sets a bound for an operator who would
+rather not spend the requests, and the run then names the documents it skipped.
+
+A post type whose slug contains `layout`, `template`, `block`, `section`,
+`popup` or `widget` is read as a theme's saved fragments rather than as content.
+That is right for a builder and wrong for a magazine whose type is called
+`section`, so every type set aside is **named in the report** — and
+`--custom-types <slug>` insists, whatever the rule thinks of the slug.
+
 After the export, the site's own **sitemap and main feed** are read — one or two
 requests — and every address they list that the export does not carry is
 reported and recorded in `metadata.json` under `stats.uncovered`. Archive views
@@ -68,12 +80,42 @@ request at all. The export is complete either way, and `stats.notices` in
 `metadata.json` names the spelling that was used, because the address in the
 report is not the one a reader would try by hand.
 
+On a site with no content API, **the sitemap is the source rather than a
+check**. Its addresses are fetched and written as pages, with
+`stats.recovered_pages` saying how many; they carry title, address, SEO metadata
+and the rendered body, and no IDs, terms, authors or dates, because a published
+page is what the site shows a reader rather than what its database holds. Only
+addresses no exported document already covers, only under `--from-sitemap`, and
+the limit flags bound the walk (#68).
+
 A WordPress **older than 4.7** has no `wp/v2` content routes in either spelling —
 the content API arrived in that release — and answers `rest_no_route` to
 everything. There is nothing to fall back to, so the run says so once, records it
 in `stats.notices`, and reads the site's feed by itself rather than handing back
 an empty export that looks like an empty site (#68). `--no-inventory-check`
 overrules that, as it overrules everything else the inventory does.
+
+**A shop's catalog is written down.** `markdown` puts each product at
+`products/<slug>.md`; `ssg` puts it at the path its permalink states, so the
+`/produkt/<slug>/` links in the site's own navigation still resolve on the built
+site. The commerce facts travel in front matter — `sku`, `price`,
+`regular_price`, `sale_price`, `on_sale`, `stock_status`, `product_categories`,
+`product_tags`, `images` — each omitted where the shop did not set it, and the
+long description is the body. Until #65 the products were fetched, counted in
+`stats.total_products` and written nowhere by either format.
+
+**A heading keeps its own styling.** A `<h2 class="sc_item_title
+trx_addons_inline_158836093">` travels as HTML rather than as `##`, because that
+generated class is where the theme's color rule keys on and a Markdown heading
+has nowhere to put it (#67). Boilerplate does not count: `wp-block-heading`,
+`has-text-align-center`, `entry-title`, `screen-reader-text` and their kind are
+what WordPress stamps on every heading everywhere and say nothing a `##` is
+missing, so those convert as they always have. What counts as boilerplate is
+extended per site with `--boilerplate-classes`, and how much is kept at all is
+`--preserve-styling auto|none|all`: keep the headings that mean something, keep
+nothing, or keep every element carrying a class — which is what a site whose
+whole layout is styling needs. `--preserve-classes` and `--preserve-ids` name
+elements exactly, on top of whichever mode is in force.
 
 A post the editor **pinned to the top of the blog** carries `sticky: true`,
 omitted when false. A listing sorted by date alone buries it wherever its date
@@ -114,7 +156,11 @@ builder shell carries a handful, and a recognised class prefix (`kc-elm`,
 `vc_row`, `et_pb_`, `elementor-`, `fl-builder`, `brxe-`, `oxy-`) raises that
 threshold rather than being the whole rule — the next builder is on nobody's
 list, and a body that is all containers and no text renders to nothing whatever
-it is called. The run states how many of each it found. `--skip-empty-content`
+it is called. `--builder-classes` names the one this site uses,
+`--content-selector` names where its theme keeps the page, and
+`--crawl-content-mode auto|empty|always` decides how much is re-read at all. The
+run states how many of each it found, and names the pages that were re-read and
+gave nothing back. `--skip-empty-content`
 is unchanged and still asks its own question: a builder page is worth crawling
 and is not worth discarding.
 
