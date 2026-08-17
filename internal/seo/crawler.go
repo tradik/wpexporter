@@ -600,9 +600,11 @@ func (c *Crawler) EnrichPostsWithSEOAndContent(posts []models.WordPressPost) []m
 		}()
 	}
 
-	// Send jobs - check which posts have empty content
+	// Send jobs - check which posts the API did not really serve a body for:
+	// empty, or a page builder's scaffolding, which is not empty and holds
+	// nothing (#63).
 	for i, post := range posts {
-		needsContent := isContentEmpty(post.Content.Rendered)
+		needsContent := needsRenderedContent(post.Content.Rendered)
 		jobs <- job{index: i, url: post.Link, needsContent: needsContent}
 	}
 	close(jobs)
@@ -701,13 +703,19 @@ func (c *Crawler) extractSEOAndContent(pageURL string, extractContent bool) Craw
 	return result
 }
 
-// EnrichPostsWithContent crawls posts with empty content and extracts HTML body content
+// EnrichPostsWithContent crawls the pages whose stored body is not the page —
+// empty, or a page builder's scaffolding — and takes the rendered one instead.
 func (c *Crawler) EnrichPostsWithContent(posts []models.WordPressPost) []models.WordPressPost {
-	// Find posts with empty content
+	// Find the posts whose body the API did not really serve
 	emptyPosts := make([]int, 0)
+	shells := 0
 	for i, post := range posts {
-		if isContentEmpty(post.Content.Rendered) {
+		switch {
+		case isContentEmpty(post.Content.Rendered):
 			emptyPosts = append(emptyPosts, i)
+		case storedAsBuilderMarkup(post.Content.Rendered):
+			emptyPosts = append(emptyPosts, i)
+			shells++
 		}
 	}
 
@@ -715,7 +723,11 @@ func (c *Crawler) EnrichPostsWithContent(posts []models.WordPressPost) []models.
 		return posts
 	}
 
-	c.logf("Found %d posts/pages with empty content, crawling...\n", len(emptyPosts))
+	// Counted apart because they are the case #63 was reported for, and a run
+	// that says "5 with empty content" on a site of twenty builder pages is how
+	// that went unnoticed.
+	c.logf("Found %d posts/pages the API served no body for (%d empty, %d page-builder markup), crawling...\n",
+		len(emptyPosts), len(emptyPosts)-shells, shells)
 
 	// Create progress bar
 	progress := c.createProgressBar(len(emptyPosts), "Crawling content")

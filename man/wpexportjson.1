@@ -122,7 +122,7 @@ Which meta tags to keep beyond the named SEO fields:
 keeps only the named fields; or a comma\-separated allow\-list such as \fBtwitter:card,article:author\fR.
 .TP
 .BR \-\-crawl\-content
-Crawl pages with empty content (Bricks, Elementor page builders)
+Take the rendered page wherever the stored body is not the page. Two cases: a body the REST API serves empty, and a body that is a page builder's scaffolding \- several kilobytes of nested wrappers with a headline somewhere inside, which renders to nothing without the plugin that builds it. The second is judged by what the body amounts to rather than by its length: an ordinary page carries hundreds of characters of text per container element and a shell carries a handful, and a known builder's class prefix (\fBkc-elm\fR, \fBvc_row\fR, \fBet_pb_\fR, \fBelementor-\fR, \fBfl-builder\fR, \fBbrxe-\fR, \fBoxy-\fR) raises the threshold rather than being the whole rule. The run states how many of each it found.
 .TP
 .BR \-\-exclude\-tags " " \fITAGS\fR
 SEO tags to exclude (comma-separated: title,meta:description,og:title,canonical,lang,hreflangs)

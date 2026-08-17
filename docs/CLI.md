@@ -89,7 +89,7 @@ wpexportjson export --config config.yaml
 <tr><td><code>--preserve-ids</code></td><td>Element IDs whose elements travel as HTML rather than being converted (comma-separated, wildcards allowed)</td><td>-</td></tr>
 <tr><td><code>--assisted-crawl</code></td><td>Crawl URLs to extract SEO metadata (title, description, og tags)</td><td><code>false</code></td></tr>
 <tr><td><code>--exclude-tags</code></td><td>SEO tags to exclude (comma-separated: title,meta:description,og:title,canonical,lang,hreflangs)</td><td>-</td></tr>
-<tr><td><code>--crawl-content</code></td><td>Crawl pages with empty content (Bricks, Elementor page builders)</td><td><code>false</code></td></tr>
+<tr><td><code>--crawl-content</code></td><td>Take the rendered page wherever the stored body is not the page: served empty, or a page builder's scaffolding — many containers and almost no text (King Composer, WPBakery, Divi, Elementor, Bricks, Beaver Builder, Oxygen)</td><td><code>false</code></td></tr>
 <tr><td><code>--skip-empty-content</code></td><td>Skip posts/pages with empty content from export</td><td><code>false</code></td></tr>
 <tr><td><code>--auth-user</code></td><td>Username for Basic Auth (prompts for password if --auth-pass not provided)</td><td>-</td></tr>
 <tr><td><code>--auth-pass</code></td><td>Password for Basic Auth</td><td>-</td></tr>

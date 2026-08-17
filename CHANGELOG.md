@@ -23,6 +23,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `stats.notices`, since the address there is not the one a reader would try by
   hand.
 
+- **`--crawl-content` could not see the pages it was recommended for (#63).**
+  The export's own warning says to try `--assisted-crawl --crawl-content` on a
+  page whose body the API did not really serve — and the flag fired only on a
+  body that came back *empty*. A page builder's does not: a King Composer front
+  page is several kilobytes of `kc-elm` wrappers with one headline inside them.
+  So the remedy reached five pages of twenty and none of the ones the warning
+  was about, and the migration shipped forty nested divs in a single column: no
+  grid, no cards, no prices, because the layout only exists while the plugin is
+  rendering it.
+
+  The body is now judged by what it amounts to rather than by its length. An
+  ordinary page carries hundreds of characters of text per container element; a
+  builder shell carries a handful. A recognised class prefix — `kc-elm`,
+  `vc_row`, `et_pb_`, `elementor-`, `fl-builder`, `brxe-`, `oxy-` and the rest —
+  raises the threshold rather than being the whole rule, because the next
+  builder is on nobody's list and a body that is all containers and no text
+  renders to nothing whatever it is called. The run states how many of each it
+  found, since "5 with empty content" on a site of twenty builder pages is how
+  this went unnoticed. `--skip-empty-content` asks its own question and is
+  unchanged: a builder page is worth crawling and is not worth discarding.
+
 - **A heading's classes were dropped, and the theme's colour with them (#67).**
   Themes of some families emit one generated class per element and a stylesheet
   rule to match — `trx_addons_inline_158836093` is where a heading's colour

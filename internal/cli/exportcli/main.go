@@ -166,7 +166,7 @@ Advanced:
       --scan-range START-END  Rescan a specific inclusive ID range (e.g. 100-200)
       --max-media-mb int      Per-file media download cap in MB (0 = default 2048)
       --assisted-crawl        Crawl URLs for SEO metadata
-      --crawl-content         Crawl pages with empty content (Bricks, Elementor)
+      --crawl-content         Take the rendered page where the stored body is not the page
       --relevant-media-only   Download only featured/content images
       --resume                Resume from checkpoint
       --rate-limit int        Delay between requests in ms
@@ -246,7 +246,7 @@ func init() {
 	exportCmd.Flags().StringVar(&pathFilter, "path-filter", "", "filter posts/pages by URL path pattern (e.g., /fr/arts/)")
 	exportCmd.Flags().BoolVar(&assistedCrawl, "assisted-crawl", false, "crawl URLs for SEO metadata")
 	exportCmd.Flags().StringVar(&excludeTags, "exclude-tags", "", "SEO tags to exclude (comma-separated: title,meta:description,og:title)")
-	exportCmd.Flags().BoolVar(&crawlContent, "crawl-content", false, "crawl pages with empty content (Bricks, Elementor)")
+	exportCmd.Flags().BoolVar(&crawlContent, "crawl-content", false, "take the rendered page where the stored body is empty or is page-builder markup")
 	exportCmd.Flags().BoolVar(&skipEmptyContent, "skip-empty-content", false, "skip posts/pages with empty content")
 	exportCmd.Flags().BoolVar(&flatHTML, "flat-html", false, "convert HTML to Markdown (Bricks Builder support)")
 	exportCmd.Flags().BoolVar(&basicHTML, "basic-html", false, "clean HTML to basic elements (tables, lists, links - for Shopify)")

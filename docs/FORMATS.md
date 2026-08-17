@@ -104,6 +104,20 @@ theme sections, which live in post meta — is reported as well, and named in
 `stats.empty_pages`. The export is correct and useless at the same time there;
 `--assisted-crawl --crawl-content` takes the rendered page instead (#46).
 
+That crawl reaches the pages the warning is about, which it used not to. A page
+builder's body is not empty — a King Composer front page is several kilobytes of
+`kc-elm` wrappers with a headline inside them — so the emptiness test passed it
+over and the recommended remedy fetched five pages of twenty, none of them the
+ones that needed it (#63). The body is now judged by what it amounts to: an
+ordinary page carries hundreds of characters of text per container element, a
+builder shell carries a handful, and a recognised class prefix (`kc-elm`,
+`vc_row`, `et_pb_`, `elementor-`, `fl-builder`, `brxe-`, `oxy-`) raises that
+threshold rather than being the whole rule — the next builder is on nobody's
+list, and a body that is all containers and no text renders to nothing whatever
+it is called. The run states how many of each it found. `--skip-empty-content`
+is unchanged and still asks its own question: a builder page is worth crawling
+and is not worth discarding.
+
 Two things hold for every platform format, and only for those: media URLs are
 **left absolute**, because the target platform imports the files from the live
 site, and address fields (`link`, `canonical_url`) stay absolute too. `json`,
