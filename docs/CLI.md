@@ -91,6 +91,7 @@ wpexportjson export --config config.yaml
 <tr><td><code>--crawl-content-mode</code></td><td>Which pages <code>--crawl-content</code> re-reads: <code>auto</code> (empty bodies and page-builder scaffolding), <code>empty</code> (only empty, the 1.8.14 question), <code>always</code></td><td><code>auto</code></td></tr>
 <tr><td><code>--builder-classes</code></td><td>Class prefixes marking this site's page-builder markup, added to the recognized ones — the next builder is on nobody's list (comma-separated, wildcards)</td><td>-</td></tr>
 <tr><td><code>--content-selector</code></td><td>Where this theme keeps the page: <code>tag</code>, <code>.class</code>, <code>#id</code> or <code>tag.class</code>, tried before the built-in list (comma-separated)</td><td>-</td></tr>
+<tr><td><code>--max-sitemap-documents</code></td><td>Read at most N child documents of a sitemap index. <code>0</code> (the default) reads them all; a bound makes the run name the documents it skipped</td><td><code>0</code></td></tr>
 <tr><td><code>--post-loop-markers</code></td><td>This theme's listing elements — shortcode, block or class names — added to the recognized ones (comma-separated)</td><td>-</td></tr>
 <tr><td><code>--read-more-phrases</code></td><td>The read-more text this theme appends, for a site with too few excerpts for the run to learn it from their repetition (comma-separated)</td><td>-</td></tr>
 <tr><td><code>--preserve-ids</code></td><td>Element IDs whose elements travel as HTML rather than being converted (comma-separated, wildcards allowed)</td><td>-</td></tr>

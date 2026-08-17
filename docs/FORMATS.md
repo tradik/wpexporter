@@ -43,6 +43,18 @@ element: the listing itself is produced at render time and cannot be exported.
 Point the target's own archive at that address rather than migrating a page
 over it.
 
+The sitemap index is read to the end. It used to stop at twenty child
+documents, which is a number this tool invented: WordPress writes one child per
+2,000 URLs, so a shop with 60,000 products was quietly told it published 40,000
+addresses. `--max-sitemap-documents N` sets a bound for an operator who would
+rather not spend the requests, and the run then names the documents it skipped.
+
+A post type whose slug contains `layout`, `template`, `block`, `section`,
+`popup` or `widget` is read as a theme's saved fragments rather than as content.
+That is right for a builder and wrong for a magazine whose type is called
+`section`, so every type set aside is **named in the report** — and
+`--custom-types <slug>` insists, whatever the rule thinks of the slug.
+
 After the export, the site's own **sitemap and main feed** are read — one or two
 requests — and every address they list that the export does not carry is
 reported and recorded in `metadata.json` under `stats.uncovered`. Archive views

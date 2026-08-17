@@ -36,12 +36,26 @@ var sitemapPaths = []string{
 	"/wp-sitemap-index.xml",
 }
 
-// maxSitemapDocuments bounds an index walk. WordPress writes one child per
-// 2,000 URLs, so twenty of them is a 40,000-URL site — past that, a
-// completeness check has already learnt what it can. The bound matters because
-// this runs by default: an export that quietly turned into a second crawl would
-// be a worse surprise than an incomplete count.
-const maxSitemapDocuments = 20
+// The index walk is unbounded by default.
+//
+// It used to stop at twenty child documents, on the reasoning that WordPress
+// writes one per 2,000 URLs and a completeness check has learnt what it can by
+// 40,000. That was a number this tool invented about sites it had not seen: a
+// shop with 60,000 products has thirty children and was quietly told it
+// published 40,000 addresses, which made every count downstream of it wrong
+// while looking exactly like a count that was right.
+//
+// The documents are XML listings, not pages, and they cost a request each with
+// the run's own rate limit applied between them. An operator who does not want
+// to spend those requests says so with --max-sitemap-documents, and when that
+// bound is reached the run says which documents it did not read — a truncation
+// nobody is told about is the failure this project has spent seven releases
+// removing.
+
+// sitemapChild is one document an index points at.
+type sitemapChild struct {
+	Loc string `xml:"loc"`
+}
 
 // Inventory is what the site says it publishes.
 type Inventory struct {
@@ -68,10 +82,8 @@ func (i Inventory) Published() bool {
 // set of URLs. A document carries one or the other, so both are parsed at once
 // and whichever filled decides what it was.
 type sitemapIndex struct {
-	Sitemaps []struct {
-		Loc string `xml:"loc"`
-	} `xml:"sitemap"`
-	URLs []struct {
+	Sitemaps []sitemapChild `xml:"sitemap"`
+	URLs     []struct {
 		Loc string `xml:"loc"`
 	} `xml:"url"`
 }
@@ -180,12 +192,22 @@ func (c *Client) readSitemap(url string) ([]string, bool) {
 		add(entry.Loc)
 	}
 
-	documents := 0
-	for _, child := range index.Sitemaps {
-		if documents >= maxSitemapDocuments {
-			break
+	c.walkSitemapChildren(index, add)
+
+	return urls, true
+}
+
+// walkSitemapChildren reads each child of an index, in order, up to whatever
+// bound the operator set.
+func (c *Client) walkSitemapChildren(index sitemapIndex, add func(string)) {
+	limit := c.sitemapDocumentLimit()
+
+	for i, child := range index.Sitemaps {
+		if limit > 0 && i >= limit {
+			c.noteSitemapTruncation(index.Sitemaps[i:])
+
+			return
 		}
-		documents++
 
 		c.applyRateLimit()
 
@@ -198,8 +220,41 @@ func (c *Client) readSitemap(url string) ([]string, bool) {
 			add(entry.Loc)
 		}
 	}
+}
 
-	return urls, true
+// sitemapDocumentLimit is the operator's bound, or zero for none.
+func (c *Client) sitemapDocumentLimit() int {
+	if c.config == nil || c.config.MaxSitemapDocuments < 0 {
+		return 0
+	}
+
+	return c.config.MaxSitemapDocuments
+}
+
+// noteSitemapTruncation records the child documents the bound stopped this run
+// from reading, so the addresses inside them are missing on purpose and
+// visibly, rather than missing and indistinguishable from absent.
+func (c *Client) noteSitemapTruncation(unread []sitemapChild) {
+	names := make([]string, 0, len(unread))
+	for _, child := range unread {
+		if loc := strings.TrimSpace(child.Loc); loc != "" {
+			names = append(names, loc)
+		}
+	}
+
+	c.statedMu.Lock()
+	defer c.statedMu.Unlock()
+
+	c.unreadSitemaps = append(c.unreadSitemaps, names...)
+}
+
+// UnreadSitemaps names the child documents --max-sitemap-documents kept this
+// run from reading. Empty on a run that read them all, which is the default.
+func (c *Client) UnreadSitemaps() []string {
+	c.statedMu.Lock()
+	defer c.statedMu.Unlock()
+
+	return append([]string(nil), c.unreadSitemaps...)
 }
 
 // readSitemapDocument fetches and parses one sitemap document.

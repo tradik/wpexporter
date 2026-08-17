@@ -49,76 +49,77 @@ func logln(args ...interface{}) {
 }
 
 var (
-	cfgFile            string
-	url                string
-	output             string
-	format             string
-	bruteForce         bool
-	maxID              int
-	scanRange          string
-	maxMediaMB         int
-	downloadMedia      bool
-	noMedia            bool
-	relevantMediaOnly  bool
-	concurrent         int
-	verbose            bool
-	createZip          bool
-	noFiles            bool
-	noPosts            bool
-	noPages            bool
-	noProducts         bool
-	noCustomTypes      bool
-	customTypes        string
-	noUsers            bool
-	pathFilter         string
-	assistedCrawl      bool
-	authUser           string
-	authPass           string
-	authToken          string
-	rateLimit          int
-	retries            int
-	userAgent          string
-	limit              int
-	limitPerType       string
-	limitPosts         int
-	limitPages         int
-	limitMedia         int
-	limitProducts      int
-	resume             bool
-	timeout            int
-	crawlContent       bool
-	skipEmptyContent   bool
-	flatHTML           bool
-	basicHTML          bool
-	ssgSections        bool
-	keepOriginalURLs   bool
-	mediaPathStyle     string
-	linkStyle          string
-	frontmatterStyle   string
-	reportA11y         bool
-	extractMeta        string
-	noTags             bool
-	noMenus            bool
-	noComments         bool
-	noInventoryCheck   bool
-	fromSitemap        bool
-	quiet              bool
-	noIDs              bool
-	excludeTags        string
-	excludeMediaTypes  string
-	preserveClasses    string
-	preserveIDs        string
-	preserveStyling    string
-	boilerplateClasses string
-	builderClasses     string
-	crawlContentMode   string
-	contentSelectors   string
-	postLoopMarkers    string
-	readMorePhrases    string
-	cacheEnabled       bool
-	cacheTTL           string
-	cacheDir           string
-	cacheClear         bool
+	cfgFile             string
+	url                 string
+	output              string
+	format              string
+	bruteForce          bool
+	maxID               int
+	scanRange           string
+	maxMediaMB          int
+	downloadMedia       bool
+	noMedia             bool
+	relevantMediaOnly   bool
+	concurrent          int
+	verbose             bool
+	createZip           bool
+	noFiles             bool
+	noPosts             bool
+	noPages             bool
+	noProducts          bool
+	noCustomTypes       bool
+	customTypes         string
+	noUsers             bool
+	pathFilter          string
+	assistedCrawl       bool
+	authUser            string
+	authPass            string
+	authToken           string
+	rateLimit           int
+	retries             int
+	userAgent           string
+	limit               int
+	limitPerType        string
+	limitPosts          int
+	limitPages          int
+	limitMedia          int
+	limitProducts       int
+	resume              bool
+	timeout             int
+	crawlContent        bool
+	skipEmptyContent    bool
+	flatHTML            bool
+	basicHTML           bool
+	ssgSections         bool
+	keepOriginalURLs    bool
+	mediaPathStyle      string
+	linkStyle           string
+	frontmatterStyle    string
+	reportA11y          bool
+	extractMeta         string
+	noTags              bool
+	noMenus             bool
+	noComments          bool
+	noInventoryCheck    bool
+	fromSitemap         bool
+	quiet               bool
+	noIDs               bool
+	excludeTags         string
+	excludeMediaTypes   string
+	preserveClasses     string
+	preserveIDs         string
+	preserveStyling     string
+	boilerplateClasses  string
+	builderClasses      string
+	crawlContentMode    string
+	contentSelectors    string
+	postLoopMarkers     string
+	maxSitemapDocuments int
+	readMorePhrases     string
+	cacheEnabled        bool
+	cacheTTL            string
+	cacheDir            string
+	cacheClear          bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -173,6 +174,7 @@ Content Filters:
       --crawl-content-mode    Which pages --crawl-content re-reads: auto|empty|always
       --content-selector      Where this theme keeps the page: tag, .class, #id
       --post-loop-markers     This theme's listing elements (shortcode/block/class names)
+      --max-sitemap-documents Read at most N sitemap-index children (0 = all)
       --read-more-phrases     The read-more text this theme appends, if it cannot be learned
 
 Advanced:
@@ -281,6 +283,8 @@ func init() {
 		"which pages --crawl-content re-reads: auto|empty|always")
 	exportCmd.Flags().StringVar(&contentSelectors, "content-selector", "",
 		"where this theme keeps the page: tag, .class, #id or tag.class (comma-separated, tried first)")
+	exportCmd.Flags().IntVar(&maxSitemapDocuments, "max-sitemap-documents", 0,
+		"read at most N child documents of a sitemap index (0 = all; the run names what it skipped)")
 	exportCmd.Flags().StringVar(&postLoopMarkers, "post-loop-markers", "",
 		"this theme's listing elements — shortcode, block or class names (comma-separated)")
 	exportCmd.Flags().StringVar(&readMorePhrases, "read-more-phrases", "",
@@ -498,6 +502,9 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("content-selector") {
 		cfg.ContentSelectors = splitList(contentSelectors)
+	}
+	if cmd.Flags().Changed("max-sitemap-documents") {
+		cfg.MaxSitemapDocuments = maxSitemapDocuments
 	}
 	if cmd.Flags().Changed("post-loop-markers") {
 		cfg.PostLoopMarkers = splitList(postLoopMarkers)
@@ -1249,6 +1256,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		logln("\nReading the site's own inventory...")
 		inventory := apiClient.FetchInventory()
 		logf("Inventory: %s\n", inventory.Describe())
+		noteUnreadSitemaps(apiClient, &notices)
 
 		// A site whose /wp/v2/posts answers 500 for every request still serves
 		// its feed. Recovering titles, addresses, dates and bodies from it is

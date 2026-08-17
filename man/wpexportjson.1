@@ -114,6 +114,9 @@ Class prefixes marking this site's page-builder markup, added to the recognized 
 .BR \-\-content\-selector " " \fISELECTORS\fR
 Where this theme keeps the page, tried before the built-in list: \fBtag\fR, \fB.class\fR, \fB#id\fR or \fBtag.class\fR, comma-separated. A theme can call its content area anything, and the alternative to naming it is an export of the whole body, chrome included.
 .TP
+.BR \-\-max\-sitemap\-documents " " \fIN\fR
+Read at most \fIN\fR child documents of a sitemap index (default: \fB0\fR, all of them). WordPress writes one child per 2,000 URLs, so a bound of twenty silently told a 60,000-product shop it published 40,000 addresses. Set this to spare the requests \- they are XML listings, one request each with the run's rate limit between them \- and the run will name the documents it did not open.
+.TP
 .BR \-\-post\-loop\-markers " " \fIMARKERS\fR
 This theme's listing elements \- shortcode, block or class names \- added to the recognized ones (comma-separated). These are identifiers rather than words, so they read the same in every language; what they need is company, since every theme shipping a listing element writes its own name for it.
 .TP

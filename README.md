@@ -63,6 +63,7 @@ The three tools are also installed as standalone binaries, which behave identica
 - 🛒 **The Catalog on Disk**: `markdown` and `ssg` write every product, with price, SKU, stock and images in front matter, at the address the shop's own navigation links to
 - 🎨 **Theme Styling Survives**: A heading carrying a class Markdown cannot express travels as HTML, so the migrated page keeps the color its stylesheet gives it — `--preserve-styling auto|none|all`
 - 🌍 **Language-Independent**: The theme's "continue reading" is learned from its own repetition rather than matched against a list of English phrases, and every text threshold counts characters instead of bytes — so a Japanese or Polish site is judged by the same rule as an English one
+- 🔊 **No Silent Truncation**: The sitemap index is read to the end by default, and a post type set aside as theme bookkeeping is named in the report with the flag that overrides it
 - 🧭 **Finds Things by Asking**: The sitemap comes from `robots.txt` when it is not where anyone would guess, the feed from the page's own `<link rel="alternate">`, and the REST API from whichever of its two spellings answers
 - 🎛️ **Sites Differ, So the Rules Bend**: `--builder-classes`, `--boilerplate-classes`, `--content-selector` and `--crawl-content-mode` let one site's theme, builder and markup be named instead of guessed
 - 🌐 **No Authentication**: Works with public WordPress REST API

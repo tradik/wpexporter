@@ -43,6 +43,9 @@ type Client struct {
 	// is filled in only after the ordinary one has failed, so a site that
 	// answers normally never pays for the question (#66).
 	probe routeProbe
+	// unreadSitemaps names the index children --max-sitemap-documents kept this
+	// run from reading, so a bounded inventory says what it left out.
+	unreadSitemaps []string
 }
 
 // NewClient creates a new WordPress API client

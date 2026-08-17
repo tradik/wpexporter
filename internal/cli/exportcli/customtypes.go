@@ -32,7 +32,12 @@ func fetchCustomTypes(client *api.Client, cfg *config.Config) []models.CustomTyp
 		logf("Warning: could not list post types: %v\n", err)
 		return nil
 	}
-	exportable := api.CustomPostTypes(types)
+	// --custom-types is also the answer to "your rule is wrong about my site":
+	// a type named there is content whatever the bookkeeping test thinks of its
+	// slug, which is how a magazine whose type is called `section` gets it.
+	exportable, setAside := api.ContentTypes(types, cfg.CustomTypes)
+	reportSetAsideTypes(setAside)
+
 	custom, unmatched := selectCustomTypes(exportable, cfg.CustomTypes)
 	reportUnmatchedTypes(unmatched, types, exportable)
 
@@ -219,4 +224,23 @@ func archiveLink(t api.PostType) string {
 	}
 
 	return "/" + strings.Trim(slug, "/") + "/"
+}
+
+// reportSetAsideTypes names the types read as a plugin's or a theme's own
+// bookkeeping rather than as content.
+//
+// The test is a substring match — "layout", "template", "block", "section",
+// "popup", "widget" — which is right for a builder's saved fragments and wrong
+// for a magazine whose content type is called `section`. Being wrong is
+// survivable; being wrong in silence is what cost a site a whole type with no
+// line in the report to explain where it went. Naming them also names the
+// remedy: --custom-types insists.
+func reportSetAsideTypes(setAside []string) {
+	if len(setAside) == 0 {
+		return
+	}
+
+	logf("Set aside %d post type(s) as plugin or theme bookkeeping: %s\n",
+		len(setAside), strings.Join(setAside, ", "))
+	logln("  If one of those is your content, name it: --custom-types <slug>")
 }

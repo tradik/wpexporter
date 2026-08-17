@@ -16,6 +16,9 @@ package exportcli
 // lose it.
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/tradik/wpexporter/internal/api"
 	"github.com/tradik/wpexporter/internal/config"
 )
@@ -78,4 +81,25 @@ func fallBackToFeed(client *api.Client, cfg *config.Config) {
 
 	cfg.FromSitemap = true
 	logln("Reading the site's feed instead — there is no content API to read (--from-sitemap).")
+}
+
+// noteUnreadSitemaps records the sitemap-index children a bound kept this run
+// from reading.
+//
+// The inventory decides what the export is reported as missing (#40) and, on a
+// site with no content API, what it fetches at all (#68). A bound that silently
+// halved it would make every count downstream wrong while looking exactly like
+// a count that was right — so the run names the documents it did not open.
+func noteUnreadSitemaps(client *api.Client, notices *[]string) {
+	unread := client.UnreadSitemaps()
+	if len(unread) == 0 {
+		return
+	}
+
+	notice := fmt.Sprintf("--max-sitemap-documents stopped this run from reading %d sitemap "+
+		"document(s); the addresses they list are not counted here: %s",
+		len(unread), strings.Join(unread, ", "))
+
+	*notices = append(*notices, notice)
+	logf("\n%s\n", notice)
 }

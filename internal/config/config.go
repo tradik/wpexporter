@@ -134,6 +134,12 @@ type Config struct {
 	// uses may be one nobody has heard of, and its markup is no less
 	// unreadable for that (#63).
 	BuilderClasses []string `mapstructure:"builder_classes" json:"builder_classes,omitempty"`
+	// MaxSitemapDocuments bounds how many child documents of a sitemap index
+	// the inventory reads. Zero, the default, is no bound: a bound this tool
+	// invented about sites it had not seen made a large site's count quietly
+	// wrong. Set it to spare the requests, and the run names what it did not
+	// read.
+	MaxSitemapDocuments int `mapstructure:"max_sitemap_documents" json:"max_sitemap_documents,omitempty"`
 	// PostLoopMarkers name this theme's own listing element — a shortcode, a
 	// block or a class that renders an archive rather than storing one — added
 	// to the recognized ones. Every theme that ships one writes its own name

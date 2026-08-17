@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/tradik/wpexporter/internal/config"
 )
 
@@ -161,4 +163,47 @@ func TestIsBookkeepingType(t *testing.T) {
 			t.Errorf("isBookkeepingType(%q) = %v, want %v", slug, got, want)
 		}
 	}
+}
+
+// TestASiteInsistsOnItsOwnType: the bookkeeping test asks whether a slug
+// *contains* "section", "layout", "block", "template", "popup" or "widget",
+// which is right for a builder's saved fragments and wrong for a magazine whose
+// content type is called `section`. Such a site lost a whole type, and the
+// report said nothing about it.
+func TestASiteInsistsOnItsOwnType(t *testing.T) {
+	types := []PostType{
+		{Slug: "section", Name: "Sections", RestBase: "section"},
+		{Slug: "cpt_layouts", Name: "Layouts", RestBase: "cpt_layouts"},
+		{Slug: "realizacje", Name: "Realizacje", RestBase: "realizacje"},
+	}
+
+	kept, setAside := ContentTypes(types, nil)
+	assert.Equal(t, []string{"realizacje"}, slugsOf(kept))
+	assert.ElementsMatch(t, []string{"section", "cpt_layouts"}, setAside,
+		"and what was set aside is named, not swallowed")
+
+	insisted, stillAside := ContentTypes(types, []string{"Section"})
+	assert.ElementsMatch(t, []string{"section", "realizacje"}, slugsOf(insisted),
+		"--custom-types is also how a site says the rule is wrong about it")
+	assert.Equal(t, []string{"cpt_layouts"}, stillAside)
+}
+
+// TestUnwalkableTypesAreStillDropped: a rest_base with a path or a regex in it
+// is not one address to page through, and insisting cannot make it into one.
+func TestUnwalkableTypesAreStillDropped(t *testing.T) {
+	types := []PostType{{Slug: "wp_font_face", RestBase: "font-families/(?P<id>[\\d]+)/font-faces"}}
+
+	kept, setAside := ContentTypes(types, []string{"wp_font_face"})
+	assert.Empty(t, kept)
+	assert.Empty(t, setAside, "not bookkeeping — simply not a collection")
+}
+
+// slugsOf is the slugs alone, for comparing what a filter kept.
+func slugsOf(types []PostType) []string {
+	slugs := make([]string, 0, len(types))
+	for _, t := range types {
+		slugs = append(slugs, t.Slug)
+	}
+
+	return slugs
 }

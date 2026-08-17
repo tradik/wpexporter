@@ -91,10 +91,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   | `--content-selector` | where this theme keeps the page: `tag`, `.class`, `#id`, `tag.class` |
   | `--post-loop-markers` | this theme's listing elements |
   | `--read-more-phrases` | the read-more text, when too few excerpts exist to learn it |
+  | `--max-sitemap-documents` | how many sitemap-index children to read (0 = all) |
 
   An unknown value for a mode ends the run naming what was accepted, because a
   typo that falls back to a default produces an export the operator believes is
   something else.
+
+- **The sitemap index is read to the end.** It stopped at twenty child
+  documents — a number this tool invented about sites it had not seen. WordPress
+  writes one child per 2,000 URLs, so a shop with 60,000 products has thirty of
+  them and was quietly told it published 40,000 addresses: every count
+  downstream was wrong while looking exactly like a count that was right, and on
+  a site with no content API (#68) those unread documents are pages that are
+  never fetched at all. **The default is now no bound.**
+  `--max-sitemap-documents N` sets one for an operator who would rather not
+  spend the requests, and the run then names the documents it did not open.
+
+- **A type of yours called `section` is no longer dropped in silence.** The
+  bookkeeping test asks whether a slug *contains* `layout`, `template`, `block`,
+  `section`, `popup` or `widget` — right for a theme's saved fragments, wrong
+  for a magazine whose content type is literally called `section`, which lost a
+  whole type with no line in the report to say where it went. Every type set
+  aside is now named, together with the remedy: `--custom-types <slug>` insists,
+  and a type named there is content whatever the rule thinks of its slug.
 
 - **"Continue reading" is learned from the site rather than looked up.** The
   read-more link a theme appends to every generated excerpt was recognized by

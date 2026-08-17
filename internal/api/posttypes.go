@@ -149,17 +149,55 @@ func decodePostTypes(raw map[string]json.RawMessage) (types []PostType, unreadab
 // path or a regex in it (font faces are nested under a family) is not a
 // collection an export can walk, so it is dropped too.
 func CustomPostTypes(types []PostType) []PostType {
-	var out []PostType
-	for _, t := range types {
-		if builtinTypes[t.Slug] || isBookkeepingType(t.Slug) {
-			continue
+	kept, _ := ContentTypes(types, nil)
+
+	return kept
+}
+
+// ContentTypes is the same narrowing, with the types this site insists on and
+// the list of what was set aside as bookkeeping.
+//
+// Both halves matter. The bookkeeping test asks whether a slug *contains*
+// "section", "layout", "block", "template", "popup" or "widget" — which is
+// right for a theme's saved fragments and wrong for a magazine whose content
+// type is literally called `section`. Such a site lost a whole type and was
+// told nothing, so: `insisted` names the types that are content whatever the
+// rule thinks, and the second return value is every type the rule dropped, for
+// the run to say out loud.
+func ContentTypes(types []PostType, insisted []string) (kept []PostType, setAside []string) {
+	wanted := make(map[string]bool, len(insisted))
+	for _, slug := range insisted {
+		if slug = strings.ToLower(strings.TrimSpace(slug)); slug != "" {
+			wanted[slug] = true
 		}
-		if strings.ContainsAny(t.RestBase, "/(?<") {
-			continue
-		}
-		out = append(out, t)
 	}
-	return out
+
+	for _, t := range types {
+		if builtinTypes[t.Slug] {
+			continue
+		}
+
+		if !wanted[strings.ToLower(t.Slug)] && isBookkeepingType(t.Slug) {
+			setAside = append(setAside, t.Slug)
+
+			continue
+		}
+
+		if !walkableRestBase(t.RestBase) {
+			continue
+		}
+
+		kept = append(kept, t)
+	}
+
+	return kept, setAside
+}
+
+// walkableRestBase reports a collection an export can page through. A rest_base
+// carrying a path or a regex — font faces are nested under a family — is not
+// one address to walk.
+func walkableRestBase(restBase string) bool {
+	return !strings.ContainsAny(restBase, "/(?<")
 }
 
 // constructionMarkers name a type that holds page CONSTRUCTION rather than page
