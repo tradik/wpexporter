@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.8.15] - 2026-08-17
 
 ### Fixed
 - **A site serving its REST API at `?rest_route=` exported nothing (#66).**
@@ -360,8 +360,6 @@ instead of being written into it, and what was removed is reported.
   first because it is what the whole site opens with, together with the remedy:
   `--assisted-crawl --crawl-content` takes the rendered page instead. A page
   already explained as a post loop (#41) is not explained twice.
-
-## [Unreleased]
 
 ### Changed
 - **The resume path is tested.** `internal/checkpoint` gained tests in 1.8.8;
