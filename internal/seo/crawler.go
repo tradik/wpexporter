@@ -617,22 +617,55 @@ func (c *Crawler) EnrichPostsWithSEOAndContent(posts []models.WordPressPost) []m
 
 	// Collect results
 	enrichedContent := 0
+	var unreadable []string
 	for result := range results {
 		// Always set SEO data
 		posts[result.index].SEO = result.result.SEO
 
-		// Only set content if it was empty and we got content
-		if result.hadEmpty && result.result.Content != "" {
+		// Only set content if the stored body was not the page and the crawl
+		// found one
+		switch {
+		case !result.hadEmpty:
+		case result.result.Content != "":
 			posts[result.index].Content.Rendered = result.result.Content
 			enrichedContent++
+		default:
+			unreadable = append(unreadable, posts[result.index].Link)
 		}
 		_ = progress.Add(1)
 	}
 
 	_ = progress.Finish()
 	c.logf("Enriched %d posts/pages with crawled content\n", enrichedContent)
+	c.reportUnreadable(unreadable)
 
 	return posts
+}
+
+// reportUnreadable names the pages that were re-read from the site and gave
+// nothing back.
+//
+// They keep the stored body they were crawled to replace, which for a page
+// builder is the wrappers and none of the page. Silence here is how a run
+// reports "Enriched 7" on a site of twenty builder pages and looks like it
+// worked (#63).
+func (c *Crawler) reportUnreadable(unreadable []string) {
+	if len(unreadable) == 0 {
+		return
+	}
+
+	c.logf("%d page(s) were re-read from the site and no content element was found; "+
+		"they keep the body the API stored:\n", len(unreadable))
+
+	for i, link := range unreadable {
+		if i == unreadableNamed {
+			c.logf("  … and %d more\n", len(unreadable)-unreadableNamed)
+
+			break
+		}
+
+		c.logf("  %s\n", link)
+	}
 }
 
 // extractSEOAndContent fetches a URL once and extracts both SEO metadata and content
@@ -774,16 +807,20 @@ func (c *Crawler) EnrichPostsWithContent(posts []models.WordPressPost) []models.
 
 	// Collect results
 	enriched := 0
+	var unreadable []string
 	for result := range results {
 		if result.content != "" {
 			posts[result.postIndex].Content.Rendered = result.content
 			enriched++
+		} else {
+			unreadable = append(unreadable, posts[result.postIndex].Link)
 		}
 		_ = progress.Add(1)
 	}
 
 	_ = progress.Finish()
 	c.logf("Enriched %d posts/pages with crawled content\n", enriched)
+	c.reportUnreadable(unreadable)
 
 	return posts
 }
@@ -839,6 +876,15 @@ func (c *Crawler) fetchHTML(pageURL string) string {
 }
 
 // extractMainContent extracts the main content from HTML
+// unreadableNamed is how many addresses the report lists before summarizing the
+// rest. Enough to act on, short of a wall of URLs on a site where every page is
+// built the same way.
+const unreadableNamed = 5
+
+// minCrawledContent is the shortest run of extracted markup worth calling
+// content. Below it the selector matched a wrapper rather than the page.
+const minCrawledContent = 50
+
 func (c *Crawler) extractMainContent(html string) string {
 	// First, remove header, footer, nav, aside elements to isolate main content
 	cleanedHTML := c.removeNonContentElements(html)
@@ -863,7 +909,7 @@ func (c *Crawler) extractMainContent(html string) string {
 		content := c.extractBalancedTag(cleanedHTML, sel.tag, sel.attrs)
 		if content != "" {
 			cleaned := c.cleanHTMLContent(content)
-			if len(cleaned) > 50 {
+			if len(cleaned) > minCrawledContent {
 				return cleaned
 			}
 		}
@@ -875,7 +921,29 @@ func (c *Crawler) extractMainContent(html string) string {
 		return bricksContent
 	}
 
-	return ""
+	return c.contentFromBody(cleanedHTML)
+}
+
+// contentFromBody is the last resort: the page's body with its chrome already
+// removed. A theme that names its content area nothing the selectors above know
+// — a King Composer front page whose sections sit straight inside the layout —
+// otherwise yields "" and the page keeps the builder markup it was crawled to
+// replace, without a word said (#63).
+//
+// Some chrome survives this, which is the trade being made: a page with the
+// footer in it is worth more than a page with nothing in it.
+func (c *Crawler) contentFromBody(html string) string {
+	body := c.extractBalancedTag(html, "body", "")
+	if body == "" {
+		body = html
+	}
+
+	cleaned := c.cleanHTMLContent(body)
+	if len(cleaned) <= minCrawledContent {
+		return ""
+	}
+
+	return cleaned
 }
 
 // removeNonContentElements removes header, footer, nav, aside, and other non-content elements

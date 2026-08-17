@@ -132,17 +132,44 @@ func (c *Client) discoverRoute() {
 }
 
 // answersContent reports whether an address serves a wp/v2 document rather than
-// a refusal. A 200 carrying `rest_no_route` is a refusal wearing a success.
+// something that merely has its address.
+//
+// Three things can wear a 200 here, and only one of them is an API:
+//
+//   - a JSON document, which is the answer;
+//   - a JSON refusal — `rest_no_route` — which is a no wearing a success, and
+//     is what a WordPress older than 4.7 says about every content route;
+//   - the site's own HTML, which is what a site with no REST API at all serves
+//     to `/?rest_route=…`, because to that site it is a URL like any other.
+//
+// The third was read as an API until a reporter checked (#66). Everything then
+// failed to parse, the run reported two incomplete collections and zero
+// documents, and the note at the end said the export "is complete". A probe
+// that trusts a status code will believe any 404 page that returns 200.
 func (c *Client) answersContent(url string) bool {
 	resp, err := c.httpClient.R().Get(url)
 	if err != nil || resp.StatusCode() != http.StatusOK {
 		return false
 	}
 
+	return isRESTDocument(resp.Body())
+}
+
+// isRESTDocument reports a body that is JSON and is not a refusal. A page of
+// HTML is neither, whatever status it arrived with.
+func isRESTDocument(body []byte) bool {
+	// Validity is asked first and separately: a collection answers with a JSON
+	// array, which will not unmarshal into the refusal's shape, and reading
+	// that failure as "not an API" would reject every working endpoint.
+	if !json.Valid(body) {
+		return false
+	}
+
 	var refusal struct {
 		Code string `json:"code"`
 	}
-	if err := json.Unmarshal(resp.Body(), &refusal); err == nil && refusal.Code == noRouteCode {
+
+	if err := json.Unmarshal(body, &refusal); err == nil && refusal.Code == noRouteCode {
 		return false
 	}
 
@@ -150,10 +177,16 @@ func (c *Client) answersContent(url string) bool {
 }
 
 // RestAPINotice is what the run says about a site with no content routes, once.
+//
+// It states what happened and stops there. An earlier draft ended "the export
+// used it and is complete", which on a site serving HTML to every API address
+// printed directly beneath two incomplete collections and a 1.6 KB export
+// (#66). A report may say what happened; it may not say what it concluded.
 func RestAPINotice() string {
-	return "This WordPress serves no wp/v2 content routes — the REST content API arrived in " +
-		"WordPress 4.7, and this install predates it or has it disabled. Nothing can be fetched " +
-		"through the API; --from-sitemap reads what the site still publishes in its feed."
+	return "This site serves no wp/v2 content routes: neither /wp-json/wp/v2/ nor " +
+		"/?rest_route=/wp/v2/ answered with a REST document. That is a WordPress older than 4.7, " +
+		"which predates the content API, or one with the API disabled or hidden. Nothing can be " +
+		"fetched through it — what this export carries came from the site's sitemap and feed."
 }
 
 // fetchCollection asks for one page of a collection, and on a 404 asks once

@@ -47,6 +47,15 @@ const minFence = 3
 func convertPreBlocks(html string) string {
 	fenced := preBlockRe.ReplaceAllStringFunc(html, func(block string) string {
 		content := preBlockRe.FindStringSubmatch(block)[1]
+
+		// A block with nothing in it is nothing. This is not a hypothetical:
+		// a <pre> wrapping a plugin's <template> is empty once the template is
+		// dropped, and an empty fence puts a grey box on the page for content
+		// that was never there (#69).
+		if strings.TrimSpace(content) == "" {
+			return "\n\n"
+		}
+
 		fence := strings.Repeat("`", fenceLength(content))
 
 		// The blank lines matter as much as the fence: a marker glued to the

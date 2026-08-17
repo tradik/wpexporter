@@ -68,6 +68,32 @@ func TestAShortPageIsAPage(t *testing.T) {
 	assert.False(t, storedAsBuilderMarkup(short))
 }
 
+// TestKnownBuilderNeedsNoRatio: what reopened #63. 1.8.15 treated the class as
+// evidence toward a text-per-container threshold, and the reporter's front page
+// cleared the threshold and was walked past again — forty kc-elm wrappers, and
+// none of the three sections the live page shows. What the class means is that
+// the stored body is an instruction to render, and an instruction is never the
+// page, whatever text happens to sit between the wrappers.
+func TestKnownBuilderNeedsNoRatio(t *testing.T) {
+	wordy := `<div class="kc-elm kc_row"><div class="kc_column">` +
+		strings.Repeat(`<p>Opis produktu, ktory zajmuje sporo miejsca w zapisanym ciele strony. `, 20) +
+		`</div></div>`
+
+	assert.True(t, storedAsBuilderMarkup(wordy), "the class decides; the ratio does not get a vote")
+	assert.True(t, needsRenderedContent(wordy))
+}
+
+// TestBuilderNameOutsideAClassIsNotEvidence: the guard the decisive rule needs.
+// A page mentioning a builder in a link or a comment must not be re-read from
+// the network on the strength of the word.
+func TestBuilderNameOutsideAClassIsNotEvidence(t *testing.T) {
+	mention := `<div class="entry"><p>` +
+		strings.Repeat(`Zbudowalismy te strone we wtyczce elementor-pro i jestesmy zadowoleni. `, 6) +
+		`<a href="https://elementor.com/elementor-section/">wiecej</a></p></div>`
+
+	assert.False(t, storedAsBuilderMarkup(mention))
+}
+
 // TestUnknownBuilderIsCaughtByShape: the list of class prefixes is evidence,
 // not the rule. The next builder is on nobody's list, and a body that is all
 // containers and no text renders to nothing whatever it is called.

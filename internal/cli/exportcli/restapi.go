@@ -21,11 +21,16 @@ import (
 )
 
 // restRouteNotice is what the run says about a site serving its API at
-// ?rest_route= — nothing failed, but the address in the report is not the one a
-// reader would try by hand.
+// ?rest_route= — the address in the report is not the one a reader would try by
+// hand.
+//
+// It states the spelling and stops. Its first draft ended "the export used it
+// and is complete", which the whole rest of the report is entitled to
+// contradict: the collections below it say what was read and what was not, and
+// a note has no business summarizing them (#66).
 const restRouteNotice = "This site serves its REST API at /?rest_route= rather than /wp-json/ — " +
 	"the fallback spelling WordPress uses when permalinks are plain or a plugin hides the " +
-	"pretty route. The export used it and is complete."
+	"pretty route. The addresses this export was read from are not the ones /wp-json/ would show."
 
 // noteSiteAPI records, at most once, what the client learned about this site's
 // REST API. It is called after the collections rather than before them because

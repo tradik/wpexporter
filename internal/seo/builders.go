@@ -30,12 +30,18 @@ import (
 )
 
 // builderClassRe matches the class prefixes the page builders stamp on their
-// wrappers. Each is the visible half of a plugin that renders at request time:
-// King Composer, WPBakery, Divi, Elementor, Beaver Builder, Bricks, Fusion,
-// Oxygen, Themify.
-var builderClassRe = regexp.MustCompile(`(?i)\b(kc-elm|kc_row|kc_column|vc_row|wpb_|et_pb_|` +
-	`elementor-|fl-builder|fl-row|brxe-|fusion-builder|fusion-fullwidth|oxy-|ct-section|` +
-	`tb_|themify_builder)`)
+// wrappers: King Composer, WPBakery, Divi, Elementor, Beaver Builder, Bricks,
+// Fusion, Oxygen, Themify. Each is the visible half of a plugin that renders at
+// request time.
+//
+// The match is anchored inside a class attribute rather than taken anywhere in
+// the body. Now that one of these names decides the question by itself, a page
+// that merely mentions `elementor-` in a link or a comment must not be re-read
+// from the network on the strength of it.
+var builderClassRe = regexp.MustCompile(`(?i)class\s*=\s*["'][^"']*\b(kc-elm|kc_row|kc_column|` +
+	`vc_row|vc_column|wpb_|et_pb_|elementor-element|elementor-section|elementor-widget|` +
+	`fl-builder|fl-row|fl-module|brxe-|fusion-builder|fusion-fullwidth|oxy-|ct-section|` +
+	`themify_builder)`)
 
 // containerTagRe counts the elements a builder nests to make a layout.
 var containerTagRe = regexp.MustCompile(`(?i)<(div|section|article|aside|header|footer)\b`)
@@ -47,18 +53,15 @@ var (
 	htmlCommentRe = regexp.MustCompile(`(?is)<!--.*?-->`)
 )
 
-// Thresholds in characters of visible text per container element. A page of
-// prose runs into the hundreds; the reported front page, with forty wrappers
-// around one headline, is under ten. The known-builder figure is the more
-// generous of the two: a wrapper carrying a recognized class is evidence in
-// itself, so less is asked of the ratio.
-const (
-	builderTextPerContainer = 60
-	shellTextPerContainer   = 20
-	// minContainers keeps an ordinary short page out of it. A page with four
-	// divs and a sentence in it is a page, not a shell.
-	minContainers = 6
-)
+// shellTextPerContainer is the ratio that catches a builder nobody has heard
+// of, in characters of visible text per container element. A page of prose runs
+// into the hundreds; the reported front page, forty wrappers around one
+// headline, is under ten.
+const shellTextPerContainer = 20
+
+// minContainers keeps an ordinary short page out of the ratio test. A page with
+// four divs and a sentence in it is a page, not a shell.
+const minContainers = 6
 
 // needsRenderedContent reports whether the crawler should fetch the page the
 // visitor sees instead of trusting what the API stored.
@@ -69,21 +72,31 @@ func needsRenderedContent(content string) bool {
 	return isContentEmpty(content) || storedAsBuilderMarkup(content)
 }
 
-// storedAsBuilderMarkup reports a body that renders to nothing without its
-// plugin: many containers, almost no text.
+// storedAsBuilderMarkup reports a body that renders to nothing without the
+// plugin that builds it.
+//
+// A recognized builder's class is the whole answer where it appears. 1.8.15
+// treated it as evidence toward a ratio instead, and the reporter's front page
+// — forty `kc-elm` wrappers, none of its three sections in the export — cleared
+// the ratio and was walked past again (#63). What that class means is that the
+// stored body is an instruction to render, and an instruction is never the
+// page: whatever text sits between the wrappers, the grid, the cards and the
+// prices are produced at request time and are not in there.
+//
+// Everything else is caught by shape, because the next builder is on nobody's
+// list: many containers and almost no text renders to nothing whatever it is
+// called.
 func storedAsBuilderMarkup(content string) bool {
+	if builderClassRe.MatchString(content) {
+		return true
+	}
+
 	containers := len(containerTagRe.FindAllString(content, -1))
 	if containers < minContainers {
 		return false
 	}
 
-	perContainer := visibleTextLength(content) / containers
-
-	if builderClassRe.MatchString(content) {
-		return perContainer < builderTextPerContainer
-	}
-
-	return perContainer < shellTextPerContainer
+	return visibleTextLength(content)/containers < shellTextPerContainer
 }
 
 // visibleTextLength is how much of the body a reader would actually see, with

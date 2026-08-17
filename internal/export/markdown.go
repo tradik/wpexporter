@@ -18,7 +18,12 @@ import (
 // HTML: a complete tag is valid inside Markdown, the SSG format keeps images as
 // cleaned HTML, and media URLs inside them are localized separately by the rewriter.
 var (
-	mdScriptStyleRe   = regexp.MustCompile(`(?is)<(script|style)\b[^>]*>.*?</(?:script|style)\s*>`)
+	mdScriptStyleRe = regexp.MustCompile(`(?is)<(script|style)\b[^>]*>.*?</(?:script|style)\s*>`)
+	// A <template> is markup a plugin clones at run time. It renders nothing on
+	// the page it sits in, so exporting it shows the reader the plugin's
+	// internals — and when a <pre> is what holds it, as a reviews widget did,
+	// those internals arrive fenced as a code block (#69).
+	mdTemplateRe      = regexp.MustCompile(`(?is)<template\b[^>]*>.*?</template\s*>`)
 	mdHeadingOpenRe   = regexp.MustCompile(`(?i)<h([1-6])\b[^>]*>`)
 	mdHeadingCloseRe  = regexp.MustCompile(`(?i)</h[1-6]\s*>`)
 	mdStrongOpenRe    = regexp.MustCompile(`(?i)<(?:strong|b)\b[^>]*>`)
@@ -54,6 +59,7 @@ func htmlToMarkdown(input string) string {
 // the theme's color lives has nowhere to put it in Markdown (#67).
 func htmlToMarkdownKeeping(input string, keep preserveRules) string {
 	md := mdScriptStyleRe.ReplaceAllString(input, "")
+	md = mdTemplateRe.ReplaceAllString(md, "")
 
 	// Before the first rule rewrites anything: an element kept whole has to be
 	// out of the way of every one of them, not just the one that would have

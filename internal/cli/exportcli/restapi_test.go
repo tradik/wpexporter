@@ -94,7 +94,8 @@ func TestSiteAPINoticeNamesTheFallback(t *testing.T) {
 
 	notice := siteAPINotice(client)
 	assert.Contains(t, notice, "?rest_route=")
-	assert.Contains(t, notice, "complete", "nothing was skipped, and the report must not imply it was")
+	assert.NotContains(t, notice, "complete",
+		"the collections below say what was read; a note must not conclude for them (#66)")
 }
 
 // TestSiteAPINoticeSaysItOnce: the notice lands in metadata.json, and a run that
