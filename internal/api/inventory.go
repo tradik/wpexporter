@@ -25,9 +25,16 @@ import (
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
-// sitemapPaths are the three names WordPress and its SEO plugins use, in the
-// order worth trying: core's own first, then the two Yoast/RankMath spellings.
-var sitemapPaths = []string{"/wp-sitemap.xml", "/sitemap.xml", "/sitemap_index.xml"}
+// sitemapPaths are the names WordPress and its SEO plugins use, in the order
+// worth trying: core's own first, then the plugin spellings. Anything else is
+// found by asking the site — see discovery.go.
+var sitemapPaths = []string{
+	"/wp-sitemap.xml",
+	"/sitemap.xml",
+	"/sitemap_index.xml",
+	"/sitemap-index.xml",
+	"/wp-sitemap-index.xml",
+}
 
 // maxSitemapDocuments bounds an index walk. WordPress writes one child per
 // 2,000 URLs, so twenty of them is a 40,000-URL site — past that, a
@@ -93,28 +100,57 @@ type feedItem struct {
 func (c *Client) FetchInventory() Inventory {
 	inventory := Inventory{}
 
-	root := strings.TrimSuffix(strings.TrimSuffix(c.baseURL, "/wp/v2"), "/wp-json")
-	root = strings.TrimSuffix(root, "/")
+	c.findSitemap(&inventory)
+	c.findFeed(&inventory)
 
-	for _, path := range sitemapPaths {
-		urls, ok := c.readSitemap(root + path)
+	return inventory
+}
+
+// findSitemap tries the addresses a default WordPress uses and, when none of
+// them answers, the ones the site names in its own robots.txt.
+//
+// The second step costs a request and is spent only on the site that needs it:
+// an SEO plugin can put the sitemap at a path nobody would guess, and robots.txt
+// is the file written to answer exactly that question (#68).
+func (c *Client) findSitemap(inventory *Inventory) {
+	for _, address := range c.sitemapCandidates() {
+		if urls, ok := c.readSitemap(address); ok {
+			inventory.Sitemap = address
+			inventory.SitemapURLs = urls
+
+			return
+		}
+	}
+
+	for _, address := range c.sitemapsFromRobots() {
+		if urls, ok := c.readSitemap(address); ok {
+			inventory.Sitemap = address
+			inventory.SitemapURLs = urls
+
+			return
+		}
+	}
+}
+
+// findFeed asks the site where its feed is before guessing.
+//
+// `/feed/` is a permalink, and a site with permalinks set to plain — the same
+// site that serves its REST API only at ?rest_route= (#66) — has no such
+// address. Its feed is at /?feed=rss2, and its home page says so in the
+// <head>, which is how every feed reader finds one.
+func (c *Client) findFeed(inventory *Inventory) {
+	for _, address := range c.feedCandidates(c.declaredFeeds()) {
+		feed, items, ok := c.readFeed(address)
 		if !ok {
 			continue
 		}
 
-		inventory.Sitemap = root + path
-		inventory.SitemapURLs = urls
-
-		break
-	}
-
-	if feed, items, ok := c.readFeed(root + "/feed/"); ok {
 		inventory.Feed = feed
 		inventory.FeedURLs = feedLinks(items)
 		inventory.FeedPosts = feedPosts(items)
-	}
 
-	return inventory
+		return
+	}
 }
 
 // readSitemap fetches one sitemap and, when it is an index, the documents it

@@ -75,6 +75,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   theme's markup, and **a page crawled to no effect is named** rather than
   quietly counted as if it had worked.
 
+### Changed
+- **Sites differ, so the rules that read them take more than one answer.** The
+  fixes above each drew a line — which classes matter, which pages are worth
+  re-reading, where a theme keeps its content — and each line was drawn from one
+  reporter's site. Every one of them is now the default rather than the whole
+  rule:
+
+  | flag | what it answers |
+  |---|---|
+  | `--preserve-styling auto\|none\|all` | how much a conversion holds on to when it cannot express a class |
+  | `--boilerplate-classes` | classes this theme stamps on everything and that mean nothing |
+  | `--crawl-content-mode auto\|empty\|always` | which pages `--crawl-content` re-reads |
+  | `--builder-classes` | class prefixes marking this site's page-builder markup |
+  | `--content-selector` | where this theme keeps the page: `tag`, `.class`, `#id`, `tag.class` |
+
+  An unknown value for a mode ends the run naming what was accepted, because a
+  typo that falls back to a default produces an export the operator believes is
+  something else.
+
+- **The sitemap and the feed are found by asking, not by guessing.** Their
+  addresses were three fixed paths and `/feed/`, which hold for a default
+  WordPress and break on the sites that need them most. `robots.txt` names the
+  sitemap — every SEO plugin writes that line, and it is the only way to find
+  one at a path nobody would guess — and it is read only once the known paths
+  have failed, so a site that answers normally pays nothing. The home page's
+  `<link rel="alternate">` names the feed, which is how every feed reader in
+  existence finds one: `/feed/` is a permalink, and a site with permalinks set
+  to plain — the same site that serves its REST API only at `?rest_route=` —
+  has no such address at all.
+
+- **The sitemap walk is held to the same rules as every collection.** It honors
+  `--path-filter`, so an operator asking for `/fr/` gets the whole export
+  filtered rather than the half of it the API happened to serve, and it honors
+  `--limit-per-type pages=N` and `--limit-pages` as well as `--limit`.
+
 ### Added
 - **The sitemap can be the whole source, not a patch (#68).** `--from-sitemap`
   recovered *posts from the feed*, which is right for a site whose

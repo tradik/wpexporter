@@ -997,10 +997,11 @@ func (e *Exporter) convertHTMLToMarkdown(html string) string {
 // preserveRules are what this export keeps as HTML.
 //
 // --preserve-classes and --preserve-ids name elements explicitly; they applied
-// only to --flat-html and --basic-html until #67. On top of them, a heading
-// carrying a class that is not boilerplate keeps itself by default, because a
-// theme's class is where the heading's color lives and losing it silently is
-// how a migrated headline changes color. --no-preserve-styling turns that off.
+// only to --flat-html and --basic-html until #67. On top of them,
+// --preserve-styling decides how much a conversion holds on to when it has
+// nowhere to put a class: a heading whose classes mean something (auto),
+// nothing (none), or every element that carries one (all). What counts as
+// meaningless is extended per site with --boilerplate-classes.
 func (e *Exporter) preserveRules() preserveRules {
 	if e.config == nil {
 		return preserveRules{}
@@ -1009,7 +1010,9 @@ func (e *Exporter) preserveRules() preserveRules {
 	return preserveRules{
 		classes:        e.config.PreserveClasses,
 		ids:            e.config.PreserveIDs,
-		styledHeadings: !e.config.NoPreserveStyling,
+		styledHeadings: e.config.PreserveStyling != StylingNone,
+		styledAnything: e.config.PreserveStyling == StylingAll,
+		ignored:        compileClassPatterns(e.config.BoilerplateClasses),
 	}
 }
 

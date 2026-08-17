@@ -99,8 +99,20 @@ Clean HTML to basic elements (tables, lists, links - for Shopify)
 .BR \-\-preserve\-classes " " \fICLASSES\fR
 CSS classes whose elements travel as the HTML they arrived as, rather than being converted (comma-separated, wildcards allowed: \fBklaviyo-form-*\fR, \fBtrx_addons_inline_*\fR, or \fB*\fR for every element carrying a class). Applies to \fBmarkdown\fR and \fBssg\fR as well as \fB\-\-flat\-html\fR and \fB\-\-basic\-html\fR: a heading's class is where themes of some families keep its colour, and a Markdown heading has nowhere to put it, so the migrated page renders the headline in the body colour instead.
 .TP
-.BR \-\-no\-preserve\-styling
-Convert every heading to \fB##\fR even where its classes carry styling Markdown cannot express. The default keeps such a heading as the HTML it arrived as, because on themes of some families a generated class like \fBtrx_addons_inline_158836093\fR is where the heading's color rule keys on, and dropping it renders the migrated headline in the body color. Boilerplate never counts: \fBwp-block-heading\fR, \fBhas-text-align-center\fR, \fBentry-title\fR, \fBscreen-reader-text\fR and their kind are what WordPress stamps on every heading on every site, and headings wearing only those convert as they always have.
+.BR \-\-preserve\-styling " " \fIMODE\fR
+How much a conversion holds on to when it has nowhere to put a class. \fIauto\fR (default) keeps a heading whose classes are not boilerplate \- on themes of some families a generated class like \fBtrx_addons_inline_158836093\fR is where the heading's color rule keys on, and dropping it renders the migrated headline in the body color. \fInone\fR converts everything, which is the 1.8.14 behaviour. \fIall\fR keeps every element carrying a class, for a site whose whole layout is styling. Boilerplate never counts under \fIauto\fR: \fBwp-block-heading\fR, \fBhas-text-align-center\fR, \fBentry-title\fR and their kind are what WordPress stamps on every heading on every site; \fB\-\-boilerplate\-classes\fR adds whatever this theme stamps on top of them.
+.TP
+.BR \-\-boilerplate\-classes " " \fICLASSES\fR
+Classes this theme puts on everything and that mean nothing a Markdown heading is missing, added to the ones every WordPress emits (comma-separated, wildcards allowed). One tool's idea of a meaningless class cannot fit every theme ever written.
+.TP
+.BR \-\-crawl\-content\-mode " " \fIMODE\fR
+Which pages \fB\-\-crawl\-content\fR re-reads. \fIauto\fR (default) takes the ones whose stored body is empty or is a page builder's scaffolding; \fIempty\fR takes only the empty ones, which is the 1.8.14 question; \fIalways\fR takes every page, for an operator who already knows how their site is built and would rather say so than guess which rule fired.
+.TP
+.BR \-\-builder\-classes " " \fICLASSES\fR
+Class prefixes marking this site's page-builder markup, added to the recognized ones (\fBkc-elm\fR, \fBvc_row\fR, \fBet_pb_\fR, \fBelementor-\fR, \fBfl-builder\fR, \fBbrxe-\fR, \fBoxy-\fR and the rest). The builder a site uses may be one nobody has heard of, and its markup is no less unreadable for that.
+.TP
+.BR \-\-content\-selector " " \fISELECTORS\fR
+Where this theme keeps the page, tried before the built-in list: \fBtag\fR, \fB.class\fR, \fB#id\fR or \fBtag.class\fR, comma-separated. A theme can call its content area anything, and the alternative to naming it is an export of the whole body, chrome included.
 .TP
 .BR \-\-preserve\-ids " " \fIIDS\fR
 Element IDs whose elements travel as the HTML they arrived as, rather than being converted (comma-separated, wildcards allowed).

@@ -25,12 +25,17 @@ package export
 // from a framework — is styling this format cannot express, and dropping it
 // silently is how a headline changes color in migration.
 //
-// `--preserve-classes` and `--preserve-ids` still name elements explicitly,
-// wildcards included, and still apply to `--flat-html` and `--basic-html`:
+// Where the line falls is a property of the site, not of this tool, so it is
+// three answers rather than one:
+//
+//	--preserve-styling auto    (default) keep a heading whose classes mean something
+//	--preserve-styling none    convert everything, as 1.8.14 did
+//	--preserve-styling all     keep every element carrying a class
+//
+// and `--preserve-classes` / `--preserve-ids` still name elements exactly,
+// wildcards included, on top of whichever mode is in force:
 //
 //	--preserve-classes 'trx_addons_inline_*'   keep exactly this family
-//	--preserve-classes '*'                     keep every element that has a class
-//	--no-preserve-styling                      keep nothing; convert as 1.8.14 did
 
 import (
 	"fmt"
@@ -54,12 +59,36 @@ type preserveRules struct {
 	// On by default because the loss it prevents is invisible until somebody
 	// opens the migrated site and finds the headline in the wrong color (#67).
 	styledHeadings bool
+	// styledAnything keeps every element that carries a class at all — the
+	// answer for a site whose layout is styling from top to bottom, where
+	// keeping only the headings would save the color of the headline and lose
+	// the section it sits in.
+	styledAnything bool
+	// ignored are the classes this site considers noise, on top of the ones
+	// every WordPress emits. A theme that stamps `sc_title_title` on every
+	// heading it has is boilerplate on that site and nowhere else.
+	ignored []*regexp.Regexp
 }
+
+// Modes of --preserve-styling. Named rather than boolean because two of the
+// three answers are not the negation of the other.
+const (
+	// StylingAuto keeps a heading whose classes are not boilerplate.
+	StylingAuto = "auto"
+	// StylingNone converts everything, which is the 1.8.14 conversion.
+	StylingNone = "none"
+	// StylingAll keeps every element that carries a class.
+	StylingAll = "all"
+)
+
+// StylingModes are the accepted answers, for the flag parser to check against
+// so a typo is refused rather than silently read as "none".
+var StylingModes = []string{StylingAuto, StylingNone, StylingAll}
 
 // empty reports a rule set with nothing to do, so the whole pass can be skipped
 // rather than compiling patterns for a run that named none.
 func (r preserveRules) empty() bool {
-	return len(r.classes) == 0 && len(r.ids) == 0 && !r.styledHeadings
+	return len(r.classes) == 0 && len(r.ids) == 0 && !r.styledHeadings && !r.styledAnything
 }
 
 // boilerplateClassRe matches the classes WordPress, its block editor and its
@@ -70,14 +99,45 @@ var boilerplateClassRe = regexp.MustCompile(`^(wp-block-[\w-]+|has-[\w-]+|is-[\w
 	`align[\w-]*|screen-reader-text|entry-title|post-title|page-title|widget-title|` +
 	`section-title|title|heading|subtitle|sr-only)$`)
 
+// boilerplate reports a class that says nothing a Markdown heading is missing.
+// The built-in list covers what WordPress and its blocks stamp everywhere;
+// a site whose theme adds its own noise names it with --boilerplate-classes,
+// because one tool's idea of meaningless cannot fit every theme ever written.
+func (r preserveRules) boilerplate(class string) bool {
+	if boilerplateClassRe.MatchString(class) {
+		return true
+	}
+
+	for _, ignored := range r.ignored {
+		if ignored != nil && ignored.MatchString(class) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // headingTagRe matches an opening heading tag and captures its attributes.
 var headingTagRe = regexp.MustCompile(`(?is)^<h[1-6]\b([^>]*)>$`)
 
 // classValueRe reads a class attribute's value.
 var classValueRe = regexp.MustCompile(`(?is)\bclass\s*=\s*["']([^"']*)["']`)
 
+// keeps reports whether this run's styling mode holds on to an element, given
+// its whole opening tag.
+func (r preserveRules) keeps(openTag string) bool {
+	switch {
+	case r.styledAnything:
+		return classValueRe.MatchString(openTag)
+	case r.styledHeadings:
+		return r.keepsItsStyling(openTag)
+	default:
+		return false
+	}
+}
+
 // keepsItsStyling reports a heading whose classes carry something a `##` cannot.
-func keepsItsStyling(openTag string) bool {
+func (r preserveRules) keepsItsStyling(openTag string) bool {
 	attrs := headingTagRe.FindStringSubmatch(openTag)
 	if attrs == nil {
 		return false
@@ -89,7 +149,7 @@ func keepsItsStyling(openTag string) bool {
 	}
 
 	for _, class := range strings.Fields(classes[1]) {
-		if !boilerplateClassRe.MatchString(class) {
+		if !r.boilerplate(class) {
 			return true
 		}
 	}
@@ -131,7 +191,7 @@ func preserveElements(html string, rules preserveRules) (string, []string) {
 		attrs := html[offset+tag[4] : offset+tag[5]]
 
 		named := matchesAny(attrs, matchers)
-		styled := rules.styledHeadings && keepsItsStyling(html[start:offset+tag[1]])
+		styled := rules.keeps(html[start : offset+tag[1]])
 
 		if !named && !styled {
 			offset = start + 1
@@ -244,4 +304,21 @@ func matchesAny(attrs string, matchers []*regexp.Regexp) bool {
 	}
 
 	return false
+}
+
+// compileClassPatterns turns the operator's names into matchers, wildcards
+// included, skipping anything empty so a stray comma cannot match everything.
+func compileClassPatterns(names []string) []*regexp.Regexp {
+	patterns := make([]*regexp.Regexp, 0, len(names))
+
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+
+		patterns = append(patterns, regexp.MustCompile(`^`+wildcardPattern(name)+`$`))
+	}
+
+	return patterns
 }

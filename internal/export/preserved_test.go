@@ -174,11 +174,52 @@ func TestHeadingsWorthKeeping(t *testing.T) {
 // TestNoPreserveStylingIsTheWayBack: an operator who wants the 1.8.14
 // conversion says so, and gets exactly it.
 func TestNoPreserveStylingIsTheWayBack(t *testing.T) {
-	exporter := NewExporter(&config.Config{NoPreserveStyling: true})
+	exporter := NewExporter(&config.Config{PreserveStyling: StylingNone})
 
 	assert.True(t, exporter.preserveRules().empty())
 	assert.Equal(t, htmlToMarkdown(themedHeading), exporter.convertHTMLToMarkdown(themedHeading))
 
 	byDefault := NewExporter(&config.Config{})
 	assert.True(t, byDefault.preserveRules().styledHeadings)
+	assert.False(t, byDefault.preserveRules().styledAnything)
+}
+
+// TestStylingModesAnswerDifferentSites: sites differ too much for one rule. A
+// site whose whole layout is styling wants everything kept — keeping only the
+// headings would save the color of the headline and lose the section it sits
+// in — and a site migrating to plain prose wants none of it.
+func TestStylingModesAnswerDifferentSites(t *testing.T) {
+	// A paragraph, because that is an element the conversion actually rewrites:
+	// a <div> passes through as HTML in every mode, so it could not tell them
+	// apart.
+	body := `<h2 class="sc_item_title">Headline</h2><p class="sc_lead">Lead</p>` +
+		`<h3 class="wp-block-heading">Plain</h3>`
+
+	all := NewExporter(&config.Config{PreserveStyling: StylingAll}).preserveRules()
+	kept := htmlToMarkdownKeeping(body, all)
+	assert.Contains(t, kept, `<p class="sc_lead">Lead</p>`)
+	assert.Contains(t, kept, `<h3 class="wp-block-heading">`, "all means all, boilerplate included")
+
+	auto := NewExporter(&config.Config{}).preserveRules()
+	headings := htmlToMarkdownKeeping(body, auto)
+	assert.Contains(t, headings, `<h2 class="sc_item_title">`)
+	assert.NotContains(t, headings, `<p class="sc_lead">`, "auto is about headings")
+	assert.Contains(t, headings, "### Plain")
+
+	none := NewExporter(&config.Config{PreserveStyling: StylingNone}).preserveRules()
+	assert.Equal(t, htmlToMarkdown(body), htmlToMarkdownKeeping(body, none))
+}
+
+// TestSiteNamesItsOwnBoilerplate: one tool's idea of a meaningless class cannot
+// fit every theme ever written. A theme stamping sc_title_title on every
+// heading it has is noise on that site and nowhere else, and keeping those as
+// HTML would be the wall of tags the default rule exists to avoid.
+func TestSiteNamesItsOwnBoilerplate(t *testing.T) {
+	heading := `<h2 class="sc_item_title sc_title_title">Headline</h2>`
+
+	assert.Contains(t, htmlToMarkdownKeeping(heading,
+		NewExporter(&config.Config{}).preserveRules()), "<h2")
+
+	named := NewExporter(&config.Config{BoilerplateClasses: []string{"sc_*", ""}}).preserveRules()
+	assert.Contains(t, htmlToMarkdownKeeping(heading, named), "## Headline")
 }

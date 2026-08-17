@@ -98,8 +98,12 @@ generated class is where the theme's color rule keys on and a Markdown heading
 has nowhere to put it (#67). Boilerplate does not count: `wp-block-heading`,
 `has-text-align-center`, `entry-title`, `screen-reader-text` and their kind are
 what WordPress stamps on every heading everywhere and say nothing a `##` is
-missing, so those convert as they always have. `--no-preserve-styling` converts
-everything, `--preserve-classes` and `--preserve-ids` name elements explicitly.
+missing, so those convert as they always have. What counts as boilerplate is
+extended per site with `--boilerplate-classes`, and how much is kept at all is
+`--preserve-styling auto|none|all`: keep the headings that mean something, keep
+nothing, or keep every element carrying a class — which is what a site whose
+whole layout is styling needs. `--preserve-classes` and `--preserve-ids` name
+elements exactly, on top of whichever mode is in force.
 
 A post the editor **pinned to the top of the blog** carries `sticky: true`,
 omitted when false. A listing sorted by date alone buries it wherever its date
@@ -140,7 +144,11 @@ builder shell carries a handful, and a recognised class prefix (`kc-elm`,
 `vc_row`, `et_pb_`, `elementor-`, `fl-builder`, `brxe-`, `oxy-`) raises that
 threshold rather than being the whole rule — the next builder is on nobody's
 list, and a body that is all containers and no text renders to nothing whatever
-it is called. The run states how many of each it found. `--skip-empty-content`
+it is called. `--builder-classes` names the one this site uses,
+`--content-selector` names where its theme keeps the page, and
+`--crawl-content-mode auto|empty|always` decides how much is re-read at all. The
+run states how many of each it found, and names the pages that were re-read and
+gave nothing back. `--skip-empty-content`
 is unchanged and still asks its own question: a builder page is worth crawling
 and is not worth discarding.
 

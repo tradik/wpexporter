@@ -604,7 +604,7 @@ func (c *Crawler) EnrichPostsWithSEOAndContent(posts []models.WordPressPost) []m
 	// empty, or a page builder's scaffolding, which is not empty and holds
 	// nothing (#63).
 	for i, post := range posts {
-		needsContent := needsRenderedContent(post.Content.Rendered)
+		needsContent := c.needsRenderedContent(post.Content.Rendered)
 		jobs <- job{index: i, url: post.Link, needsContent: needsContent}
 	}
 	close(jobs)
@@ -746,7 +746,7 @@ func (c *Crawler) EnrichPostsWithContent(posts []models.WordPressPost) []models.
 		switch {
 		case isContentEmpty(post.Content.Rendered):
 			emptyPosts = append(emptyPosts, i)
-		case storedAsBuilderMarkup(post.Content.Rendered):
+		case c.needsRenderedContent(post.Content.Rendered):
 			emptyPosts = append(emptyPosts, i)
 			shells++
 		}
@@ -881,6 +881,63 @@ func (c *Crawler) fetchHTML(pageURL string) string {
 // built the same way.
 const unreadableNamed = 5
 
+// contentSelector is one place a theme might keep the page: a tag, and an
+// attribute pattern narrowing which of them.
+type contentSelector struct {
+	tag   string
+	attrs string
+}
+
+// siteContentSelectors reads what the operator named for their own site.
+//
+// The spelling is deliberately small — `tag`, `.class`, `#id`, or `tag.class` —
+// rather than a CSS engine: the extraction below is a balanced-tag scan, and a
+// selector language it cannot honor would promise more than it does.
+func (c *Crawler) siteContentSelectors() []contentSelector {
+	if c.config == nil {
+		return nil
+	}
+
+	selectors := make([]contentSelector, 0, len(c.config.ContentSelectors))
+
+	for _, raw := range c.config.ContentSelectors {
+		if selector, ok := parseContentSelector(raw); ok {
+			selectors = append(selectors, selector)
+		}
+	}
+
+	return selectors
+}
+
+// parseContentSelector reads one of the four shapes accepted.
+func parseContentSelector(raw string) (contentSelector, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return contentSelector{}, false
+	}
+
+	tag, rest := raw, ""
+	if cut := strings.IndexAny(raw, ".#"); cut >= 0 {
+		tag, rest = raw[:cut], raw[cut:]
+	}
+
+	if tag == "" {
+		// A bare `.class` or `#id`: any element wearing it.
+		tag = "div"
+	}
+
+	switch {
+	case rest == "":
+		return contentSelector{tag: tag}, true
+	case strings.HasPrefix(rest, "."):
+		return contentSelector{tag: tag,
+			attrs: `class\s*=\s*["'][^"']*\b` + regexp.QuoteMeta(rest[1:]) + `\b[^"']*["']`}, true
+	default:
+		return contentSelector{tag: tag,
+			attrs: `id\s*=\s*["']?` + regexp.QuoteMeta(rest[1:]) + `["']?`}, true
+	}
+}
+
 // minCrawledContent is the shortest run of extracted markup worth calling
 // content. Below it the selector matched a wrapper rather than the page.
 const minCrawledContent = 50
@@ -889,11 +946,19 @@ func (c *Crawler) extractMainContent(html string) string {
 	// First, remove header, footer, nav, aside elements to isolate main content
 	cleanedHTML := c.removeNonContentElements(html)
 
+	// What this site's theme calls its content area comes first: a theme can
+	// name it anything, and the built-in list below is the set of names that
+	// happen to be common rather than the set that exists (#63).
+	for _, selector := range c.siteContentSelectors() {
+		if content := c.extractBalancedTag(cleanedHTML, selector.tag, selector.attrs); content != "" {
+			if cleaned := c.cleanHTMLContent(content); len(cleaned) > minCrawledContent {
+				return cleaned
+			}
+		}
+	}
+
 	// Try to find main content area using balanced tag extraction
-	contentSelectors := []struct {
-		tag   string
-		attrs string
-	}{
+	contentSelectors := []contentSelector{
 		{"main", `id\s*=\s*["']?content["']?`},
 		{"main", ""},
 		{"article", `class\s*=\s*["'][^"']*(?:post|page|entry)[^"']*["']`},

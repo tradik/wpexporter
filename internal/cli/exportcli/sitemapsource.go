@@ -20,6 +20,7 @@ package exportcli
 import (
 	"github.com/tradik/wpexporter/internal/api"
 	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/filter"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
@@ -47,11 +48,19 @@ func recoverPagesFromSitemap(
 	}
 
 	covered := exportedAddresses(data)
+	wanted := filter.NewPathFilter(cfg.PathFilter)
 
 	var recovered []models.WordPressPost
 
 	for _, address := range inventory.SitemapURLs {
 		if covered[normalizePath(address)] {
+			continue
+		}
+
+		// The same filter the API collections are held to. An operator asking
+		// for /fr/ means the whole export, not the half of it the API happened
+		// to serve.
+		if cfg.PathFilter != "" && !wanted.MatchesURL(address) {
 			continue
 		}
 
@@ -85,12 +94,28 @@ func recoverPagesFromSitemap(
 
 // budgetSpent reports whether a limit has already been reached, so a preview of
 // five pages does not fetch a thousand.
+//
+// Every way of expressing a limit is honored, because a run that respects
+// --limit and ignores --limit-pages has picked one of the operator's two
+// instructions to obey (#62).
 func budgetSpent(cfg *config.Config, recovered int) bool {
-	if cfg.Limit <= 0 {
-		return false
+	budget := pageBudget(cfg)
+
+	return budget > 0 && recovered >= budget
+}
+
+// pageBudget is the smallest of the limits that apply to pages, or zero when
+// none do.
+func pageBudget(cfg *config.Config) int {
+	budget := 0
+
+	for _, limit := range []int{cfg.Limit, cfg.LimitPerType, cfg.LimitByType["pages"]} {
+		if limit > 0 && (budget == 0 || limit < budget) {
+			budget = limit
+		}
 	}
 
-	return recovered >= cfg.Limit
+	return budget
 }
 
 // exportedAddresses is every address this export already carries, normalized so
