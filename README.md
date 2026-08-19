@@ -60,6 +60,8 @@ The three tools are also installed as standalone binaries, which behave identica
 - 🛠️ **Configurable**: Flexible configuration options via CLI or config file
 - 🔀 **Both REST API Spellings**: Reads a site that serves only `/?rest_route=` — plain permalinks, or a plugin hiding `/wp-json/` — and says so in the report; a site answering normally spends no extra request on the question
 - 🕰️ **Pre-4.7 WordPress**: An install older than the content API is named as such and read from its sitemap — each address fetched and written as a page — instead of exporting as an empty site
+- 🔓 **Shop Without Keys**: Products come from WooCommerce's public storefront API — prices, images, categories and stock — so a migration does not stop while somebody hunts for consumer keys
+- 🏠 **Front Page and Blog Identified**: `show_on_front`, `front_page` and `posts_page` are recorded in `metadata.json`, read from the site's settings or from its own rendered markup — never guessed from a slug
 - 🛒 **The Catalog on Disk**: `markdown` and `ssg` write every product, with price, SKU, stock and images in front matter, at the address the shop's own navigation links to
 - 🎨 **Theme Styling Survives**: A heading carrying a class Markdown cannot express travels as HTML, so the migrated page keeps the color its stylesheet gives it — `--preserve-styling auto|none|all`
 - 🌍 **Language-Independent**: The theme's "continue reading" is learned from its own repetition rather than matched against a list of English phrases, and every text threshold counts characters instead of bytes — so a Japanese or Polish site is judged by the same rule as an English one

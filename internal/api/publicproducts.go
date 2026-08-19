@@ -94,16 +94,39 @@ func PartialProductsNotice(count int) string {
 // sent the operator hunting for a route bug that was not there, and cost them a
 // day (#65). A report may say what happened; it may not say what it concluded.
 func NoProductsNotice(route string, status int) string {
-	answered := "published none"
-	if status > 0 && status != 200 {
-		answered = fmt.Sprintf("answered %d", status)
-	}
+	return noProductsBecause(route, status, nil)
+}
+
+// noProductsBecause is the same line with the walk's own failure to hand.
+//
+// "published none" is a claim about the shop, and it may only be made when the
+// route actually answered with an empty collection. A route that was refused, or
+// that served a page of HTML because a wall stood in front of it, published
+// nothing of the kind — it was never read, and saying otherwise sent the
+// reporter of #73 to check an endpoint that had been returning five products
+// all along.
+func noProductsBecause(route string, status int, err error) string {
 	if route == "" {
 		route = "/wp/v2/" + publicProductBase
 	}
 
 	return fmt.Sprintf("Products: 0 — the WooCommerce API refused the request "+
-		"(401: no consumer keys) and %s %s.", route, answered)
+		"(401: no consumer keys) and %s %s.", route, routeOutcome(status, err))
+}
+
+// routeOutcome is what the fallback route did, in the words of what happened.
+func routeOutcome(status int, err error) string {
+	switch {
+	case errors.Is(err, ErrNotJSON):
+		return "answered with a page rather than a REST document, so it was never read — " +
+			"try --user-agent with a browser's string if a wall is in front of this site"
+	case status > 0 && status != 200:
+		return fmt.Sprintf("answered %d", status)
+	case err != nil:
+		return fmt.Sprintf("could not be read (%v)", err)
+	default:
+		return "published none"
+	}
 }
 
 // PublicProductRoute is the address the fallback reads, so a report can name it
@@ -139,3 +162,9 @@ func RefusalStatus(err error) int {
 
 // statusInMessageRe reads the number back out of "API returned status 404".
 var statusInMessageRe = regexp.MustCompile(`status (\d{3})`)
+
+// NoProductsFailure is the line for a fallback that brought nothing, told from
+// the walk's own error rather than from a status alone (#73).
+func NoProductsFailure(route string, err error) string {
+	return noProductsBecause(route, RefusalStatus(err), err)
+}

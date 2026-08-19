@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **A route that answered was reported as having published nothing (#73).** On a
+  shop with five products and no consumer keys, the fallback said
+  `/wp-json/wp/v2/product published none` — while that endpoint was returning
+  all five to anyone who asked. The reporter guessed the cause was `status=any`
+  or `context=edit`; it was not, since neither is ever sent. It was a **200
+  carrying a page of HTML**: a wall in front of the shop served its block page
+  with a success status, the parser said `invalid character '<' looking for
+  beginning of value`, and the summary turned that into a claim about the shop.
+
+  A 200 that is not JSON is now named for what it is — a wall, with the remedy
+  from #58 beside it, or a site serving its own pages where its REST API should
+  be (#66) — and the parser's complaint travels underneath where a developer can
+  still reach it. The products line says what happened: *"answered with a page
+  rather than a REST document, so it was never read"*. **"Published none" is now
+  only ever said of a route that answered with an empty collection.** This is
+  #65's rule applied once more: a report may state what happened, never what it
+  concluded.
+
+### Added
+- **Products come from WooCommerce's public storefront API before anyone is
+  asked for keys (#74).** `/wc/v3/products` is the *admin* API and answers 401
+  without consumer keys; `/wp/v2/product` is the post type behind the shop and
+  carries no commerce at all. So a shop whose keys nobody had exported as a
+  catalog without prices, and the run told the operator to go and generate some
+  — the step that stops a migration, because the person moving a site and the
+  person holding its WooCommerce keys are usually two different people.
+
+  `/wc/store/v1/products` is what a shop's own front end calls: public, no
+  credentials, and it carries prices with their currency, images, categories,
+  tags, stock and ratings. The order is now keys, then storefront, then post
+  type; both storefront spellings are tried; and **the run names which one
+  answered**, so an operator can tell "no keys, and it did not matter" from "no
+  keys, and the prices are missing". A price is still never invented: an amount
+  the shop did not set stays empty rather than becoming a `0` that would import
+  as free.
+
+- **`metadata.json` records which page is the home and where the posts went
+  (#75).** `show_on_front`, `front_page` and `posts_page` decide the shape of a
+  migrated site, and the export walked past all three. Every available guess is
+  bad: "is there a document claiming `/`?" says nothing about the archive, and
+  "is there a page called `blog`?" is a slug convention that breaks on every
+  site calling it `news`, `journal` or `aktualnosci` — which is how one site's
+  listing page went unidentified, its theme was built from the wrong page, and
+  its blog lost its layout.
+
+  Read from `/wp/v2/settings` where credentials reach it, and otherwise from the
+  markup WordPress publishes to every visitor: `<body class="home blog">` when
+  the home is the archive, `home page page-id-4211` when it is static. Each page
+  is recorded with its id, slug and address, since ids do not survive a
+  migration. **Absent keys mean nobody could work it out** — never a guessed
+  default, so a consumer can tell "there is no posts page" from "nobody looked".
+
 ## [1.8.16] - 2026-08-17
 
 ### Fixed

@@ -20,14 +20,25 @@ import (
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
-// recoverPublicProducts reads the products the ordinary WordPress route serves,
-// and returns the line the run should print about them.
+// recoverPublicProducts reads the catalog a shop publishes without credentials,
+// and returns the line the run should print about it.
+//
+// Two public sources, in the order of how much they carry. WooCommerce's
+// storefront API is what a shop's own front end calls: no keys, and it answers
+// with prices, images, categories and stock (#74). The post type behind the
+// shop is the older fallback, and carries the catalog page without any of the
+// commerce (#55). Which one answered is stated, so an operator can tell "no
+// keys, and it did not matter" from "no keys, and the prices are missing".
 func recoverPublicProducts(client *api.Client) ([]models.WooCommerceProduct, string) {
+	if products, route, ok := client.GetStoreProducts(); ok && len(products) > 0 {
+		return products, api.StoreProductsNotice(len(products), route)
+	}
+
 	products, err := client.GetPublicProducts()
 	if len(products) == 0 {
-		// The public route brought nothing. Say which route and what it
-		// answered rather than concluding on the operator's behalf (#65).
-		return nil, api.NoProductsNotice(client.PublicProductRoute(), api.RefusalStatus(err))
+		// Neither public route brought anything. Say which was tried and what
+		// it did, rather than concluding on the operator's behalf (#65, #73).
+		return nil, api.NoProductsFailure(client.PublicProductRoute(), err)
 	}
 
 	return products, api.PartialProductsNotice(len(products))

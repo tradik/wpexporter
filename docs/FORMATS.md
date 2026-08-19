@@ -55,6 +55,17 @@ That is right for a builder and wrong for a magazine whose type is called
 `section`, so every type set aside is **named in the report** — and
 `--custom-types <slug>` insists, whatever the rule thinks of the slug.
 
+`metadata.json`'s `site` block records **which page is the home and where the
+posts went**: `show_on_front` (`page` or `posts`), and `front_page` /
+`posts_page` with each page's id, slug and address (#75). They decide the shape
+of anything built from the export, and every guess at them is bad — "is there a
+document claiming `/`?" says nothing about the archive, and "is there a page
+called `blog`?" breaks on every site that calls it `news` or `aktualnosci`. They
+come from `/wp/v2/settings` where credentials reach it, and otherwise from the
+`<body>` classes WordPress publishes to every visitor. A key is **absent** where
+it could not be worked out, never guessed, so a consumer can tell "there is no
+posts page" from "nobody looked".
+
 After the export, the site's own **sitemap and main feed** are read — one or two
 requests — and every address they list that the export does not carry is
 reported and recorded in `metadata.json` under `stats.uncovered`. Archive views
@@ -94,6 +105,15 @@ everything. There is nothing to fall back to, so the run says so once, records i
 in `stats.notices`, and reads the site's feed by itself rather than handing back
 an empty export that looks like an empty site (#68). `--no-inventory-check`
 overrules that, as it overrules everything else the inventory does.
+
+**A shop's catalog needs no consumer keys.** Products are read from
+`/wc/v3/products` when keys were given — the admin API alone sees drafts and
+private products — and otherwise from `/wc/store/v1/products`, WooCommerce's
+public storefront API, which carries prices with their currency, images,
+categories, tags, stock and ratings without credentials (#74). `/wp/v2/product`
+is the last fallback and carries the catalog page without any commerce. The run
+names which of the three answered, so "no keys, and it did not matter" reads
+differently from "no keys, and the prices are missing".
 
 **A shop's catalog is written down.** `markdown` puts each product at
 `products/<slug>.md`; `ssg` puts it at the path its permalink states, so the

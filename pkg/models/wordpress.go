@@ -398,6 +398,25 @@ type SiteInfo struct {
 	TimeFormat  string `json:"time_format"`
 	StartOfWeek int    `json:"start_of_week"`
 	Language    string `json:"language"`
+	// ShowOnFront is "page" when the home is a static page and "posts" when it
+	// is the blog archive. Absent when it could not be worked out, so a
+	// consumer can tell "there is no posts page" from "nobody looked" (#75).
+	ShowOnFront string `json:"show_on_front,omitempty"`
+	// FrontPage is the page published at the site root, when there is one.
+	FrontPage *SitePage `json:"front_page,omitempty"`
+	// PostsPage is where the blog archive lives, when the front page is static.
+	PostsPage *SitePage `json:"posts_page,omitempty"`
+}
+
+// SitePage names one of the two pages WordPress's own settings point at.
+//
+// Both are needed: a migration that knows only "the home is static" still has
+// to find which document that is, and a theme built from the wrong one loses
+// the blog's layout — which is what #75 was reported as.
+type SitePage struct {
+	ID   int    `json:"id,omitempty"`
+	Slug string `json:"slug,omitempty"`
+	Link string `json:"link,omitempty"`
 }
 
 // ExportStats represents export statistics
