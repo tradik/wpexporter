@@ -1,23 +1,23 @@
 # Development
 
-Building, testing and finding your way around the source tree. Builds use the Go 1.27.0 toolchain against a go.mod that declares 1.26.6, and GNU Make; every task below has a Make target so CI and a laptop run the same command.
+Building, testing and finding your way around the source tree. The toolchain is Go 1.27.0 and GNU Make; every task below has a Make target so CI and a laptop run the same command.
 
 ## Setup and build
 
 ### Prerequisites
 
-- **Go 1.26.6 or later** to build at all: that is the language version `go.mod`
-  declares, and earlier patches carry standard-library advisories this tool is
-  exposed to.
-- **Go 1.27.0 to build it as CI, Docker and the snap do.** The two are not the
-  same number on purpose. Go 1.27 rebuilt `encoding/json` on the v2
-  implementation, which roughly halves the time this program spends decoding the
-  REST API — its single largest cost — and that win follows the *toolchain*,
-  not the `go` line in `go.mod` (measured: 637 µs → 322 µs for one page of a
-  hundred posts). Raising the `go` line as well would buy nothing and would stop
-  `golangci-lint` working: staticcheck cannot yet analyse a module that targets
-  1.27, and panics part-way through. So the language version stays where the
-  linter can follow it, and the toolchain moves ahead where the speed is.
+- **Go 1.27.0**, which is what `go.mod` declares and what CI, Docker and the
+  snap build with. Go 1.27 rebuilt `encoding/json` on the v2 implementation,
+  which roughly halves the time this program spends decoding the REST API — its
+  single largest cost, measured at 637 µs → 322 µs for one page of a hundred
+  posts.
+
+  Worth knowing if you are weighing the same upgrade elsewhere: that speedup
+  follows the **toolchain**, not the `go` line. A module declaring 1.26 and
+  built with the 1.27 toolchain runs just as fast. This project declared 1.26.6
+  for one day for exactly that reason, because golangci-lint 2.12 could not
+  analyse a module targeting 1.27 and panicked part-way through; 2.13.1 can, so
+  the line moved up to say plainly what the project is built on.
 - Make
 
 ### Setup

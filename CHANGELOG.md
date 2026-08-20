@@ -40,12 +40,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   toolchain: size-specialized allocation for objects under 80 bytes, and faster
   `compress/flate`, which `--zip` uses.
 
-  **`go.mod` still declares 1.26.6, on purpose.** The speedup follows the
-  toolchain rather than the language version — measured, not assumed — and
-  raising the `go` line would buy nothing while stopping `golangci-lint`
-  working, since staticcheck cannot yet analyse a module targeting 1.27 and
-  panics part-way through. CI, Docker and the snap build with 1.27; a laptop
-  with 1.26 still builds the same source.
+  Worth recording, because it is the part that generalises: **the speedup
+  follows the toolchain, not the `go` line in `go.mod`** — measured, not
+  assumed. A module declaring 1.26 and built with the 1.27 toolchain came back
+  at 306 µs, the same as one declaring 1.27. This project shipped with the line
+  at 1.26.6 for a day because golangci-lint 2.12 could not analyse a module
+  targeting 1.27 and panicked part-way through; 2.13.1 can, so `go.mod` now
+  declares 1.27.0 and says plainly what the project is built on. Building from
+  source needs Go 1.27 as a result; the released binaries, the Docker image, the
+  snap and the Homebrew formula are unaffected.
 
 - **Regular expressions are compiled once instead of once per document.** A
   dozen passes built their pattern from something known only at run time — an
