@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/rx"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
@@ -479,7 +479,7 @@ func statusToInt(status string) int {
 // stripTags removes HTML tags from a string
 func stripTags(html string) string {
 	// Simple HTML tag stripper
-	re := regexp.MustCompile(`<[^>]*>`)
+	re := rx.Get(`<[^>]*>`)
 	text := re.ReplaceAllString(html, "")
 	text = strings.TrimSpace(text)
 	return text

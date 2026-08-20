@@ -16,6 +16,7 @@ import (
 
 	"github.com/tradik/wpexporter/internal/cache"
 	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/rx"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
@@ -335,7 +336,7 @@ func (c *Crawler) detectDuplicateTags(html string) []string {
 	var duplicates []string
 
 	// Check for duplicate title tags
-	titlePattern := regexp.MustCompile(`(?i)<title[^>]*>`)
+	titlePattern := rx.Get(`(?i)<title[^>]*>`)
 	if len(titlePattern.FindAllString(html, -1)) > 1 {
 		duplicates = append(duplicates, "title")
 	}
@@ -343,7 +344,7 @@ func (c *Crawler) detectDuplicateTags(html string) []string {
 	// Check for duplicate meta name tags
 	metaNames := []string{"description", "keywords"}
 	for _, name := range metaNames {
-		pattern := regexp.MustCompile(fmt.Sprintf(`(?i)<meta[^>]+name\s*=\s*["']%s["']`, regexp.QuoteMeta(name)))
+		pattern := rx.Get(fmt.Sprintf(`(?i)<meta[^>]+name\s*=\s*["']%s["']`, regexp.QuoteMeta(name)))
 		if len(pattern.FindAllString(html, -1)) > 1 {
 			duplicates = append(duplicates, "meta:"+name)
 		}
@@ -352,14 +353,14 @@ func (c *Crawler) detectDuplicateTags(html string) []string {
 	// Check for duplicate OG tags
 	ogProperties := []string{"og:title", "og:description", "og:image"}
 	for _, prop := range ogProperties {
-		pattern := regexp.MustCompile(fmt.Sprintf(`(?i)<meta[^>]+property\s*=\s*["']%s["']`, regexp.QuoteMeta(prop)))
+		pattern := rx.Get(fmt.Sprintf(`(?i)<meta[^>]+property\s*=\s*["']%s["']`, regexp.QuoteMeta(prop)))
 		if len(pattern.FindAllString(html, -1)) > 1 {
 			duplicates = append(duplicates, prop)
 		}
 	}
 
 	// Check for duplicate canonical
-	canonicalPattern := regexp.MustCompile(`(?i)<link[^>]+rel\s*=\s*["']canonical["']`)
+	canonicalPattern := rx.Get(`(?i)<link[^>]+rel\s*=\s*["']canonical["']`)
 	if len(canonicalPattern.FindAllString(html, -1)) > 1 {
 		duplicates = append(duplicates, "canonical")
 	}
@@ -370,7 +371,7 @@ func (c *Crawler) detectDuplicateTags(html string) []string {
 // extractTitle extracts the content of the <title> tag
 func (c *Crawler) extractTitle(html string) string {
 	// Case-insensitive pattern for title tag
-	pattern := regexp.MustCompile(`(?i)<title[^>]*>([^<]+)</title>`)
+	pattern := rx.Get(`(?i)<title[^>]*>([^<]+)</title>`)
 	matches := pattern.FindStringSubmatch(html)
 	if len(matches) > 1 {
 		return strings.TrimSpace(c.decodeHTMLEntities(matches[1]))
@@ -382,7 +383,7 @@ func (c *Crawler) extractTitle(html string) string {
 func (c *Crawler) extractMetaContent(html, name string) string {
 	// Try name="..." content="..." format
 	patternStr := `(?i)<meta[^>]+name\s*=\s*["']%s["'][^>]+content\s*=\s*["']([^"']+)["']`
-	pattern1 := regexp.MustCompile(fmt.Sprintf(patternStr, regexp.QuoteMeta(name)))
+	pattern1 := rx.Get(fmt.Sprintf(patternStr, regexp.QuoteMeta(name)))
 	matches := pattern1.FindStringSubmatch(html)
 	if len(matches) > 1 {
 		return strings.TrimSpace(c.decodeHTMLEntities(matches[1]))
@@ -390,7 +391,7 @@ func (c *Crawler) extractMetaContent(html, name string) string {
 
 	// Try content="..." name="..." format (reverse order)
 	patternStr2 := `(?i)<meta[^>]+content\s*=\s*["']([^"']+)["'][^>]+name\s*=\s*["']%s["']`
-	pattern2 := regexp.MustCompile(fmt.Sprintf(patternStr2, regexp.QuoteMeta(name)))
+	pattern2 := rx.Get(fmt.Sprintf(patternStr2, regexp.QuoteMeta(name)))
 	matches = pattern2.FindStringSubmatch(html)
 	if len(matches) > 1 {
 		return strings.TrimSpace(c.decodeHTMLEntities(matches[1]))
@@ -403,7 +404,7 @@ func (c *Crawler) extractMetaContent(html, name string) string {
 func (c *Crawler) extractOGContent(html, property string) string {
 	// Try property="..." content="..." format
 	patternStr := `(?i)<meta[^>]+property\s*=\s*["']%s["'][^>]+content\s*=\s*["']([^"']+)["']`
-	pattern1 := regexp.MustCompile(fmt.Sprintf(patternStr, regexp.QuoteMeta(property)))
+	pattern1 := rx.Get(fmt.Sprintf(patternStr, regexp.QuoteMeta(property)))
 	matches := pattern1.FindStringSubmatch(html)
 	if len(matches) > 1 {
 		return strings.TrimSpace(c.decodeHTMLEntities(matches[1]))
@@ -411,7 +412,7 @@ func (c *Crawler) extractOGContent(html, property string) string {
 
 	// Try content="..." property="..." format (reverse order)
 	patternStr2 := `(?i)<meta[^>]+content\s*=\s*["']([^"']+)["'][^>]+property\s*=\s*["']%s["']`
-	pattern2 := regexp.MustCompile(fmt.Sprintf(patternStr2, regexp.QuoteMeta(property)))
+	pattern2 := rx.Get(fmt.Sprintf(patternStr2, regexp.QuoteMeta(property)))
 	matches = pattern2.FindStringSubmatch(html)
 	if len(matches) > 1 {
 		return strings.TrimSpace(c.decodeHTMLEntities(matches[1]))
@@ -425,11 +426,11 @@ func (c *Crawler) extractHreflangs(html string) []models.HreflangLink {
 	var hreflangs []models.HreflangLink
 
 	// Find all <link> tags that contain both rel="alternate" and hreflang
-	linkPattern := regexp.MustCompile(`(?i)<link\s+[^>]*rel\s*=\s*["']alternate["'][^>]*>`)
+	linkPattern := rx.Get(`(?i)<link\s+[^>]*rel\s*=\s*["']alternate["'][^>]*>`)
 	linkMatches := linkPattern.FindAllString(html, -1)
 
 	// Also try pattern where rel comes later in the tag
-	linkPattern2 := regexp.MustCompile(`(?i)<link\s+[^>]*hreflang\s*=\s*["'][^"']+["'][^>]*>`)
+	linkPattern2 := rx.Get(`(?i)<link\s+[^>]*hreflang\s*=\s*["'][^"']+["'][^>]*>`)
 	linkMatches2 := linkPattern2.FindAllString(html, -1)
 
 	// Combine and deduplicate link tags
@@ -444,9 +445,9 @@ func (c *Crawler) extractHreflangs(html string) []models.HreflangLink {
 	}
 
 	// Extract hreflang and href from each link tag
-	hreflangPattern := regexp.MustCompile(`(?i)hreflang\s*=\s*["']([^"']+)["']`)
-	hrefPattern := regexp.MustCompile(`(?i)href\s*=\s*["']([^"']+)["']`)
-	relAlternatePattern := regexp.MustCompile(`(?i)rel\s*=\s*["']alternate["']`)
+	hreflangPattern := rx.Get(`(?i)hreflang\s*=\s*["']([^"']+)["']`)
+	hrefPattern := rx.Get(`(?i)href\s*=\s*["']([^"']+)["']`)
+	relAlternatePattern := rx.Get(`(?i)rel\s*=\s*["']alternate["']`)
 
 	for _, link := range uniqueLinks {
 		// Must have rel="alternate"
@@ -482,14 +483,14 @@ func (c *Crawler) extractHreflangs(html string) []models.HreflangLink {
 // extractLang extracts the language from <html lang="..."> tag
 func (c *Crawler) extractLang(html string) string {
 	// Pattern: <html lang="en"> or <html lang="en-GB">
-	pattern := regexp.MustCompile(`(?i)<html[^>]+lang\s*=\s*["']([^"']+)["']`)
+	pattern := rx.Get(`(?i)<html[^>]+lang\s*=\s*["']([^"']+)["']`)
 	matches := pattern.FindStringSubmatch(html)
 	if len(matches) > 1 {
 		return strings.TrimSpace(matches[1])
 	}
 
 	// Also try Content-Language meta tag
-	metaPattern := regexp.MustCompile(
+	metaPattern := rx.Get(
 		`(?i)<meta[^>]+http-equiv\s*=\s*["']Content-Language["'][^>]+content\s*=\s*["']([^"']+)["']`)
 	matches = metaPattern.FindStringSubmatch(html)
 	if len(matches) > 1 {
@@ -502,7 +503,7 @@ func (c *Crawler) extractLang(html string) string {
 // extractCanonical extracts the canonical URL from a link tag
 func (c *Crawler) extractCanonical(html string) string {
 	// Try rel="canonical" href="..." format
-	pattern1 := regexp.MustCompile(
+	pattern1 := rx.Get(
 		`(?i)<link[^>]+rel\s*=\s*["']canonical["'][^>]+href\s*=\s*["']([^"']+)["']`)
 	matches := pattern1.FindStringSubmatch(html)
 	if len(matches) > 1 {
@@ -510,7 +511,7 @@ func (c *Crawler) extractCanonical(html string) string {
 	}
 
 	// Try href="..." rel="canonical" format (reverse order)
-	pattern2 := regexp.MustCompile(
+	pattern2 := rx.Get(
 		`(?i)<link[^>]+href\s*=\s*["']([^"']+)["'][^>]+rel\s*=\s*["']canonical["']`)
 	matches = pattern2.FindStringSubmatch(html)
 	if len(matches) > 1 {
@@ -1027,7 +1028,7 @@ func (c *Crawler) removeNonContentElements(html string) string {
 	}
 
 	// Remove HTML comments
-	commentPattern := regexp.MustCompile(`(?is)<!--.*?-->`)
+	commentPattern := rx.Get(`(?is)<!--.*?-->`)
 	result = commentPattern.ReplaceAllString(result, "")
 
 	return result
@@ -1040,7 +1041,7 @@ func (c *Crawler) removeBalancedTag(html string, tag string) string {
 
 	for {
 		// Find opening tag
-		openPattern := regexp.MustCompile(`(?i)<` + tag + `[^>]*>`)
+		openPattern := rx.Get(`(?i)<` + tag + `[^>]*>`)
 		openLoc := openPattern.FindStringIndex(result)
 		if openLoc == nil {
 			break
@@ -1049,7 +1050,7 @@ func (c *Crawler) removeBalancedTag(html string, tag string) string {
 		// Find the matching closing tag by counting nested tags
 		depth := 1
 		pos := openLoc[1]
-		closeTagPattern := regexp.MustCompile(`(?i)<(/?)` + tag + `[^>]*>`)
+		closeTagPattern := rx.Get(`(?i)<(/?)` + tag + `[^>]*>`)
 
 		for depth > 0 && pos < len(result) {
 			remaining := result[pos:]
@@ -1095,7 +1096,7 @@ func (c *Crawler) extractBalancedTag(html string, tag string, attrPattern string
 		openPatternStr = `(?i)<` + tag + `[^>]*>`
 	}
 
-	openPattern := regexp.MustCompile(openPatternStr)
+	openPattern := rx.Get(openPatternStr)
 	openLoc := openPattern.FindStringIndex(html)
 	if openLoc == nil {
 		return ""
@@ -1104,7 +1105,7 @@ func (c *Crawler) extractBalancedTag(html string, tag string, attrPattern string
 	// Find the matching closing tag by counting nested tags
 	depth := 1
 	pos := openLoc[1]
-	closeTagPattern := regexp.MustCompile(`(?i)<(/?)` + tag + `[^>]*>`)
+	closeTagPattern := rx.Get(`(?i)<(/?)` + tag + `[^>]*>`)
 
 	for depth > 0 && pos < len(html) {
 		remaining := html[pos:]
@@ -1137,13 +1138,13 @@ func (c *Crawler) extractBricksContent(html string) string {
 	var parts []string
 
 	// Extract headings with their level
-	headingPattern := regexp.MustCompile(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-heading[^"']*["'][^>]*>(.+?)</[^>]+>`)
+	headingPattern := rx.Get(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-heading[^"']*["'][^>]*>(.+?)</[^>]+>`)
 	headingMatches := headingPattern.FindAllStringSubmatch(html, -1)
 	for _, match := range headingMatches {
 		if len(match) > 1 {
 			text := strings.TrimSpace(c.decodeHTMLEntities(match[1]))
 			// Strip any inner tags but keep the text
-			text = regexp.MustCompile(`<[^>]+>`).ReplaceAllString(text, "")
+			text = rx.Get(`<[^>]+>`).ReplaceAllString(text, "")
 			if text != "" {
 				parts = append(parts, "<h2>"+text+"</h2>")
 			}
@@ -1151,7 +1152,7 @@ func (c *Crawler) extractBricksContent(html string) string {
 	}
 
 	// Extract text elements
-	textPattern := regexp.MustCompile(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-text[^"']*["'][^>]*>(.+?)</[^>]+>`)
+	textPattern := rx.Get(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-text[^"']*["'][^>]*>(.+?)</[^>]+>`)
 	textMatches := textPattern.FindAllStringSubmatch(html, -1)
 	for _, match := range textMatches {
 		if len(match) > 1 {
@@ -1163,7 +1164,7 @@ func (c *Crawler) extractBricksContent(html string) string {
 	}
 
 	// Extract rich text elements (may contain HTML)
-	richTextPattern := regexp.MustCompile(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-rich-text[^"']*["'][^>]*>(.+?)</[^>]+>`)
+	richTextPattern := rx.Get(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-rich-text[^"']*["'][^>]*>(.+?)</[^>]+>`)
 	richTextMatches := richTextPattern.FindAllStringSubmatch(html, -1)
 	for _, match := range richTextMatches {
 		if len(match) > 1 {
@@ -1184,23 +1185,23 @@ func (c *Crawler) extractBricksContent(html string) string {
 // cleanHTMLContent cleans HTML content, removing scripts, styles, and normalizing whitespace
 func (c *Crawler) cleanHTMLContent(html string) string {
 	// Remove script tags
-	scriptPattern := regexp.MustCompile(`(?is)<script[^>]*>.*?</script>`)
+	scriptPattern := rx.Get(`(?is)<script[^>]*>.*?</script>`)
 	html = scriptPattern.ReplaceAllString(html, "")
 
 	// Remove style tags
-	stylePattern := regexp.MustCompile(`(?is)<style[^>]*>.*?</style>`)
+	stylePattern := rx.Get(`(?is)<style[^>]*>.*?</style>`)
 	html = stylePattern.ReplaceAllString(html, "")
 
 	// Remove comments
-	commentPattern := regexp.MustCompile(`(?is)<!--.*?-->`)
+	commentPattern := rx.Get(`(?is)<!--.*?-->`)
 	html = commentPattern.ReplaceAllString(html, "")
 
 	// Remove noscript tags
-	noscriptPattern := regexp.MustCompile(`(?is)<noscript[^>]*>.*?</noscript>`)
+	noscriptPattern := rx.Get(`(?is)<noscript[^>]*>.*?</noscript>`)
 	html = noscriptPattern.ReplaceAllString(html, "")
 
 	// Remove empty tags
-	emptyTagPattern := regexp.MustCompile(`(?i)<[^/>][^>]*>\s*</[^>]+>`)
+	emptyTagPattern := rx.Get(`(?i)<[^/>][^>]*>\s*</[^>]+>`)
 	for i := 0; i < 3; i++ { // Multiple passes to handle nested empty tags
 		html = emptyTagPattern.ReplaceAllString(html, "")
 	}
@@ -1209,7 +1210,7 @@ func (c *Crawler) cleanHTMLContent(html string) string {
 	html = c.decodeHTMLEntities(html)
 
 	// Normalize whitespace
-	whitespacePattern := regexp.MustCompile(`\s+`)
+	whitespacePattern := rx.Get(`\s+`)
 	html = whitespacePattern.ReplaceAllString(html, " ")
 
 	return strings.TrimSpace(html)
@@ -1222,7 +1223,7 @@ func isContentEmpty(content string) bool {
 	}
 
 	// Strip HTML tags
-	tagPattern := regexp.MustCompile(`<[^>]*>`)
+	tagPattern := rx.Get(`<[^>]*>`)
 	stripped := tagPattern.ReplaceAllString(content, "")
 
 	// Remove whitespace and common empty content patterns

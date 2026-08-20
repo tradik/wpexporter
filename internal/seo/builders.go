@@ -27,8 +27,9 @@ package seo
 import (
 	"regexp"
 	"strings"
-	"sync"
 	"unicode/utf8"
+
+	"github.com/tradik/wpexporter/internal/rx"
 )
 
 // builderClassRe matches the class prefixes the page builders stamp on their
@@ -155,35 +156,12 @@ func (c *Crawler) siteBuilderClass(content string) bool {
 			continue
 		}
 
-		if siteBuilderMatcher(prefix).MatchString(content) {
+		if rx.Get(`(?i)class\s*=\s*["'][^"']*\b` + wildcardClassPattern(prefix)).MatchString(content) {
 			return true
 		}
 	}
 
 	return false
-}
-
-// siteBuilderMatchers caches one compiled pattern per named prefix: the check
-// runs once per page, and recompiling a regular expression per page per prefix
-// is a cost a thousand-page site would notice.
-var (
-	siteBuilderMatchers = map[string]*regexp.Regexp{}
-	siteBuilderMu       sync.Mutex
-)
-
-// siteBuilderMatcher compiles, once, the pattern for one named prefix.
-func siteBuilderMatcher(prefix string) *regexp.Regexp {
-	siteBuilderMu.Lock()
-	defer siteBuilderMu.Unlock()
-
-	if matcher, ok := siteBuilderMatchers[prefix]; ok {
-		return matcher
-	}
-
-	matcher := regexp.MustCompile(`(?i)class\s*=\s*["'][^"']*\b` + wildcardClassPattern(prefix))
-	siteBuilderMatchers[prefix] = matcher
-
-	return matcher
 }
 
 // wildcardClassPattern turns a shell-style name into a regular expression, and

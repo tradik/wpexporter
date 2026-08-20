@@ -14,7 +14,7 @@ package version
 // The defaults are what a `go install` build reports, so they are kept in step
 // with the VERSION file rather than left at a placeholder.
 var (
-	Version   = "1.8.16"
+	Version   = "1.8.17"
 	BuildTime = "unknown"
 	GitCommit = "unknown"
 )

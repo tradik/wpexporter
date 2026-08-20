@@ -8,11 +8,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/rx"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
@@ -566,7 +566,7 @@ func (s *ShopifyExporter) generateHandle(slug string, id int) string {
 
 	// Sanitize handle: lowercase, alphanumeric and hyphens only
 	handle := strings.ToLower(slug)
-	reg := regexp.MustCompile(`[^a-z0-9-]`)
+	reg := rx.Get(`[^a-z0-9-]`)
 	handle = reg.ReplaceAllString(handle, "-")
 
 	// Remove consecutive hyphens
@@ -766,19 +766,19 @@ func (s *ShopifyExporter) cleanHTMLForShopify(html string) string {
 	}
 
 	// Remove WordPress-specific shortcodes
-	shortcodePattern := regexp.MustCompile(`\[/?[^\]]+\]`)
+	shortcodePattern := rx.Get(`\[/?[^\]]+\]`)
 	cleaned := shortcodePattern.ReplaceAllString(html, "")
 
 	// Remove WordPress block comments
-	blockCommentPattern := regexp.MustCompile(`<!--\s*/?wp:[^>]+-->`)
+	blockCommentPattern := rx.Get(`<!--\s*/?wp:[^>]+-->`)
 	cleaned = blockCommentPattern.ReplaceAllString(cleaned, "")
 
 	// Remove empty paragraphs
-	emptyParagraphPattern := regexp.MustCompile(`<p>\s*</p>`)
+	emptyParagraphPattern := rx.Get(`<p>\s*</p>`)
 	cleaned = emptyParagraphPattern.ReplaceAllString(cleaned, "")
 
 	// Remove multiple newlines
-	multipleNewlinePattern := regexp.MustCompile(`\n{3,}`)
+	multipleNewlinePattern := rx.Get(`\n{3,}`)
 	cleaned = multipleNewlinePattern.ReplaceAllString(cleaned, "\n\n")
 
 	// Trim whitespace
@@ -794,7 +794,7 @@ func (s *ShopifyExporter) extractImagesFromContent(html string) []string {
 	}
 
 	// Find all image sources in the content
-	imgPattern := regexp.MustCompile(`<img[^>]+src\s*=\s*["']([^"']+)["']`)
+	imgPattern := rx.Get(`<img[^>]+src\s*=\s*["']([^"']+)["']`)
 	matches := imgPattern.FindAllStringSubmatch(html, -1)
 
 	var images []string
@@ -812,7 +812,7 @@ func (s *ShopifyExporter) extractImagesFromContent(html string) []string {
 // truncateString truncates a string to a maximum length.
 func (s *ShopifyExporter) truncateString(str string, maxLen int) string {
 	// Clean HTML tags first
-	tagPattern := regexp.MustCompile(`<[^>]+>`)
+	tagPattern := rx.Get(`<[^>]+>`)
 	str = tagPattern.ReplaceAllString(str, "")
 
 	// Decode common HTML entities

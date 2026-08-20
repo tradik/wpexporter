@@ -95,9 +95,18 @@ jobs:
       # can run this step and nothing else.
       - name: Build the site (pull request)
         if: github.event_name == 'pull_request'
-        uses: spagu/ssg@a1bed38991197c018563d1099fc310edeca65f6a # v1 (1.8.32)
+        uses: spagu/ssg@c9e51ddb54e7526c7bf34a755e47bee37ba75e5b # v1.8.44
         with:
           config: docs-site.yaml
+          # Pinned like everything else here. Left unset the action resolves
+          # "latest" through an unauthenticated api.github.com call, which is
+          # 60 requests an hour across shared runner addresses: when it is
+          # throttled the step dies in 86ms with no message at all, and a
+          # pull request with nothing wrong with it goes red (#77).
+          #
+          # The "v" is not decoration: the value goes straight into the release
+          # download URL, and the tags are v-prefixed. Without it the URL 404s.
+          version: "v1.8.44"
           # The action forwards its own directory defaults, so the config's
           # output_dir would otherwise be overridden with ./output.
           output-dir: .site
@@ -131,9 +140,10 @@ jobs:
       # so nothing half-built reaches the CDN.
       - name: Build and deploy to Cloudflare Pages
         if: github.event_name != 'pull_request'
-        uses: spagu/ssg@a1bed38991197c018563d1099fc310edeca65f6a # v1 (1.8.32)
+        uses: spagu/ssg@c9e51ddb54e7526c7bf34a755e47bee37ba75e5b # v1.8.44
         with:
           config: docs-site.yaml
+          version: "v1.8.44"
           output-dir: .site
           clean: "true"
           deploy: cloudflare

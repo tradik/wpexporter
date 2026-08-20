@@ -170,7 +170,12 @@ func (c *Client) GetSiteInfo() (*models.SiteInfo, error) {
 	// /wp/v2/settings carries the richer set (admin email, date and time formats,
 	// start of week) but needs authentication. Anything it returns wins, because
 	// it is the site's own configuration rather than the public projection.
-	c.mergeSettingsInfo(&siteInfo)
+	settings := c.mergeSettingsInfo(&siteInfo)
+
+	// Which page is the home and where the posts went: from those settings when
+	// they answered, and from the markup the site publishes to every visitor
+	// when they did not (#75).
+	c.readFrontPage(&siteInfo, settings)
 
 	if siteInfo.URL == "" {
 		siteInfo.URL = c.config.URL
@@ -208,6 +213,10 @@ type siteSettings struct {
 	TimeFormat  string `json:"time_format"`
 	StartOfWeek int    `json:"start_of_week"`
 	Language    string `json:"language"`
+	// The three settings that decide the shape of a migrated site (#75).
+	ShowOnFront  string `json:"show_on_front"`
+	PageOnFront  int    `json:"page_on_front"`
+	PageForPosts int    `json:"page_for_posts"`
 }
 
 // fetchAPIRootInfo reads the REST API root, which every public WordPress serves
@@ -254,15 +263,15 @@ func (c *Client) fetchAPIRootInfo() (models.SiteInfo, error) {
 // mergeSettingsInfo overlays the authenticated settings document when it is
 // reachable. An unauthenticated site returns 401 here, which is not an error:
 // the root document already supplied the identity fields.
-func (c *Client) mergeSettingsInfo(siteInfo *models.SiteInfo) {
+func (c *Client) mergeSettingsInfo(siteInfo *models.SiteInfo) siteSettings {
 	resp, err := c.httpClient.R().Get(c.endpointURL("settings", ""))
 	if err != nil || resp.StatusCode() != 200 {
-		return
+		return siteSettings{}
 	}
 
 	var settings siteSettings
 	if err := json.Unmarshal(resp.Body(), &settings); err != nil {
-		return
+		return siteSettings{}
 	}
 
 	overlay(&siteInfo.Name, html.UnescapeString(settings.Title))
@@ -277,6 +286,8 @@ func (c *Client) mergeSettingsInfo(siteInfo *models.SiteInfo) {
 	if settings.StartOfWeek != 0 {
 		siteInfo.StartOfWeek = settings.StartOfWeek
 	}
+
+	return settings
 }
 
 // overlay replaces a value when the authoritative source supplied one.
@@ -921,11 +932,14 @@ func (c *Client) fetchContentPage(endpoint string, page, perPage, fetched int) p
 
 	var content []models.WordPressPost
 	if err := json.Unmarshal(resp.Body(), &content); err != nil {
+		// A 200 carrying a page rather than a payload is a wall, or a site with
+		// no REST API answering its own home page. Naming which turns a line
+		// about an unexpected '<' into something an operator can act on (#73).
 		return pageResult{err: &PartialError{
 			Endpoint: endpoint,
 			Page:     page,
 			Fetched:  fetched,
-			Err:      fmt.Errorf("failed to parse response: %w", err),
+			Err:      unreadableBody(resp, err),
 		}}
 	}
 

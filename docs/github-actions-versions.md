@@ -33,13 +33,13 @@ the comment claimed.
 | Action | Version | Node.js | Notes |
 |--------|---------|---------|-------|
 | `actions/checkout` | v7.0.1 | 24 | |
-| `spagu/ssg` | v1.8.32 | Docker | the site generator, pinned to its newest release |
+| `spagu/ssg` | v1.8.44 | Docker | the site generator. Both the action **and** the `version:` input it downloads are pinned: left unset it resolves `latest` through an unauthenticated `api.github.com` call, and a throttled one fails the docs build with no message (#77) |
 
 ### Toolchain pinned in the workflow
 
 | Tool | Version | Where |
 |------|---------|-------|
-| Go | 1.26.6 | `go-version:` in every job, and `go 1.26.6` in `go.mod` |
+| Go | 1.27.0 | `go-version:` in every job, and `go 1.27.0` in `go.mod` and `tools/go.mod` |
 | gosec | v2.28.0 | `tool` directive in `tools/go.mod`, every transitive version fixed by `tools/go.sum` |
 | golangci-lint | latest | `version: latest` in the lint job |
 

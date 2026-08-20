@@ -22,6 +22,8 @@ package export
 import (
 	"regexp"
 	"strings"
+
+	"github.com/tradik/wpexporter/internal/rx"
 )
 
 // emphasisTags are the elements the converter turns into delimiter runs.
@@ -38,7 +40,7 @@ func buildEmphasisPatterns() map[string]*regexp.Regexp {
 	patterns := make(map[string]*regexp.Regexp, len(emphasisTags))
 
 	for _, tag := range emphasisTags {
-		patterns[tag] = regexp.MustCompile(
+		patterns[tag] = rx.Get(
 			`(?is)<` + tag + `\b[^>]*>(\s*)(.*?)(\s*)</` + tag + `\s*>`)
 	}
 

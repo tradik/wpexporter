@@ -299,9 +299,9 @@ security-scan: ## Run security scan on binaries
 		echo "${YELLOW}govulncheck not installed. Install with: go install golang.org/x/vuln/cmd/govulncheck@latest${RESET}"; \
 	fi
 
-benchmark: ## Run benchmarks
+benchmark: ## Run benchmarks (decoding, conversion, crawl — the hot paths)
 	@echo "${BLUE}Running benchmarks...${RESET}"
-	$(GOTEST) -bench=. -benchmem ./...
+	$(GOTEST) -run '^$$' -bench=. -benchmem -benchtime 300x -count 3 ./...
 
 coverage: ## Generate test coverage report
 	@echo "${BLUE}Generating coverage report...${RESET}"

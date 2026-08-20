@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/tradik/wpexporter/internal/rx"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
@@ -127,7 +128,7 @@ func (s *Sanitizer) Sanitize(html string) string {
 	html = s.removeTagWithContent(html, "svg")
 
 	// Step 2: Remove comments
-	commentPattern := regexp.MustCompile(`<!--[\s\S]*?-->`)
+	commentPattern := rx.Get(`<!--[\s\S]*?-->`)
 	html = commentPattern.ReplaceAllString(html, "")
 
 	// Step 3: Process all tags
@@ -159,7 +160,7 @@ func (s *Sanitizer) extractPreservedElements(html string) (string, []string) {
 		// Convert wildcard pattern to regex (e.g., klaviyo-form-* -> klaviyo-form-[^"'\s]*)
 		classPattern := wildcardToRegex(class)
 		// Match elements with the specified class (handles class being anywhere in the class attribute)
-		pattern := regexp.MustCompile(`(?is)(<[^>]*\bclass\s*=\s*["'][^"']*\b` +
+		pattern := rx.Get(`(?is)(<[^>]*\bclass\s*=\s*["'][^"']*\b` +
 			classPattern + `\b[^"']*["'][^>]*>[\s\S]*?</[^>]+>)`)
 		result = pattern.ReplaceAllStringFunc(result, func(match string) string {
 			idx := len(preserved)
@@ -176,7 +177,7 @@ func (s *Sanitizer) extractPreservedElements(html string) (string, []string) {
 		// Convert wildcard pattern to regex
 		idPattern := wildcardToRegex(id)
 		// Match elements with the specified ID
-		pattern := regexp.MustCompile(`(?is)(<[^>]*\bid\s*=\s*["']` +
+		pattern := rx.Get(`(?is)(<[^>]*\bid\s*=\s*["']` +
 			idPattern + `["'][^>]*>[\s\S]*?</[^>]+>)`)
 		result = pattern.ReplaceAllStringFunc(result, func(match string) string {
 			idx := len(preserved)
@@ -218,14 +219,14 @@ func (s *Sanitizer) restorePreservedElements(html string, preserved []string) st
 
 // removeTagWithContent removes a tag and all its content
 func (s *Sanitizer) removeTagWithContent(html, tag string) string {
-	pattern := regexp.MustCompile(`(?is)<` + tag + `[^>]*>[\s\S]*?</` + tag + `>`)
+	pattern := rx.Get(`(?is)<` + tag + `[^>]*>[\s\S]*?</` + tag + `>`)
 	return pattern.ReplaceAllString(html, "")
 }
 
 // processTags processes all HTML tags, keeping only allowed ones
 func (s *Sanitizer) processTags(html string) string {
 	// Match any HTML tag (opening, closing, or self-closing)
-	tagPattern := regexp.MustCompile(`<(/?)([a-zA-Z][a-zA-Z0-9]*)\s*([^>]*)>`)
+	tagPattern := rx.Get(`<(/?)([a-zA-Z][a-zA-Z0-9]*)\s*([^>]*)>`)
 
 	return tagPattern.ReplaceAllStringFunc(html, func(match string) string {
 		// Parse the tag
@@ -311,7 +312,7 @@ func (s *Sanitizer) sanitizeAttributes(tag, attrs string) string {
 
 	// Parse and filter attributes
 	var result []string
-	attrPattern := regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))`)
+	attrPattern := rx.Get(`([a-zA-Z][a-zA-Z0-9-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))`)
 	matches := attrPattern.FindAllStringSubmatch(attrs, -1)
 
 	for _, match := range matches {
@@ -362,15 +363,15 @@ func (s *Sanitizer) escapeAttr(value string) string {
 // cleanWhitespace normalizes whitespace in the output
 func (s *Sanitizer) cleanWhitespace(html string) string {
 	// Replace multiple newlines with double newline
-	multiNewline := regexp.MustCompile(`\n{3,}`)
+	multiNewline := rx.Get(`\n{3,}`)
 	html = multiNewline.ReplaceAllString(html, "\n\n")
 
 	// Replace multiple spaces with single space
-	multiSpace := regexp.MustCompile(`[ \t]+`)
+	multiSpace := rx.Get(`[ \t]+`)
 	html = multiSpace.ReplaceAllString(html, " ")
 
 	// Clean up space before/after newlines
-	html = regexp.MustCompile(` *\n *`).ReplaceAllString(html, "\n")
+	html = rx.Get(` *\n *`).ReplaceAllString(html, "\n")
 
 	// Trim leading/trailing whitespace
 	html = strings.TrimSpace(html)
