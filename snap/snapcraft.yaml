@@ -33,12 +33,11 @@ parts:
     # plugin: nil rather than the go plugin, and the toolchain fetched below
     # rather than from the go snap.
     #
-    # go.mod requires Go 1.26.6 — a deliberate 1.8.5 decision, since 1.26.5 and
-    # earlier carry seven standard-library advisories this tool is exposed to —
-    # and no channel of the go snap ships it: 1.26/stable and latest/stable are
-    # both 1.26.5. Go therefore fetched 1.26.6 itself, and the line it prints
-    # while doing so landed inside the version string the go plugin parses:
-    #   invalid go compiler version 'go: downloading go1.26.6 (linux/arm64)'
+    # go.mod requires a Go newer than any channel of the go snap ships, which
+    # is the ordinary state of affairs and was first met in 1.8.5. Left to
+    # itself Go fetches the toolchain it needs, and the line it prints while
+    # doing so lands inside the version string the go plugin parses:
+    #   invalid go compiler version 'go: downloading go1.27.0 (linux/arm64)'
     # which failed the arm64 build of 1.8.5 before it started.
     #
     # Fetching the toolchain here, pinned by the checksum go.dev publishes
@@ -59,11 +58,11 @@ parts:
     override-build: |
       set -eu
 
-      GO_VERSION=1.26.6
+      GO_VERSION=1.27.0
       GO_ARCH=$(dpkg --print-architecture)
       case "${GO_ARCH}" in
-        amd64) GO_SHA256=708effb774be8237570d0add163225abbdfaf4fca28b2611df167beba4feef89 ;;
-        arm64) GO_SHA256=d0507e9e9d7fe012aae570108cbd76c15de879e17130ab8cb90d4d7445cb1f2e ;;
+        amd64) GO_SHA256=675c26c449cbb18fc24b74650de1eabbae6e16f64326fd85a283fb3b58280685 ;;
+        arm64) GO_SHA256=51798d2c42d0e1c6ed7fd9f48728b4193abac9e8aad6dbac2fe96a81f5909bda ;;
         *) echo "no pinned Go toolchain for ${GO_ARCH}" >&2; exit 1 ;;
       esac
 

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/rx"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
@@ -107,7 +108,7 @@ func (c *Converter) initDefaultRules() {
 	c.rules = append(c.rules,
 		// brxe-heading with data-level attribute
 		ConversionRule{
-			Pattern: regexp.MustCompile(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-heading[^"']*["'][^>]*data-level\s*=\s*["']?(\d)["']?[^>]*>([^<]*)</[^>]+>`),
+			Pattern: rx.Get(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-heading[^"']*["'][^>]*data-level\s*=\s*["']?(\d)["']?[^>]*>([^<]*)</[^>]+>`),
 			Handler: func(match []string) string {
 				if len(match) < 3 {
 					return match[0]
@@ -120,7 +121,7 @@ func (c *Converter) initDefaultRules() {
 		},
 		// brxe-heading without data-level (default to h2)
 		ConversionRule{
-			Pattern: regexp.MustCompile(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-heading[^"']*["'][^>]*>([^<]*)</[^>]+>`),
+			Pattern: rx.Get(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-heading[^"']*["'][^>]*>([^<]*)</[^>]+>`),
 			Handler: func(match []string) string {
 				if len(match) < 2 {
 					return match[0]
@@ -131,7 +132,7 @@ func (c *Converter) initDefaultRules() {
 		},
 		// brxe-text (paragraph)
 		ConversionRule{
-			Pattern: regexp.MustCompile(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-text[^"']*["'][^>]*>([^<]+)</[^>]+>`),
+			Pattern: rx.Get(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-text[^"']*["'][^>]*>([^<]+)</[^>]+>`),
 			Handler: func(match []string) string {
 				if len(match) < 2 {
 					return match[0]
@@ -142,7 +143,7 @@ func (c *Converter) initDefaultRules() {
 		},
 		// brxe-list items
 		ConversionRule{
-			Pattern: regexp.MustCompile(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-list[^"']*["'][^>]*>(.*?)</[^>]+>`),
+			Pattern: rx.Get(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-list[^"']*["'][^>]*>(.*?)</[^>]+>`),
 			Handler: func(match []string) string {
 				if len(match) < 2 {
 					return match[0]
@@ -152,7 +153,7 @@ func (c *Converter) initDefaultRules() {
 		},
 		// brxe-image
 		ConversionRule{
-			Pattern: regexp.MustCompile(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-image[^"']*["'][^>]*>` +
+			Pattern: rx.Get(`(?is)<[^>]*class\s*=\s*["'][^"']*brxe-image[^"']*["'][^>]*>` +
 				`.*?<img[^>]*src\s*=\s*["']([^"']+)["'][^>]*(?:alt\s*=\s*["']([^"']*)["'])?[^>]*>.*?</[^>]+>`),
 			Handler: func(match []string) string {
 				if len(match) < 2 {
@@ -174,7 +175,7 @@ func (c *Converter) initDefaultRules() {
 		prefix := strings.Repeat("#", level)
 		tagNum := string(rune('0' + i))
 		c.rules = append(c.rules, ConversionRule{
-			Pattern: regexp.MustCompile(`(?is)<h` + tagNum + `[^>]*>([^<]*)</h` + tagNum + `>`),
+			Pattern: rx.Get(`(?is)<h` + tagNum + `[^>]*>([^<]*)</h` + tagNum + `>`),
 			Handler: func(match []string) string {
 				if len(match) < 2 {
 					return match[0]
@@ -187,7 +188,7 @@ func (c *Converter) initDefaultRules() {
 
 	// Paragraph
 	c.rules = append(c.rules, ConversionRule{
-		Pattern: regexp.MustCompile(`(?is)<p[^>]*>([^<]+)</p>`),
+		Pattern: rx.Get(`(?is)<p[^>]*>([^<]+)</p>`),
 		Handler: func(match []string) string {
 			if len(match) < 2 {
 				return match[0]
@@ -202,19 +203,19 @@ func (c *Converter) initDefaultRules() {
 
 	// Bold
 	c.rules = append(c.rules, ConversionRule{
-		Pattern:     regexp.MustCompile(`(?is)<(?:strong|b)[^>]*>([^<]+)</(?:strong|b)>`),
+		Pattern:     rx.Get(`(?is)<(?:strong|b)[^>]*>([^<]+)</(?:strong|b)>`),
 		Replacement: "**$1**",
 	})
 
 	// Italic
 	c.rules = append(c.rules, ConversionRule{
-		Pattern:     regexp.MustCompile(`(?is)<(?:em|i)[^>]*>([^<]+)</(?:em|i)>`),
+		Pattern:     rx.Get(`(?is)<(?:em|i)[^>]*>([^<]+)</(?:em|i)>`),
 		Replacement: "*$1*",
 	})
 
 	// Links
 	c.rules = append(c.rules, ConversionRule{
-		Pattern: regexp.MustCompile(`(?is)<a[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([^<]+)</a>`),
+		Pattern: rx.Get(`(?is)<a[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([^<]+)</a>`),
 		Handler: func(match []string) string {
 			if len(match) < 3 {
 				return match[0]
@@ -225,7 +226,7 @@ func (c *Converter) initDefaultRules() {
 
 	// Images - src before alt
 	c.rules = append(c.rules, ConversionRule{
-		Pattern: regexp.MustCompile(`(?is)<img[^>]*src\s*=\s*["']([^"']+)["'][^>]*alt\s*=\s*["']([^"']*)["'][^>]*/?>`),
+		Pattern: rx.Get(`(?is)<img[^>]*src\s*=\s*["']([^"']+)["'][^>]*alt\s*=\s*["']([^"']*)["'][^>]*/?>`),
 		Handler: func(match []string) string {
 			if len(match) < 3 {
 				return match[0]
@@ -236,7 +237,7 @@ func (c *Converter) initDefaultRules() {
 
 	// Images - alt before src
 	c.rules = append(c.rules, ConversionRule{
-		Pattern: regexp.MustCompile(`(?is)<img[^>]*alt\s*=\s*["']([^"']*)["'][^>]*src\s*=\s*["']([^"']+)["'][^>]*/?>`),
+		Pattern: rx.Get(`(?is)<img[^>]*alt\s*=\s*["']([^"']*)["'][^>]*src\s*=\s*["']([^"']+)["'][^>]*/?>`),
 		Handler: func(match []string) string {
 			if len(match) < 3 {
 				return match[0]
@@ -247,7 +248,7 @@ func (c *Converter) initDefaultRules() {
 
 	// Images - src only (no alt)
 	c.rules = append(c.rules, ConversionRule{
-		Pattern: regexp.MustCompile(`(?is)<img[^>]*src\s*=\s*["']([^"']+)["'][^>]*/?>`),
+		Pattern: rx.Get(`(?is)<img[^>]*src\s*=\s*["']([^"']+)["'][^>]*/?>`),
 		Handler: func(match []string) string {
 			if len(match) < 2 {
 				return match[0]
@@ -258,7 +259,7 @@ func (c *Converter) initDefaultRules() {
 
 	// Unordered list
 	c.rules = append(c.rules, ConversionRule{
-		Pattern: regexp.MustCompile(`(?is)<ul[^>]*>(.*?)</ul>`),
+		Pattern: rx.Get(`(?is)<ul[^>]*>(.*?)</ul>`),
 		Handler: func(match []string) string {
 			if len(match) < 2 {
 				return match[0]
@@ -269,7 +270,7 @@ func (c *Converter) initDefaultRules() {
 
 	// Ordered list
 	c.rules = append(c.rules, ConversionRule{
-		Pattern: regexp.MustCompile(`(?is)<ol[^>]*>(.*?)</ol>`),
+		Pattern: rx.Get(`(?is)<ol[^>]*>(.*?)</ol>`),
 		Handler: func(match []string) string {
 			if len(match) < 2 {
 				return match[0]
@@ -280,7 +281,7 @@ func (c *Converter) initDefaultRules() {
 
 	// Blockquote
 	c.rules = append(c.rules, ConversionRule{
-		Pattern: regexp.MustCompile(`(?is)<blockquote[^>]*>([^<]+)</blockquote>`),
+		Pattern: rx.Get(`(?is)<blockquote[^>]*>([^<]+)</blockquote>`),
 		Handler: func(match []string) string {
 			if len(match) < 2 {
 				return match[0]
@@ -296,7 +297,7 @@ func (c *Converter) initDefaultRules() {
 
 	// Code block
 	c.rules = append(c.rules, ConversionRule{
-		Pattern: regexp.MustCompile(`(?is)<pre[^>]*><code[^>]*>([^<]+)</code></pre>`),
+		Pattern: rx.Get(`(?is)<pre[^>]*><code[^>]*>([^<]+)</code></pre>`),
 		Handler: func(match []string) string {
 			if len(match) < 2 {
 				return match[0]
@@ -307,19 +308,19 @@ func (c *Converter) initDefaultRules() {
 
 	// Inline code
 	c.rules = append(c.rules, ConversionRule{
-		Pattern:     regexp.MustCompile(`(?is)<code[^>]*>([^<]+)</code>`),
+		Pattern:     rx.Get(`(?is)<code[^>]*>([^<]+)</code>`),
 		Replacement: "`$1`",
 	})
 
 	// Horizontal rule
 	c.rules = append(c.rules, ConversionRule{
-		Pattern:     regexp.MustCompile(`(?is)<hr[^>]*/?\s*>`),
+		Pattern:     rx.Get(`(?is)<hr[^>]*/?\s*>`),
 		Replacement: "\n---\n\n",
 	})
 
 	// Line break
 	c.rules = append(c.rules, ConversionRule{
-		Pattern:     regexp.MustCompile(`(?is)<br[^>]*/?\s*>`),
+		Pattern:     rx.Get(`(?is)<br[^>]*/?\s*>`),
 		Replacement: "\n",
 	})
 }
@@ -379,7 +380,7 @@ func (c *Converter) extractPreservedElements(html string) (string, []string) {
 		// Convert wildcard pattern to regex (e.g., klaviyo-form-* -> klaviyo-form-[^"'\s]*)
 		classPattern := wildcardToRegex(class)
 		// Match elements with the specified class (handles class being anywhere in the class attribute)
-		pattern := regexp.MustCompile(`(?is)(<[^>]*\bclass\s*=\s*["'][^"']*\b` +
+		pattern := rx.Get(`(?is)(<[^>]*\bclass\s*=\s*["'][^"']*\b` +
 			classPattern + `\b[^"']*["'][^>]*>[\s\S]*?</[^>]+>)`)
 		result = pattern.ReplaceAllStringFunc(result, func(match string) string {
 			idx := len(preserved)
@@ -396,7 +397,7 @@ func (c *Converter) extractPreservedElements(html string) (string, []string) {
 		// Convert wildcard pattern to regex
 		idPattern := wildcardToRegex(id)
 		// Match elements with the specified ID
-		pattern := regexp.MustCompile(`(?is)(<[^>]*\bid\s*=\s*["']` +
+		pattern := rx.Get(`(?is)(<[^>]*\bid\s*=\s*["']` +
 			idPattern + `["'][^>]*>[\s\S]*?</[^>]+>)`)
 		result = pattern.ReplaceAllStringFunc(result, func(match string) string {
 			idx := len(preserved)
@@ -447,29 +448,29 @@ func (c *Converter) ConvertPosts(posts []models.WordPressPost) []models.WordPres
 // cleanHTML removes script, style, and other unwanted elements
 func (c *Converter) cleanHTML(html string) string {
 	// Remove script tags
-	scriptPattern := regexp.MustCompile(`(?is)<script[^>]*>.*?</script>`)
+	scriptPattern := rx.Get(`(?is)<script[^>]*>.*?</script>`)
 	html = scriptPattern.ReplaceAllString(html, "")
 
 	// Remove style tags
-	stylePattern := regexp.MustCompile(`(?is)<style[^>]*>.*?</style>`)
+	stylePattern := rx.Get(`(?is)<style[^>]*>.*?</style>`)
 	html = stylePattern.ReplaceAllString(html, "")
 
 	// Remove comments
-	commentPattern := regexp.MustCompile(`(?is)<!--.*?-->`)
+	commentPattern := rx.Get(`(?is)<!--.*?-->`)
 	html = commentPattern.ReplaceAllString(html, "")
 
 	// Remove noscript tags
-	noscriptPattern := regexp.MustCompile(`(?is)<noscript[^>]*>.*?</noscript>`)
+	noscriptPattern := rx.Get(`(?is)<noscript[^>]*>.*?</noscript>`)
 	html = noscriptPattern.ReplaceAllString(html, "")
 
 	// Remove empty divs and spans
-	emptyDivPattern := regexp.MustCompile(`(?is)<(?:div|span)[^>]*>\s*</(?:div|span)>`)
+	emptyDivPattern := rx.Get(`(?is)<(?:div|span)[^>]*>\s*</(?:div|span)>`)
 	for i := 0; i < 3; i++ { // Multiple passes for nested empty elements
 		html = emptyDivPattern.ReplaceAllString(html, "")
 	}
 
 	// Remove id attributes
-	idPattern := regexp.MustCompile(`\s+id\s*=\s*["'][^"']*["']`)
+	idPattern := rx.Get(`\s+id\s*=\s*["'][^"']*["']`)
 	html = idPattern.ReplaceAllString(html, "")
 
 	return html
@@ -478,22 +479,22 @@ func (c *Converter) cleanHTML(html string) string {
 // stripRemainingTags removes any remaining HTML tags
 func (c *Converter) stripRemainingTags(html string) string {
 	// Remove remaining opening tags with attributes
-	tagPattern := regexp.MustCompile(`<[^>]+>`)
+	tagPattern := rx.Get(`<[^>]+>`)
 	return tagPattern.ReplaceAllString(html, "")
 }
 
 // normalizeWhitespace cleans up excessive whitespace
 func (c *Converter) normalizeWhitespace(text string) string {
 	// Replace multiple newlines with double newline
-	multiNewline := regexp.MustCompile(`\n{3,}`)
+	multiNewline := rx.Get(`\n{3,}`)
 	text = multiNewline.ReplaceAllString(text, "\n\n")
 
 	// Remove trailing whitespace from lines
-	trailingWS := regexp.MustCompile(`[ \t]+\n`)
+	trailingWS := rx.Get(`[ \t]+\n`)
 	text = trailingWS.ReplaceAllString(text, "\n")
 
 	// Remove leading whitespace from lines (but preserve indentation for lists)
-	leadingWS := regexp.MustCompile(`\n[ \t]+([^-*\d])`)
+	leadingWS := rx.Get(`\n[ \t]+([^-*\d])`)
 	text = leadingWS.ReplaceAllString(text, "\n$1")
 
 	return text
@@ -501,7 +502,7 @@ func (c *Converter) normalizeWhitespace(text string) string {
 
 // convertList converts HTML list items to Markdown unordered list
 func convertList(listHTML string) string {
-	liPattern := regexp.MustCompile(`(?is)<li[^>]*>([^<]+)</li>`)
+	liPattern := rx.Get(`(?is)<li[^>]*>([^<]+)</li>`)
 	matches := liPattern.FindAllStringSubmatch(listHTML, -1)
 
 	var result []string
@@ -522,7 +523,7 @@ func convertList(listHTML string) string {
 
 // convertOrderedList converts HTML list items to Markdown ordered list
 func convertOrderedList(listHTML string) string {
-	liPattern := regexp.MustCompile(`(?is)<li[^>]*>([^<]+)</li>`)
+	liPattern := rx.Get(`(?is)<li[^>]*>([^<]+)</li>`)
 	matches := liPattern.FindAllStringSubmatch(listHTML, -1)
 
 	var result []string

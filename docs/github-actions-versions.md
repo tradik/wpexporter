@@ -39,7 +39,7 @@ the comment claimed.
 
 | Tool | Version | Where |
 |------|---------|-------|
-| Go | 1.26.6 | `go-version:` in every job, and `go 1.26.6` in `go.mod` |
+| Go | 1.27.0 | `go-version:` in every job, and `go 1.27.0` in `go.mod` |
 | gosec | v2.28.0 | `tool` directive in `tools/go.mod`, every transitive version fixed by `tools/go.sum` |
 | golangci-lint | latest | `version: latest` in the lint job |
 

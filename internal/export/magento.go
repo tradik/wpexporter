@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/rx"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
@@ -610,7 +610,7 @@ func (m *MagentoExporter) generateSKU(slug string, id int) string {
 
 	// Sanitize SKU: uppercase, alphanumeric and hyphens/underscores only
 	sku := strings.ToUpper(slug)
-	reg := regexp.MustCompile(`[^A-Z0-9_-]`)
+	reg := rx.Get(`[^A-Z0-9_-]`)
 	sku = reg.ReplaceAllString(sku, "-")
 
 	// Remove consecutive hyphens
@@ -636,7 +636,7 @@ func (m *MagentoExporter) generateURLKey(slug string, id int) string {
 
 	// Sanitize URL key: lowercase, alphanumeric and hyphens only
 	urlKey := strings.ToLower(slug)
-	reg := regexp.MustCompile(`[^a-z0-9-]`)
+	reg := rx.Get(`[^a-z0-9-]`)
 	urlKey = reg.ReplaceAllString(urlKey, "-")
 
 	// Remove consecutive hyphens
@@ -721,7 +721,7 @@ func (m *MagentoExporter) getAdditionalImages(html, excludeImage string) string 
 	}
 
 	// Find all image sources in the content
-	imgPattern := regexp.MustCompile(`<img[^>]+src\s*=\s*["']([^"']+)["']`)
+	imgPattern := rx.Get(`<img[^>]+src\s*=\s*["']([^"']+)["']`)
 	matches := imgPattern.FindAllStringSubmatch(html, -1)
 
 	var images []string
@@ -767,19 +767,19 @@ func (m *MagentoExporter) cleanHTMLForMagento(html string) string {
 	}
 
 	// Remove WordPress-specific shortcodes
-	shortcodePattern := regexp.MustCompile(`\[/?[^\]]+\]`)
+	shortcodePattern := rx.Get(`\[/?[^\]]+\]`)
 	cleaned := shortcodePattern.ReplaceAllString(html, "")
 
 	// Remove WordPress block comments
-	blockCommentPattern := regexp.MustCompile(`<!--\s*/?wp:[^>]+-->`)
+	blockCommentPattern := rx.Get(`<!--\s*/?wp:[^>]+-->`)
 	cleaned = blockCommentPattern.ReplaceAllString(cleaned, "")
 
 	// Remove empty paragraphs
-	emptyParagraphPattern := regexp.MustCompile(`<p>\s*</p>`)
+	emptyParagraphPattern := rx.Get(`<p>\s*</p>`)
 	cleaned = emptyParagraphPattern.ReplaceAllString(cleaned, "")
 
 	// Remove multiple newlines
-	multipleNewlinePattern := regexp.MustCompile(`\n{3,}`)
+	multipleNewlinePattern := rx.Get(`\n{3,}`)
 	cleaned = multipleNewlinePattern.ReplaceAllString(cleaned, "\n\n")
 
 	// Trim whitespace
@@ -794,7 +794,7 @@ func (m *MagentoExporter) stripHTML(html string) string {
 		return ""
 	}
 
-	tagPattern := regexp.MustCompile(`<[^>]+>`)
+	tagPattern := rx.Get(`<[^>]+>`)
 	text := tagPattern.ReplaceAllString(html, "")
 
 	// Decode common HTML entities

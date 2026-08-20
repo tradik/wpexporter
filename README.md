@@ -1,6 +1,6 @@
 # WordPress Export JSON
 
-[![Go Version](https://img.shields.io/badge/Go-1.26.6+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![Go Version](https://img.shields.io/badge/Go-1.27.0+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT%20%2F%20BSD--3--Clause-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat&logo=docker)](https://github.com/tradik/wpexporter/pkgs/container/wpexporter)
 [![Documentation](https://img.shields.io/badge/docs-wpexporter.tradik.com-0050A6?style=flat&logo=readthedocs&logoColor=white)](https://wpexporter.tradik.com/)
@@ -60,6 +60,7 @@ The three tools are also installed as standalone binaries, which behave identica
 - 🛠️ **Configurable**: Flexible configuration options via CLI or config file
 - 🔀 **Both REST API Spellings**: Reads a site that serves only `/?rest_route=` — plain permalinks, or a plugin hiding `/wp-json/` — and says so in the report; a site answering normally spends no extra request on the question
 - 🕰️ **Pre-4.7 WordPress**: An install older than the content API is named as such and read from its sitemap — each address fetched and written as a page — instead of exporting as an empty site
+- ⚡ **Built with Go 1.27**: `encoding/json` v2 roughly halves decoding time — the largest single cost in an export — and the conversion passes compile their patterns once instead of once per document
 - 🔓 **Shop Without Keys**: Products come from WooCommerce's public storefront API — prices, images, categories and stock — so a migration does not stop while somebody hunts for consumer keys
 - 🏠 **Front Page and Blog Identified**: `show_on_front`, `front_page` and `posts_page` are recorded in `metadata.json`, read from the site's settings or from its own rendered markup — never guessed from a slug
 - 🛒 **The Catalog on Disk**: `markdown` and `ssg` write every product, with price, SKU, stock and images in front matter, at the address the shop's own navigation links to

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/rx"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
@@ -329,7 +329,7 @@ func generateGhostUUID(id int) string {
 
 // stripHTMLTags removes HTML tags from a string
 func stripHTMLTags(html string) string {
-	re := regexp.MustCompile(`<[^>]*>`)
+	re := rx.Get(`<[^>]*>`)
 	text := re.ReplaceAllString(html, "")
 	text = strings.TrimSpace(text)
 	return text

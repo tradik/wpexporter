@@ -26,6 +26,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   #65's rule applied once more: a report may state what happened, never what it
   concluded.
 
+### Changed
+- **Built with Go 1.27, which roughly halves the time this program spends
+  decoding.** Go 1.27 rebuilt `encoding/json` on the v2 implementation, and
+  turning REST API pages into records is this program's single largest cost. One
+  page of a hundred posts, measured on the same machine and the same code:
+
+      Go 1.26.6   637 µs/op   198 KB   1816 allocs
+      Go 1.27.0   322 µs/op   161 KB   1135 allocs
+
+  A control run with `GOEXPERIMENT=nojsonv2` came back at 610 µs, which is what
+  makes it json v2 rather than anything else in the release. Also free with the
+  toolchain: size-specialized allocation for objects under 80 bytes, and faster
+  `compress/flate`, which `--zip` uses.
+
+  **`go.mod` still declares 1.26.6, on purpose.** The speedup follows the
+  toolchain rather than the language version — measured, not assumed — and
+  raising the `go` line would buy nothing while stopping `golangci-lint`
+  working, since staticcheck cannot yet analyse a module targeting 1.27 and
+  panics part-way through. CI, Docker and the snap build with 1.27; a laptop
+  with 1.26 still builds the same source.
+
+- **Regular expressions are compiled once instead of once per document.** A
+  dozen passes built their pattern from something known only at run time — an
+  element's tag name, a class prefix, a meta tag's name — and called
+  `regexp.MustCompile` with it, which is the expensive half of a regular
+  expression. Those call sites are the hot ones: once per element of every
+  document, once per meta tag of every crawled page. Measured on the same
+  toolchain, before and after:
+
+      SEO extraction, per page          108 µs → 78 µs    (−27%), allocations −78%
+      Content extraction, per page      295 µs → 252 µs   (−14%), allocations −90%
+      Element preservation, per page    355 µs → 233 µs   (−34%), allocations −86%
+      --flat-html conversion            11.8 ms → 10.9 ms  (−8%), allocations −67%
+
+  The patterns themselves are unchanged, so nothing about the output moves.
+
 ### Added
 - **Products come from WooCommerce's public storefront API before anyone is
   asked for keys (#74).** `/wc/v3/products` is the *admin* API and answers 401

@@ -1,13 +1,23 @@
 # Development
 
-Building, testing and finding your way around the source tree. The toolchain is Go 1.26.6 and GNU Make; every task below has a Make target so CI and a laptop run the same command.
+Building, testing and finding your way around the source tree. Builds use the Go 1.27.0 toolchain against a go.mod that declares 1.26.6, and GNU Make; every task below has a Make target so CI and a laptop run the same command.
 
 ## Setup and build
 
 ### Prerequisites
 
-- Go 1.26.6 or later (the version `go.mod` declares; earlier 1.26 patches carry
-  the standard-library advisories this tool is exposed to)
+- **Go 1.26.6 or later** to build at all: that is the language version `go.mod`
+  declares, and earlier patches carry standard-library advisories this tool is
+  exposed to.
+- **Go 1.27.0 to build it as CI, Docker and the snap do.** The two are not the
+  same number on purpose. Go 1.27 rebuilt `encoding/json` on the v2
+  implementation, which roughly halves the time this program spends decoding the
+  REST API — its single largest cost — and that win follows the *toolchain*,
+  not the `go` line in `go.mod` (measured: 637 µs → 322 µs for one page of a
+  hundred posts). Raising the `go` line as well would buy nothing and would stop
+  `golangci-lint` working: staticcheck cannot yet analyse a module that targets
+  1.27, and panics part-way through. So the language version stays where the
+  linter can follow it, and the toolchain moves ahead where the speed is.
 - Make
 
 ### Setup

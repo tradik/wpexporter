@@ -41,6 +41,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/tradik/wpexporter/internal/rx"
 )
 
 // preservedMarker stands in for an element kept as HTML while the rest of the
@@ -226,7 +228,10 @@ func elementEnd(html, name string, start, afterOpen int) int {
 		return afterOpen
 	}
 
-	pattern := regexp.MustCompile(`(?is)<(/?)` + regexp.QuoteMeta(name) + `\b[^>]*>`)
+	// Compiled once per tag name rather than once per element: this runs for
+	// every kept element of every document, and HTML has a small closed set of
+	// names to build it from.
+	pattern := rx.Get(`(?is)<(/?)` + regexp.QuoteMeta(name) + `\b[^>]*>`)
 
 	depth := 1
 	for offset := afterOpen; offset < len(html); {
@@ -279,7 +284,7 @@ func attributeMatcher(attribute, value string) *regexp.Regexp {
 		return nil
 	}
 
-	return regexp.MustCompile(`(?is)\b` + attribute + `\s*=\s*["'][^"']*\b` +
+	return rx.Get(`(?is)\b` + attribute + `\s*=\s*["'][^"']*\b` +
 		wildcardPattern(value) + `\b[^"']*["']`)
 }
 
@@ -317,7 +322,7 @@ func compileClassPatterns(names []string) []*regexp.Regexp {
 			continue
 		}
 
-		patterns = append(patterns, regexp.MustCompile(`^`+wildcardPattern(name)+`$`))
+		patterns = append(patterns, rx.Get(`^`+wildcardPattern(name)+`$`))
 	}
 
 	return patterns
