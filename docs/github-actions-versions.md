@@ -33,7 +33,7 @@ the comment claimed.
 | Action | Version | Node.js | Notes |
 |--------|---------|---------|-------|
 | `actions/checkout` | v7.0.1 | 24 | |
-| `spagu/ssg` | v1.8.32 | Docker | the site generator, pinned to its newest release |
+| `spagu/ssg` | v1.8.44 | Docker | the site generator. Both the action **and** the `version:` input it downloads are pinned: left unset it resolves `latest` through an unauthenticated `api.github.com` call, and a throttled one fails the docs build with no message (#77) |
 
 ### Toolchain pinned in the workflow
 
