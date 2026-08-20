@@ -103,7 +103,10 @@ jobs:
           # 60 requests an hour across shared runner addresses: when it is
           # throttled the step dies in 86ms with no message at all, and a
           # pull request with nothing wrong with it goes red (#77).
-          version: "1.8.44"
+          #
+          # The "v" is not decoration: the value goes straight into the release
+          # download URL, and the tags are v-prefixed. Without it the URL 404s.
+          version: "v1.8.44"
           # The action forwards its own directory defaults, so the config's
           # output_dir would otherwise be overridden with ./output.
           output-dir: .site
@@ -140,7 +143,7 @@ jobs:
         uses: spagu/ssg@c9e51ddb54e7526c7bf34a755e47bee37ba75e5b # v1.8.44
         with:
           config: docs-site.yaml
-          version: "1.8.44"
+          version: "v1.8.44"
           output-dir: .site
           clean: "true"
           deploy: cloudflare
