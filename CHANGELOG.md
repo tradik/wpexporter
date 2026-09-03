@@ -42,6 +42,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   diagnostic its user will see.
 
 ### Fixed
+- **`get_site_info` answered an all-empty record for a site that never
+  responded (#79).** A WordPress whose `/wp-json` root is locked down — or a
+  host answering `500` to everything — produced `{"name": "", "description": "",
+  …}` with no error and no warning. That record is indistinguishable from a real
+  one: an assistant reads the empty name as *"this site has no title"*, not as
+  *"this site did not answer"*, and says so to a user who has no console to
+  check against. Then `list_posts` fails against the same host, and step one
+  having "succeeded" is the confusing part.
+
+  The tolerance itself was right — a sparse root does not make a site
+  unexportable — but it erased the difference between *answered sparsely* and
+  *never answered*. A root that could not be read is now a **gap**, the same
+  kind the collections already report: the record still comes back, and
+  `incomplete` names what happened beside it. `get_site_info`, `export_site` and
+  the CLI all draw that line in one place, through `api.Gap`.
+
+  The gap is reported only when **nothing** described the site. A root that
+  404s while `/wp/v2/settings` answers is not a hole — the site was described,
+  just not by the endpoint asked first. An unread record is also never cached,
+  since the next run would otherwise read the empty one back with no gap
+  attached.
+
+  This is #65 and #73's rule reaching the tool results: *a report may state what
+  happened, never what it concluded.* An empty record returned as though it had
+  been read is a conclusion.
+
 - **A custom post type without a pretty permalink was exported with an address
   that pointed at the site root (#78).** WordPress publishes an entry of a type
   registered without a rewrite rule at `/?modula-gallery=1289`: the path is `/`

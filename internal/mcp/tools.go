@@ -396,14 +396,44 @@ func handleGetSiteInfo(args map[string]interface{}) (*CallToolResult, error) {
 	}
 
 	siteInfo, err := client.GetSiteInfo()
-	if err != nil {
+	description, unread := api.Gap(err)
+	if err != nil && !unread {
 		return nil, fmt.Errorf("failed to get site info: %w", err)
 	}
 
-	data, _ := json.MarshalIndent(siteInfo, "", "  ")
+	// A site whose /wp-json root is closed hands back a record with every field
+	// empty. Returned as it is, an assistant reads that as "this site has no
+	// name" rather than "this site did not answer", and says so to a user with
+	// no console to check (#79). The record still travels — a sparse root is
+	// not a dead site — with what happened named beside it, under the same key
+	// export_site already uses for a hole.
+	answer := siteInfoFields(siteInfo)
+	if unread {
+		answer["incomplete"] = []string{description}
+	}
+
+	data, _ := json.MarshalIndent(answer, "", "  ")
+
 	return &CallToolResult{
 		Content: []Content{TextContent(string(data))},
 	}, nil
+}
+
+// siteInfoFields reshapes the record as a map so a gap can be named alongside
+// its fields. The fields keep the names and the top-level position they have
+// always had: a caller reading `name` still finds it where it was.
+func siteInfoFields(siteInfo *models.SiteInfo) map[string]interface{} {
+	raw, err := json.Marshal(siteInfo)
+	if err != nil {
+		return map[string]interface{}{}
+	}
+
+	fields := map[string]interface{}{}
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return map[string]interface{}{}
+	}
+
+	return fields
 }
 
 // handleListPosts returns posts from the site
@@ -534,16 +564,17 @@ func noteGap(gaps []string, collection string, err error) ([]string, error) {
 // MCP client has no console to read a warning from; an empty collection and a
 // zero count are the report.
 func collectExportData(client *api.Client, cfg *config.Config) (*models.ExportData, error) {
-	siteInfo, err := client.GetSiteInfo()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get site info: %w", err)
-	}
-
 	// A page of results that will not come after the retries is a gap, not the
 	// end of the export (#37). It is named in the result the caller reads and
 	// in metadata.json, because an assistant that receives a complete-looking
-	// export has no way to know a hundred posts are missing.
+	// export has no way to know a hundred posts are missing. A site whose root
+	// document never answered is the same kind of gap (#79).
 	var incomplete []string
+
+	siteInfo, err := client.GetSiteInfo()
+	if incomplete, err = noteGap(incomplete, "site info", err); err != nil {
+		return nil, err
+	}
 
 	var posts []models.WordPressPost
 	if !cfg.NoPosts {

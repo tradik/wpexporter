@@ -37,9 +37,9 @@ func brokenSite(t *testing.T) string {
 // collection into an error rather than an empty answer, which an assistant
 // would otherwise report to a user as "this site has none".
 //
-// get_site_info is deliberately absent: it still answers an all-empty record
-// for a site that never responded. That is tradik/wpexporter#79, not a rule
-// this test is asserting.
+// get_site_info is not in this table because it answers differently: an
+// unreadable root is a gap it carries, not an error — see
+// TestGetSiteInfoSaysTheSiteDidNotAnswer.
 func TestToolsReportAFailedCollection(t *testing.T) {
 	site := brokenSite(t)
 
@@ -76,6 +76,39 @@ func TestToolsReportAFailedCollection(t *testing.T) {
 	}
 }
 
+// TestGetSiteInfoSaysTheSiteDidNotAnswer: the record for a site whose root
+// never answered is every field empty, and indistinguishable from a site that
+// genuinely has no name. An assistant has no console to check against, so the
+// answer has to say which of the two it is (#79).
+func TestGetSiteInfoSaysTheSiteDidNotAnswer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "gone", http.StatusInternalServerError)
+	}))
+	t.Cleanup(server.Close)
+
+	result, err := handleGetSiteInfo(map[string]interface{}{"url": server.URL})
+	require.NoError(t, err, "an unreadable root is a gap, not a failure")
+
+	answer := text(t, result)
+	assert.Contains(t, answer, "incomplete")
+	assert.Contains(t, answer, "site info")
+	assert.Contains(t, answer, "500")
+	// The fields keep the names and the place a caller already reads them from.
+	assert.Contains(t, answer, `"name"`)
+	assert.Contains(t, answer, server.URL)
+}
+
+// TestGetSiteInfoIsSilentWhenTheSiteAnswered: a site that described itself gets
+// no gap key at all, so "incomplete" means something when it does appear.
+func TestGetSiteInfoIsSilentWhenTheSiteAnswered(t *testing.T) {
+	result, err := handleGetSiteInfo(map[string]interface{}{"url": stubSite(t)})
+	require.NoError(t, err)
+
+	answer := text(t, result)
+	assert.Contains(t, answer, "Test site")
+	assert.NotContains(t, answer, "incomplete")
+}
+
 // TestExportSiteRecordsAFailedCollectionAsAGap: a collection the API refuses
 // is a hole in the export, not the end of the run (#37, #57). The export
 // completes and names the hole, because an agent has no console to read a
@@ -91,6 +124,9 @@ func TestExportSiteRecordsAFailedCollectionAsAGap(t *testing.T) {
 	answer := text(t, result)
 	assert.Contains(t, answer, "incomplete")
 	assert.Contains(t, answer, "posts: stopped at page 1")
+	// brokenSite serves its root, so the site itself was read: only the
+	// collections are holes.
+	assert.NotContains(t, answer, "site info:")
 	assert.Contains(t, strings.ToLower(answer), "status 500")
 }
 

@@ -849,8 +849,16 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// Get site information
 	logln("\nFetching site information...")
 	siteInfo, err := apiClient.GetSiteInfo()
-	if err != nil {
+	siteInfoGap, rootUnread := api.Gap(err)
+	if err != nil && !rootUnread {
 		return fmt.Errorf("failed to get site info: %w", err)
+	}
+	if rootUnread {
+		// A closed /wp-json root leaves the identity fields empty. The export
+		// goes on — the collections are read separately — but the run says the
+		// site was never described rather than presenting the blanks as the
+		// site's own answer (#79).
+		logln("Warning: " + siteInfoGap)
 	}
 
 	// A limited export downloads the media its documents reference, not the
@@ -864,8 +872,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 
 	// Collections the site would not read to the end. They are reported here,
 	// again in the summary and in metadata.json, and never silently dropped —
-	// but they do not end the export (#37).
+	// but they do not end the export (#37). A root document that never answered
+	// is the same kind of hole, so it is carried in the same list (#79).
 	var gaps []string
+	if rootUnread {
+		gaps = append(gaps, siteInfoGap)
+	}
 
 	// Facts about the site itself rather than about any one collection: an API
 	// answering only at ?rest_route=, or a WordPress with no content API at all

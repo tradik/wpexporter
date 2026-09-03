@@ -30,10 +30,12 @@ func TestGetSiteInfoFallbackOnError(t *testing.T) {
 	}
 
 	result, err := client.GetSiteInfo()
-	if err != nil {
-		t.Errorf("GetSiteInfo() should not return error, got %v", err)
+	// A site that answered nothing a reader could use is a gap, not a failure:
+	// the fallback record still comes back, with what happened named beside it
+	// rather than left for the caller to mistake for the site's own answer.
+	if _, unread := Gap(err); !unread {
+		t.Errorf("GetSiteInfo() should report an unread root as a gap, got %v", err)
 	}
-	// Should return fallback site info
 	if result == nil {
 		t.Error("GetSiteInfo() should return fallback site info")
 	}

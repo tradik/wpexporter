@@ -162,7 +162,7 @@ func (c *Client) GetSiteInfo() (*models.SiteInfo, error) {
 		return &cachedInfo, nil
 	}
 
-	siteInfo, err := c.fetchAPIRootInfo()
+	siteInfo, gap, err := c.readAPIRootInfo()
 	if err != nil {
 		return nil, err
 	}
@@ -181,10 +181,54 @@ func (c *Client) GetSiteInfo() (*models.SiteInfo, error) {
 		siteInfo.URL = c.config.URL
 	}
 
+	// The root document is one of three places the identity can come from. A
+	// root that did not answer is only a hole when the settings document and
+	// the published markup did not fill it either — otherwise the site was
+	// described, just not by the endpoint that was asked first.
+	if gap != nil && !describesSite(siteInfo) {
+		// Not cached: the next run would read the empty record back with no gap
+		// attached, and the gap is the whole report.
+		return &siteInfo, gap
+	}
+
 	// Cache the result
 	c.saveToCache(cacheKey, &siteInfo)
 
 	return &siteInfo, nil
+}
+
+// siteInfoEndpoint names the document in a gap, as the collections name theirs.
+const siteInfoEndpoint = "site info"
+
+// describesSite reports whether anything was actually learned about the site.
+//
+// URL is excluded deliberately: it is the address the run was pointed at, not
+// something the site said about itself, and a record carrying only that is the
+// all-empty answer #79 is about.
+func describesSite(info models.SiteInfo) bool {
+	return info.Name != "" ||
+		info.Description != "" ||
+		info.HomeURL != "" ||
+		info.AdminEmail != "" ||
+		info.Timezone != "" ||
+		info.DateFormat != "" ||
+		info.TimeFormat != "" ||
+		info.Language != "" ||
+		info.ShowOnFront != "" ||
+		info.FrontPage != nil ||
+		info.PostsPage != nil
+}
+
+// readAPIRootInfo separates a root that could not be reached — which ends the
+// run, since nothing else will be reachable either — from one that answered
+// with something other than a REST document, which is a gap the caller carries.
+func (c *Client) readAPIRootInfo() (info models.SiteInfo, gap, err error) {
+	info, err = c.fetchAPIRootInfo()
+	if _, partial := Gap(err); partial {
+		return info, err, nil
+	}
+
+	return info, nil, err
 }
 
 // apiRootInfo is the unauthenticated /wp-json/ document. Its field names differ
@@ -229,16 +273,28 @@ type siteSettings struct {
 func (c *Client) fetchAPIRootInfo() (models.SiteInfo, error) {
 	resp, err := c.fetchProbing(c.apiRootURL)
 	if err != nil {
-		return models.SiteInfo{}, fmt.Errorf("failed to get site info: %w", err)
+		// Named by the caller, which knows whether it is reporting a CLI step,
+		// an MCP tool result or a gap. Naming it here too made the message read
+		// "failed to get site info: failed to get site info: …".
+		return models.SiteInfo{}, err
 	}
 
+	// A root that did not answer with a REST document leaves every identity
+	// field empty. The empty record is still returned — a locked-down /wp-json
+	// does not make a site unexportable — but it travels with a gap saying so,
+	// or a caller reports "this site has no name" about a site it never read
+	// (#79).
 	if resp.StatusCode() != 200 {
-		return models.SiteInfo{}, nil
+		return models.SiteInfo{}, &UnansweredError{Endpoint: siteInfoEndpoint, Status: resp.StatusCode()}
 	}
 
 	var root apiRootInfo
 	if err := json.Unmarshal(resp.Body(), &root); err != nil {
-		return models.SiteInfo{}, nil
+		return models.SiteInfo{}, &UnansweredError{
+			Endpoint: siteInfoEndpoint,
+			Status:   resp.StatusCode(),
+			Err:      fmt.Errorf("answered with something other than a REST document: %w", err),
+		}
 	}
 
 	timezone := root.TimezoneString

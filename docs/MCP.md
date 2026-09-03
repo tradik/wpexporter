@@ -33,7 +33,7 @@ It answers **both MCP eras**, deciding per request which one it is being address
 | Tool | Description |
 |------|-------------|
 | `list_formats` | List all 14 available export formats |
-| `get_site_info` | Get WordPress site information |
+| `get_site_info` | Get WordPress site information, with `incomplete` when the site never described itself |
 | `list_posts` | List posts with optional path filtering |
 | `list_pages` | List pages from a site |
 | `export_site` | Full site export to any format |
@@ -46,6 +46,44 @@ reports the counts back to the caller — an agent has no console to read warnin
 from, so `stats.comments` is where a site whose comment route is closed shows up
 as a zero. `noPosts`, `noPages`, `noProducts` and `noComments` switch a
 collection off, matching the `--no-…` flags in [the CLI reference](CLI.md).
+
+## Gaps: `incomplete`
+
+An assistant has no console. Anything a human operator would have read as a
+warning has to travel in the result, or it does not exist.
+
+A collection the site would not read to the end, and a document it never served
+at all, are both **gaps**: what was fetched is kept, the run continues, and the
+hole is named under `incomplete`. A key that is absent means there were none.
+
+```json
+{
+  "status": "success",
+  "stats": { "posts": 0, "pages": 0 },
+  "incomplete": [
+    "posts: stopped at page 1 after 0 records: API returned status 500"
+  ]
+}
+```
+
+`get_site_info` carries the same key. A WordPress whose `/wp-json` root is
+locked down answers with every identity field empty, and that record is
+indistinguishable from a site that genuinely has no name — an assistant reads
+it as *"this site has no title"* and tells a user so. It now says which it is:
+
+```json
+{
+  "name": "",
+  "url": "https://example.com",
+  "incomplete": ["site info: site answered 403"]
+}
+```
+
+The record still comes back — a sparse root does not make a site unexportable —
+and the site's own fields keep the names and the top-level position they have
+always had. The gap is only reported when **nothing** described the site: a root
+that 404s while `/wp/v2/settings` answers is not a hole, because the site was
+described, just not by the endpoint asked first.
 
 ## Protocol revisions
 
