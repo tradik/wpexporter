@@ -56,6 +56,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   because a legacy client has no way to ask again and that message is the only
   diagnostic its user will see.
 
+### Changed
+- **Built with Go 1.27.1.** A patch release: `go.mod` and `tools/go.mod` stay at
+  the minor floor `go 1.27.0` on purpose. The `go` directive is a minimum rather
+  than a pin, and pinning an exact patch there is what stopped v1.7.6's snap from
+  ever publishing — the build could not fetch a newer toolchain offline. CI and
+  the snap build with exactly 1.27.1; anything 1.27.x satisfies the module.
+
 ### Fixed
 - **`get_site_info` answered an all-empty record for a site that never
   responded (#79).** A WordPress whose `/wp-json` root is locked down — or a
