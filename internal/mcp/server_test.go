@@ -64,7 +64,9 @@ func TestHandleInitialize(t *testing.T) {
 
 	result, ok := resp.Result.(map[string]interface{})
 	require.True(t, ok)
-	assert.Equal(t, Version, result["protocolVersion"])
+	// The handshake answers with the revision the client asked for, not with
+	// whichever one this build prefers.
+	assert.Equal(t, Version20241105, result["protocolVersion"])
 }
 
 func TestHandlePing(t *testing.T) {
@@ -277,6 +279,9 @@ func TestEmptyLines(t *testing.T) {
 	assert.Len(t, lines, 1)
 }
 
+// TestVersion: the preferred revision is the newest one implemented, and the
+// oldest is still spelled out so a client pinned to it keeps working.
 func TestVersion(t *testing.T) {
-	assert.Equal(t, "2024-11-05", Version)
+	assert.Equal(t, "2026-07-28", Version)
+	assert.Equal(t, "2024-11-05", Version20241105)
 }

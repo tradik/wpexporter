@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.8.18] - 2026-09-03
 
+### Added
+- **The MCP server speaks the current protocol, and still speaks the old one.**
+  `wpmcp` announced `2024-11-05` — the first MCP revision ever published — and
+  never read the version the client asked for. It did not negotiate; it
+  declared. Meanwhile MCP moved to `2026-07-28`, which is not a newer number but
+  a different **era**: no handshake at all, every request carrying its own
+  protocol version and capabilities in `_meta`, and a mandatory `server/discover`
+  that returns versions, capabilities and identity in one call. By the spec's own
+  compatibility matrix, a modern client talking to a legacy-only server **fails
+  outright** — so a current client could not use this server at all.
+
+  `wpmcp` is now **dual-era**. It reads which era each request was written in and
+  answers under those rules:
+
+  | Revision | Era |
+  |---|---|
+  | `2026-07-28` | modern — per-request `_meta`, `server/discover`, `resultType` |
+  | `2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05` | legacy — `initialize` handshake |
+
+  The four legacy revisions are answered as themselves rather than collapsed into
+  the oldest: this server exposes tools and `ping` only, and their wire contract
+  is identical across all four, so a client asking for `2025-06-18` now gets
+  `2025-06-18` back instead of being dragged two years backwards.
+
+- **`wpmcp serve --protocol` pins the era when one has to be pinned** —
+  `modern`, `legacy`, or a single revision such as `2024-11-05`. Pinning changes
+  what a client that opens in the *other* era is told, and both directions
+  matter: `--protocol legacy` makes the server look legacy, answering
+  `server/discover` with an ordinary `-32601` so a dual-era client falls back
+  instead of negotiating a version it will never get; `--protocol modern`
+  answers `initialize` with an error **naming the revisions it does speak**,
+  because a legacy client has no way to ask again and that message is the only
+  diagnostic its user will see.
+
 ### Fixed
 - **A custom post type without a pretty permalink was exported with an address
   that pointed at the site root (#78).** WordPress publishes an entry of a type
