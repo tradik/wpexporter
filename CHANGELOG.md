@@ -5,7 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.8.18] - 2026-09-03
+
+### Fixed
+- **A custom post type without a pretty permalink was exported with an address
+  that pointed at the site root (#78).** WordPress publishes an entry of a type
+  registered without a rewrite rule at `/?modula-gallery=1289`: the path is `/`
+  and the whole meaning is in the query. That string was carried into front
+  matter verbatim as `link:`, so every consumer that routes on paths read the
+  document as the **front page** — on one migration two gallery entries
+  overwrote the exported home page and the site led with a gallery.
+
+  The export already disagreed with itself here: it filed the document at
+  `pages/modula-gallery/1289.md`, a perfectly good address, while the front
+  matter it wrote into that file still claimed `/`. A type with no rewrite rule
+  has no SEO-visible address to preserve, so the export now **gives it the one
+  it files it at** — `/modula-gallery/1289/` for a custom post type, `/about/`
+  for a page or post on a WordPress left on plain permalinks. Placement and
+  front matter finally say the same thing.
+
+  Three addresses are deliberately left alone: the front page's own `/`, which
+  is a real address rather than a missing one; a permalink that already carries
+  a path; and `canonical`/`hreflang`, which name a document **on the source
+  site**, where the query genuinely is the address.
+
+## [1.8.17] - 2026-08-20
 
 ### Fixed
 - **A route that answered was reported as having published nothing (#73).** On a

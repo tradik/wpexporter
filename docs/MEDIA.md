@@ -127,6 +127,27 @@ Only **same-host** addresses are converted. An hreflang alternate or canonical p
 different host keeps pointing where it points. Query strings and fragments are preserved
 (`/a/?page=2#top`).
 
+### A permalink with no path
+
+One address cannot survive that rule. A post type registered without a rewrite rule is
+published by WordPress at `/?modula-gallery=1289` — the path is `/` and the whole meaning is in
+the query — and so is every document on a site left on **plain permalinks** (`/?p=123`,
+`/?page_id=45`). Kept verbatim, `link` resolves to the **site root**, and two such documents
+overwrite the exported front page.
+
+Under `--link-style root`, `link` is the document's address on the **new** site, so an address
+that has none is replaced by the one the export files the document at:
+
+| Permalink | `link` becomes |
+|-----------|----------------|
+| `/?modula-gallery=1289` (custom post type `modula-gallery`, slug `1289`) | `/modula-gallery/1289/` |
+| `/?page_id=45` (page, slug `about`) | `/about/` |
+| `/` (the front page) | `/` — a real address, left alone |
+| `/services/wms/` | `/services/wms/` — already has a path |
+
+`canonical_url` and `hreflangs[].href` keep their query in every case: they name a document on
+the **source** site, where the query genuinely is the address.
+
 ## 📷 Size Variants
 
 WordPress generates multiple image sizes (thumbnail, medium, large, full). The exporter:

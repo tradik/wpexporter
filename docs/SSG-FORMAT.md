@@ -41,7 +41,7 @@ Single-spelled — a generator reads one name per concept, not three:
 | `title` | `seo_title` if the site rendered one, else the post title |
 | `slug`, `status`, `type` | as reported by WordPress |
 | `date`, `modified` | RFC 3339 |
-| `link` | **root-relative** by default (`--link-style absolute` to change) |
+| `link` | **root-relative** by default (`--link-style absolute` to change). A permalink that carries no path — `/?modula-gallery=1289` from a type with no rewrite rule — is [replaced by the address the document is filed at](MEDIA.md#a-permalink-with-no-path), because `/` is the front page |
 | `author` | resolved to a name via `metadata.json` `users[]` |
 | `category` | the post's first named category |
 | `description` | `meta_description`, else `og_description`, else the excerpt |

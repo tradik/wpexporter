@@ -924,18 +924,20 @@ func (e *Exporter) updateLinkPaths(data *models.ExportData) {
 	}
 
 	for i := range data.Posts {
-		e.rootRelativizeAddresses(&data.Posts[i])
+		e.rootRelativizeAddresses(&data.Posts[i], "")
 	}
 
 	for i := range data.Pages {
-		e.rootRelativizeAddresses(&data.Pages[i])
+		e.rootRelativizeAddresses(&data.Pages[i], "")
 	}
 
 	// A custom type's entries are addressed like pages, and their SEO-visible
-	// URLs are exactly what the migration has to preserve (#28).
+	// URLs are exactly what the migration has to preserve (#28). The type slug
+	// is carried in so an entry WordPress never gave a pretty permalink can be
+	// given one (#78).
 	for t := range data.CustomTypes {
 		for i := range data.CustomTypes[t].Posts {
-			e.rootRelativizeAddresses(&data.CustomTypes[t].Posts[i])
+			e.rootRelativizeAddresses(&data.CustomTypes[t].Posts[i], data.CustomTypes[t].Slug)
 		}
 	}
 
@@ -949,13 +951,53 @@ func (e *Exporter) updateLinkPaths(data *models.ExportData) {
 }
 
 // rootRelativizeAddresses converts every address field a post carries.
-func (e *Exporter) rootRelativizeAddresses(post *models.WordPressPost) {
+//
+// link is the document's own published address, so a permalink that carries no
+// path is replaced by the one the export files the document at (#78). Canonical
+// and hreflang keep their query: those name a document on the source site,
+// where the query is genuinely the address.
+func (e *Exporter) rootRelativizeAddresses(post *models.WordPressPost, typeSlug string) {
 	post.Link = e.rootRelativeURL(post.Link)
+	if synthesized, ok := synthesizePath(post.Link, post.Slug, typeSlug); ok {
+		post.Link = synthesized
+	}
+
 	post.SEO.CanonicalURL = e.rootRelativeURL(post.SEO.CanonicalURL)
 
 	for i := range post.SEO.Hreflangs {
 		post.SEO.Hreflangs[i].Href = e.rootRelativeURL(post.SEO.Hreflangs[i].Href)
 	}
+}
+
+// synthesizePath builds the address of a document whose permalink carries none.
+//
+// A post type registered without a rewrite rule keeps WordPress's query-string
+// form, /?modula-gallery=1289, whose path is "/" and whose whole meaning is in
+// the query. Every consumer that routes on paths reads such a document as the
+// site root, so two of them overwrite the exported front page (#78). There is
+// no SEO-visible address to preserve in that case — the export has to give the
+// document one, and it gives it the address it files it at: /<type>/<slug>/ for
+// a custom post type, /<slug>/ for a page or post.
+//
+// It reports false, leaving the caller's address untouched, when the permalink
+// already carries a path, when it addresses a foreign host, when it has no
+// query to have hidden the address in — the front page's own "/" is a real
+// address, not a missing one — or when there is no slug to build from.
+func synthesizePath(link, slug, typeSlug string) (string, bool) {
+	parsed, err := url.Parse(link)
+	if err != nil {
+		return "", false
+	}
+	if parsed.Host != "" || parsed.RawQuery == "" || len(nonEmptySegments(parsed.Path)) > 0 {
+		return "", false
+	}
+
+	segments := append(nonEmptySegments(typeSlug), nonEmptySegments(slug)...)
+	if len(segments) == 0 {
+		return "", false
+	}
+
+	return "/" + strings.Join(segments, "/") + "/", true
 }
 
 // rootRelativeURL strips scheme and host from a same-host address, preserving
