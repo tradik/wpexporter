@@ -77,6 +77,7 @@ wpexportjson export --config config.yaml
 <tr><td><code>--no-products</code></td><td>Skip exporting WooCommerce products</td><td><code>false</code></td></tr>
 <tr><td><code>--no-custom-types</code></td><td>Skip the custom post types a theme or plugin registered</td><td><code>false</code></td></tr>
 <tr><td><code>--custom-types</code></td><td>Export only these custom types (comma-separated slugs, e.g. <code>cpt_services,cpt_portfolio</code>)</td><td>-</td></tr>
+<tr><td><code>--skip-unaddressable-types</code></td><td>Drop custom types whose every entry is published at a query-string address (<code>/?modula-gallery=1289</code>) — a plugin's data store rather than pages. Off by default: a site on plain permalinks publishes everything that way</td><td><code>false</code></td></tr>
 <tr><td><code>--no-users</code></td><td>Skip exporting users</td><td><code>false</code></td></tr>
 <tr><td><code>--no-tags</code></td><td>Skip exporting tags</td><td><code>false</code></td></tr>
 <tr><td><code>--no-menus</code></td><td>Skip exporting navigation menus (they need authentication — see the navigation menus guide)</td><td><code>false</code></td></tr>

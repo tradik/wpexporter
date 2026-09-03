@@ -2,6 +2,8 @@ package models
 
 import (
 	"encoding/json"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -197,6 +199,25 @@ type WordPressPost struct {
 	Tags          []int                  `json:"tags"`
 	Links         Links                  `json:"_links"`
 	SEO           SEOData                `json:"seo,omitempty"`
+}
+
+// QueryOnlyAddress reports whether a permalink's meaning lives entirely in its
+// query string.
+//
+// WordPress publishes an entry of a post type registered without a rewrite rule
+// at /?modula-gallery=1289, and every document on a site left on plain
+// permalinks at /?p=123. The path of such an address is the site root, so every
+// consumer that routes on paths reads the document as the front page (#78).
+//
+// The front page's own "/" is not one of these: it carries no query, and it is
+// a real address rather than a missing one.
+func QueryOnlyAddress(link string) bool {
+	parsed, err := url.Parse(link)
+	if err != nil {
+		return false
+	}
+
+	return parsed.RawQuery != "" && strings.Trim(parsed.Path, "/") == ""
 }
 
 // WordPressMedia represents a WordPress media item

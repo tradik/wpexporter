@@ -63,22 +63,32 @@ type Config struct {
 	// (Services, Portfolio, Team, …). They ship by default: they are content the
 	// site published, and an export without them loses whole sections silently
 	// (#28). CustomTypes narrows the export to the named type slugs.
-	NoCustomTypes    bool     `mapstructure:"no_custom_types" json:"no_custom_types"`
-	CustomTypes      []string `mapstructure:"custom_types" json:"custom_types"`
-	NoUsers          bool     `mapstructure:"no_users" json:"no_users"`
-	PathFilter       string   `mapstructure:"path_filter" json:"path_filter"`
-	AssistedCrawl    bool     `mapstructure:"assisted_crawl" json:"assisted_crawl"`
-	AuthUser         string   `mapstructure:"auth_user" json:"auth_user"`
-	AuthPass         string   `mapstructure:"auth_pass" json:"auth_pass"`
-	AuthToken        string   `mapstructure:"auth_token" json:"auth_token"`
-	RateLimit        int      `mapstructure:"rate_limit" json:"rate_limit"`                 // Milliseconds delay between API requests
-	Resume           bool     `mapstructure:"resume" json:"resume"`                         // Resume from checkpoint if available
-	CrawlContent     bool     `mapstructure:"crawl_content" json:"crawl_content"`           // Crawl empty content pages
-	SkipEmptyContent bool     `mapstructure:"skip_empty_content" json:"skip_empty_content"` // Skip posts/pages with empty content
-	FlatHTML         bool     `mapstructure:"flat_html" json:"flat_html"`                   // Convert HTML to Markdown
-	BasicHTML        bool     `mapstructure:"basic_html" json:"basic_html"`                 // Clean HTML to basic elements
-	SSGSections      bool     `mapstructure:"ssg_sections" json:"ssg_sections"`             // markdown: emit ## Excerpt/## Content sections
-	KeepOriginalURLs bool     `mapstructure:"keep_original_urls" json:"keep_original_urls"` // Don't convert media URLs to local paths
+	NoCustomTypes bool     `mapstructure:"no_custom_types" json:"no_custom_types"`
+	CustomTypes   []string `mapstructure:"custom_types" json:"custom_types"`
+	// SkipUnaddressableTypes drops a custom post type whose every entry is
+	// published at a query-string address — /?modula-gallery=1289, from a type
+	// registered without a rewrite rule. Such entries are a plugin's data store
+	// rather than pages a visitor reaches, and they arrive in the export as
+	// URL-addressable documents with addresses the export had to invent (#78).
+	//
+	// Off by default, and deliberately: a WordPress left on plain permalinks
+	// publishes EVERY type that way, and there the flag would drop the site's
+	// real content. It is the operator's call, not a rule.
+	SkipUnaddressableTypes bool   `mapstructure:"skip_unaddressable_types" json:"skip_unaddressable_types"`
+	NoUsers                bool   `mapstructure:"no_users" json:"no_users"`
+	PathFilter             string `mapstructure:"path_filter" json:"path_filter"`
+	AssistedCrawl          bool   `mapstructure:"assisted_crawl" json:"assisted_crawl"`
+	AuthUser               string `mapstructure:"auth_user" json:"auth_user"`
+	AuthPass               string `mapstructure:"auth_pass" json:"auth_pass"`
+	AuthToken              string `mapstructure:"auth_token" json:"auth_token"`
+	RateLimit              int    `mapstructure:"rate_limit" json:"rate_limit"`                 // Milliseconds delay between API requests
+	Resume                 bool   `mapstructure:"resume" json:"resume"`                         // Resume from checkpoint if available
+	CrawlContent           bool   `mapstructure:"crawl_content" json:"crawl_content"`           // Crawl empty content pages
+	SkipEmptyContent       bool   `mapstructure:"skip_empty_content" json:"skip_empty_content"` // Skip posts/pages with empty content
+	FlatHTML               bool   `mapstructure:"flat_html" json:"flat_html"`                   // Convert HTML to Markdown
+	BasicHTML              bool   `mapstructure:"basic_html" json:"basic_html"`                 // Clean HTML to basic elements
+	SSGSections            bool   `mapstructure:"ssg_sections" json:"ssg_sections"`             // markdown: emit ## Excerpt/## Content sections
+	KeepOriginalURLs       bool   `mapstructure:"keep_original_urls" json:"keep_original_urls"` // Don't convert media URLs to local paths
 	// MediaPathStyle selects the form of rewritten media paths in exported content:
 	// "root" (/media/...) resolves from any URL depth, "relative" (media/...) only at the site root.
 	MediaPathStyle string `mapstructure:"media_path_style" json:"media_path_style"`
@@ -206,28 +216,30 @@ func DefaultConfig() *Config {
 		NoPages:           false,
 		NoProducts:        false,
 		NoCustomTypes:     false, // a theme's own content types ship by default (#28)
-		NoUsers:           false,
-		PathFilter:        "",
-		AssistedCrawl:     false,
-		RateLimit:         0,        // No rate limiting by default
-		Resume:            false,    // Don't resume by default
-		CrawlContent:      false,    // Don't crawl empty content by default
-		SkipEmptyContent:  false,    // Don't skip empty content by default
-		FlatHTML:          false,    // Don't flatten HTML by default
-		NoTags:            false,    // Don't skip tags by default
-		NoMenus:           false,    // Try to export menus by default (needs auth; degrades with a warning)
-		NoComments:        false,    // Reader comments are content — they ship by default (#35)
-		NoInventoryCheck:  false,    // The site's own inventory is one or two requests, and worth them (#40)
-		FromSitemap:       false,    // Recovery is asked for, never assumed: REST is the better source (#40)
-		Cache:             false,    // Caching disabled by default
-		CacheTTL:          "24h",    // 24 hour cache TTL by default
-		CacheDir:          "",       // Will default to ~/.wpexporter/cache
-		CacheClear:        false,    // Don't clear cache by default
-		MediaPathStyle:    "root",   // Root-relative media paths resolve from any URL depth
-		LinkStyle:         "",       // Empty = per-format default (see EffectiveLinkStyle)
-		FrontmatterStyle:  "nested", // YAML structure, which is what a generator reading files wants (#49)
-		ReportA11y:        false,    // Don't write an accessibility report by default
-		ExtractMeta:       "all",    // Keep every meta tag: plugins put real data in unexpected ones
+		// Off by default: dropping content is the operator's call (#78).
+		SkipUnaddressableTypes: false,
+		NoUsers:                false,
+		PathFilter:             "",
+		AssistedCrawl:          false,
+		RateLimit:              0,        // No rate limiting by default
+		Resume:                 false,    // Don't resume by default
+		CrawlContent:           false,    // Don't crawl empty content by default
+		SkipEmptyContent:       false,    // Don't skip empty content by default
+		FlatHTML:               false,    // Don't flatten HTML by default
+		NoTags:                 false,    // Don't skip tags by default
+		NoMenus:                false,    // Try to export menus by default (needs auth; degrades with a warning)
+		NoComments:             false,    // Reader comments are content — they ship by default (#35)
+		NoInventoryCheck:       false,    // The site's own inventory is one or two requests, and worth them (#40)
+		FromSitemap:            false,    // Recovery is asked for, never assumed: REST is the better source (#40)
+		Cache:                  false,    // Caching disabled by default
+		CacheTTL:               "24h",    // 24 hour cache TTL by default
+		CacheDir:               "",       // Will default to ~/.wpexporter/cache
+		CacheClear:             false,    // Don't clear cache by default
+		MediaPathStyle:         "root",   // Root-relative media paths resolve from any URL depth
+		LinkStyle:              "",       // Empty = per-format default (see EffectiveLinkStyle)
+		FrontmatterStyle:       "nested", // YAML structure, which is what a generator reading files wants (#49)
+		ReportA11y:             false,    // Don't write an accessibility report by default
+		ExtractMeta:            "all",    // Keep every meta tag: plugins put real data in unexpected ones
 	}
 }
 

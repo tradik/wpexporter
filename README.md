@@ -53,7 +53,7 @@ The three tools are also installed as standalone binaries, which behave identica
 - 🧩 **Custom Post Types**: Discovers the types a theme or plugin registered (Services, Portfolio, Team, …) and exports their entries alongside pages — no flag needed
 - 🎨 **Theme Palette**: `--assisted-crawl` records the site's own colours (primary/secondary/accent/text/background/link) from its CSS custom properties
 - 💬 **Reader Comments**: Every approved comment, threaded and addressed by page URL, in `comments.json` — skip with `--no-comments`
-- 🧹 **Content Filtering**: Control what to export with `--no-posts`, `--no-pages`, `--no-products`, `--no-custom-types` and `--no-comments` flags
+- 🧹 **Content Filtering**: Control what to export with `--no-posts`, `--no-pages`, `--no-products`, `--no-custom-types`, `--skip-unaddressable-types` and `--no-comments` flags
 - 🖼️ **Media Download**: Downloads images and videos with content
 - ⚡ **Concurrent Processing**: Fast parallel downloads and processing
 - 📊 **Progress Tracking**: Real-time progress bars and status updates

@@ -49,6 +49,12 @@ func fetchCustomTypes(client *api.Client, cfg *config.Config) []models.CustomTyp
 	logf("Found %d custom post type(s): %s\n", len(custom), strings.Join(typeSlugs(custom), ", "))
 
 	var sets []models.CustomTypeSet
+
+	// Types dropped for having no addresses of their own, named at the end so
+	// the operator can see whether --skip-unaddressable-types took more than
+	// they meant it to (#78).
+	var unaddressable []string
+
 	for _, t := range custom {
 		posts, fetchErr := client.GetCustomPosts(t.RestBase)
 		if fetchErr != nil {
@@ -71,6 +77,12 @@ func fetchCustomTypes(client *api.Client, cfg *config.Config) []models.CustomTyp
 			logf("  %s: empty\n", t.Slug)
 			continue
 		}
+		if cfg.SkipUnaddressableTypes && everyEntryIsQueryOnly(posts) {
+			unaddressable = append(unaddressable, t.Slug)
+
+			continue
+		}
+
 		logf("  %s: %d entries\n", t.Slug, len(posts))
 		sets = append(sets, models.CustomTypeSet{
 			Slug: t.Slug, Name: t.Name, RestBase: t.RestBase,
@@ -81,7 +93,41 @@ func fetchCustomTypes(client *api.Client, cfg *config.Config) []models.CustomTyp
 			Posts:       posts,
 		})
 	}
+
+	reportUnaddressableTypes(unaddressable)
+
 	return sets
+}
+
+// everyEntryIsQueryOnly reports a type that publishes no addresses at all.
+//
+// One entry with a real permalink is enough to make the type content: a
+// half-configured type is still the site's, and dropping it would lose the
+// entries that were addressable. An empty set never reaches here — a type with
+// no entries is already skipped above.
+func everyEntryIsQueryOnly(posts []models.WordPressPost) bool {
+	for _, post := range posts {
+		if !models.QueryOnlyAddress(post.Link) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// reportUnaddressableTypes names what --skip-unaddressable-types dropped. A
+// silent drop is the thing the flag is not allowed to be: on a site left on
+// plain permalinks it would take every type, and the operator has to be able
+// to see that happen.
+func reportUnaddressableTypes(dropped []string) {
+	if len(dropped) == 0 {
+		return
+	}
+
+	logf("Dropped %d post type(s) with no addresses of their own: %s\n",
+		len(dropped), strings.Join(dropped, ", "))
+	logln("  (--skip-unaddressable-types). Drop the flag to export them at " +
+		"/<type>/<slug>/ instead.")
 }
 
 // splitCommaList parses a comma-separated flag value, dropping empty entries so

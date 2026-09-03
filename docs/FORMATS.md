@@ -55,6 +55,25 @@ That is right for a builder and wrong for a magazine whose type is called
 `section`, so every type set aside is **named in the report** — and
 `--custom-types <slug>` insists, whatever the rule thinks of the slug.
 
+That rule reads slugs, so it misses a plugin's data store whose slug looks like
+content — Modula's `modula-gallery`, for one. Such a type is registered without
+a rewrite rule, so WordPress publishes its entries at `/?modula-gallery=1289`:
+they are the plugin's records, never a page a visitor reaches.
+`--skip-unaddressable-types` drops a type whose **every** entry is published
+that way, and names what it dropped.
+
+It is off by default and stays that way. A WordPress left on **plain
+permalinks** publishes every type at a query-string address, and there the flag
+would take the site's real content — which is why this is the operator's call
+rather than a rule. One entry with a real permalink is enough to keep the type:
+a half-configured type is still the site's, and dropping it would lose the
+entries that were addressable.
+
+Without the flag, such entries are exported at the address the export files
+them at — `/modula-gallery/1289/` — because `/?modula-gallery=1289` resolves to
+the site root and two of them would overwrite the front page (#78). See
+[MEDIA.md](MEDIA.md#a-permalink-with-no-path).
+
 `metadata.json`'s `site` block records **which page is the home and where the
 posts went**: `show_on_front` (`page` or `posts`), and `front_page` /
 `posts_page` with each page's id, slug and address (#75). They decide the shape

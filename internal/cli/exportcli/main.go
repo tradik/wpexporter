@@ -49,77 +49,80 @@ func logln(args ...interface{}) {
 }
 
 var (
-	cfgFile             string
-	url                 string
-	output              string
-	format              string
-	bruteForce          bool
-	maxID               int
-	scanRange           string
-	maxMediaMB          int
-	downloadMedia       bool
-	noMedia             bool
-	relevantMediaOnly   bool
-	concurrent          int
-	verbose             bool
-	createZip           bool
-	noFiles             bool
-	noPosts             bool
-	noPages             bool
-	noProducts          bool
-	noCustomTypes       bool
-	customTypes         string
-	noUsers             bool
-	pathFilter          string
-	assistedCrawl       bool
-	authUser            string
-	authPass            string
-	authToken           string
-	rateLimit           int
-	retries             int
-	userAgent           string
-	limit               int
-	limitPerType        string
-	limitPosts          int
-	limitPages          int
-	limitMedia          int
-	limitProducts       int
-	resume              bool
-	timeout             int
-	crawlContent        bool
-	skipEmptyContent    bool
-	flatHTML            bool
-	basicHTML           bool
-	ssgSections         bool
-	keepOriginalURLs    bool
-	mediaPathStyle      string
-	linkStyle           string
-	frontmatterStyle    string
-	reportA11y          bool
-	extractMeta         string
-	noTags              bool
-	noMenus             bool
-	noComments          bool
-	noInventoryCheck    bool
-	fromSitemap         bool
-	quiet               bool
-	noIDs               bool
-	excludeTags         string
-	excludeMediaTypes   string
-	preserveClasses     string
-	preserveIDs         string
-	preserveStyling     string
-	boilerplateClasses  string
-	builderClasses      string
-	crawlContentMode    string
-	contentSelectors    string
-	postLoopMarkers     string
-	maxSitemapDocuments int
-	readMorePhrases     string
-	cacheEnabled        bool
-	cacheTTL            string
-	cacheDir            string
-	cacheClear          bool
+	cfgFile           string
+	url               string
+	output            string
+	format            string
+	bruteForce        bool
+	maxID             int
+	scanRange         string
+	maxMediaMB        int
+	downloadMedia     bool
+	noMedia           bool
+	relevantMediaOnly bool
+	concurrent        int
+	verbose           bool
+	createZip         bool
+	noFiles           bool
+	noPosts           bool
+	noPages           bool
+	noProducts        bool
+	noCustomTypes     bool
+	customTypes       string
+	// skipUnaddressableTypes is opt-in: it drops content, and the shape it keys
+	// on is normal for a whole site left on plain permalinks (#78).
+	skipUnaddressableTypes bool
+	noUsers                bool
+	pathFilter             string
+	assistedCrawl          bool
+	authUser               string
+	authPass               string
+	authToken              string
+	rateLimit              int
+	retries                int
+	userAgent              string
+	limit                  int
+	limitPerType           string
+	limitPosts             int
+	limitPages             int
+	limitMedia             int
+	limitProducts          int
+	resume                 bool
+	timeout                int
+	crawlContent           bool
+	skipEmptyContent       bool
+	flatHTML               bool
+	basicHTML              bool
+	ssgSections            bool
+	keepOriginalURLs       bool
+	mediaPathStyle         string
+	linkStyle              string
+	frontmatterStyle       string
+	reportA11y             bool
+	extractMeta            string
+	noTags                 bool
+	noMenus                bool
+	noComments             bool
+	noInventoryCheck       bool
+	fromSitemap            bool
+	quiet                  bool
+	noIDs                  bool
+	excludeTags            string
+	excludeMediaTypes      string
+	preserveClasses        string
+	preserveIDs            string
+	preserveStyling        string
+	boilerplateClasses     string
+	builderClasses         string
+	crawlContentMode       string
+	contentSelectors       string
+	postLoopMarkers        string
+	maxSitemapDocuments    int
+	readMorePhrases        string
+	cacheEnabled           bool
+	cacheTTL               string
+	cacheDir               string
+	cacheClear             bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -151,6 +154,8 @@ Content Filters:
       --no-products           Skip WooCommerce products
       --no-custom-types       Skip theme/plugin post types (Services, Portfolio, …)
       --custom-types string   Export only these custom types (comma-separated slugs)
+      --skip-unaddressable-types
+                              Drop custom types whose entries have no address of their own
       --no-users              Skip users
       --no-tags               Skip tags
       --no-menus              Skip navigation menus
@@ -238,6 +243,9 @@ func init() {
 		"skip the custom post types a theme or plugin registered (Services, Portfolio, …)")
 	exportCmd.Flags().StringVar(&customTypes, "custom-types", "",
 		"export only these custom post types (comma-separated slugs, e.g. cpt_services,cpt_portfolio)")
+	exportCmd.Flags().BoolVar(&skipUnaddressableTypes, "skip-unaddressable-types", false,
+		"drop custom post types whose entries have no address of their own (a plugin's data store, "+
+			"published at /?type=123). Off by default: a site on plain permalinks publishes everything that way")
 	exportCmd.Flags().BoolVar(&noUsers, "no-users", false, "skip exporting users")
 	exportCmd.Flags().StringVar(&authUser, "auth-user", "", "username for Basic Auth")
 	exportCmd.Flags().StringVar(&authPass, "auth-pass", "", "password for Basic Auth")
@@ -427,6 +435,10 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 	if cmd.Flags().Changed("no-products") {
 		cfg.NoProducts = noProducts
 	}
+	if cmd.Flags().Changed("skip-unaddressable-types") {
+		cfg.SkipUnaddressableTypes = skipUnaddressableTypes
+	}
+
 	if cmd.Flags().Changed("no-custom-types") {
 		cfg.NoCustomTypes = noCustomTypes
 	}

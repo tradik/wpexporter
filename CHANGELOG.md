@@ -31,6 +31,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is identical across all four, so a client asking for `2025-06-18` now gets
   `2025-06-18` back instead of being dragged two years backwards.
 
+- **`--skip-unaddressable-types` drops a custom post type that publishes no
+  addresses of its own (#78).** The existing rule for telling a plugin's
+  bookkeeping from a site's content reads slugs — `layout`, `template`, `block`,
+  `section`, `popup`, `widget` — so it misses a data store whose slug looks like
+  content. Modula's `modula-gallery` is one: registered without a rewrite rule,
+  its entries are published at `/?modula-gallery=1289`, which is a plugin's
+  records rather than pages a visitor reaches.
+
+  The flag is **off by default and stays that way**. A WordPress left on plain
+  permalinks publishes *every* type at a query-string address, and there this
+  would take the site's real content — so it is the operator's call rather than
+  a rule that could be wrong about somebody's site. One entry with a real
+  permalink is enough to keep the type, and what was dropped is named in the
+  report, because a silent drop is exactly what this flag is not allowed to be.
+
 - **`wpmcp serve --protocol` pins the era when one has to be pinned** —
   `modern`, `legacy`, or a single revision such as `2024-11-05`. Pinning changes
   what a client that opens in the *other* era is told, and both directions

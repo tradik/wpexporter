@@ -984,11 +984,12 @@ func (e *Exporter) rootRelativizeAddresses(post *models.WordPressPost, typeSlug 
 // query to have hidden the address in — the front page's own "/" is a real
 // address, not a missing one — or when there is no slug to build from.
 func synthesizePath(link, slug, typeSlug string) (string, bool) {
-	parsed, err := url.Parse(link)
-	if err != nil {
+	// A foreign host is not ours to rewrite, whatever shape its address has.
+	if parsed, err := url.Parse(link); err != nil || parsed.Host != "" {
 		return "", false
 	}
-	if parsed.Host != "" || parsed.RawQuery == "" || len(nonEmptySegments(parsed.Path)) > 0 {
+
+	if !models.QueryOnlyAddress(link) {
 		return "", false
 	}
 
