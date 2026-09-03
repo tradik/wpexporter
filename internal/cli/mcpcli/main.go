@@ -3,6 +3,8 @@
 package mcpcli
 
 import (
+	"strings"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -19,7 +21,11 @@ var rootCmd = &cobra.Command{
 This server enables AI assistants like Claude to interact with WordPress
 export functionality through the Model Context Protocol.
 
-The server communicates over stdio using JSON-RPC 2.0.
+The server communicates over stdio using JSON-RPC 2.0, and speaks both MCP
+eras: the current per-request-versioned revision (2026-07-28) and the older
+initialize handshake (2025-11-25 and earlier). A client of either kind is
+served without being told which to use; --protocol narrows that when one has
+to be pinned.
 
 Available tools:
   - list_formats     List available export formats
@@ -60,20 +66,47 @@ Docs: https://github.com/tradik/wpexporter`,
 	},
 }
 
+// protocolFlag holds the operator's --protocol choice. Empty means every
+// revision this build implements, in both eras.
+var protocolFlag string
+
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the MCP server",
-	Long:  "Start the MCP server and listen for requests on stdio.",
-	RunE:  runServe,
+	Long: `Start the MCP server and listen for requests on stdio.
+
+The server answers both MCP eras at once, deciding per request which one it is
+being addressed in, so no client has to be configured for it.
+
+--protocol pins that when it has to be pinned:
+
+  all      both eras (default) — every revision below
+  modern   ` + mcp.Version20260728 + ` only: per-request versioning, server/discover
+  legacy   the initialize handshake only, exactly as a pre-2026 server looks
+  <date>   one revision, e.g. ` + mcp.Version20241105 + `, and nothing else
+
+Pinning to one era is a compatibility tool, not a hardening one: a client that
+probes for the other era is told plainly that this server does not speak it.`,
+	RunE: runServe,
 }
 
 func init() {
+	serveCmd.Flags().StringVar(&protocolFlag, "protocol", "",
+		"MCP protocol revisions to answer for: all, modern, legacy, or one of "+
+			strings.Join(mcp.KnownVersions(), ", "))
 	rootCmd.AddCommand(serveCmd)
 }
 
 func runServe(cmd *cobra.Command, args []string) error {
+	versions, err := mcp.ParseVersionSet(protocolFlag)
+	if err != nil {
+		return err
+	}
+
 	server := mcp.NewServer("wpexporter", version.Version)
+	server.SetProtocols(versions)
 	mcp.RegisterAllTools(server)
+
 	return server.Run()
 }
 

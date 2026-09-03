@@ -5,7 +5,113 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.8.18] - 2026-09-03
+
+### Added
+- **The MCP server speaks the current protocol, and still speaks the old one.**
+  `wpmcp` announced `2024-11-05` — the first MCP revision ever published — and
+  never read the version the client asked for. It did not negotiate; it
+  declared. Meanwhile MCP moved to `2026-07-28`, which is not a newer number but
+  a different **era**: no handshake at all, every request carrying its own
+  protocol version and capabilities in `_meta`, and a mandatory `server/discover`
+  that returns versions, capabilities and identity in one call. By the spec's own
+  compatibility matrix, a modern client talking to a legacy-only server **fails
+  outright** — so a current client could not use this server at all.
+
+  `wpmcp` is now **dual-era**. It reads which era each request was written in and
+  answers under those rules:
+
+  | Revision | Era |
+  |---|---|
+  | `2026-07-28` | modern — per-request `_meta`, `server/discover`, `resultType` |
+  | `2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05` | legacy — `initialize` handshake |
+
+  The four legacy revisions are answered as themselves rather than collapsed into
+  the oldest: this server exposes tools and `ping` only, and their wire contract
+  is identical across all four, so a client asking for `2025-06-18` now gets
+  `2025-06-18` back instead of being dragged two years backwards.
+
+- **`--skip-unaddressable-types` drops a custom post type that publishes no
+  addresses of its own (#78).** The existing rule for telling a plugin's
+  bookkeeping from a site's content reads slugs — `layout`, `template`, `block`,
+  `section`, `popup`, `widget` — so it misses a data store whose slug looks like
+  content. Modula's `modula-gallery` is one: registered without a rewrite rule,
+  its entries are published at `/?modula-gallery=1289`, which is a plugin's
+  records rather than pages a visitor reaches.
+
+  The flag is **off by default and stays that way**. A WordPress left on plain
+  permalinks publishes *every* type at a query-string address, and there this
+  would take the site's real content — so it is the operator's call rather than
+  a rule that could be wrong about somebody's site. One entry with a real
+  permalink is enough to keep the type, and what was dropped is named in the
+  report, because a silent drop is exactly what this flag is not allowed to be.
+
+- **`wpmcp serve --protocol` pins the era when one has to be pinned** —
+  `modern`, `legacy`, or a single revision such as `2024-11-05`. Pinning changes
+  what a client that opens in the *other* era is told, and both directions
+  matter: `--protocol legacy` makes the server look legacy, answering
+  `server/discover` with an ordinary `-32601` so a dual-era client falls back
+  instead of negotiating a version it will never get; `--protocol modern`
+  answers `initialize` with an error **naming the revisions it does speak**,
+  because a legacy client has no way to ask again and that message is the only
+  diagnostic its user will see.
+
+### Changed
+- **Built with Go 1.27.1.** A patch release: `go.mod` and `tools/go.mod` stay at
+  the minor floor `go 1.27.0` on purpose. The `go` directive is a minimum rather
+  than a pin, and pinning an exact patch there is what stopped v1.7.6's snap from
+  ever publishing — the build could not fetch a newer toolchain offline. CI and
+  the snap build with exactly 1.27.1; anything 1.27.x satisfies the module.
+
+### Fixed
+- **`get_site_info` answered an all-empty record for a site that never
+  responded (#79).** A WordPress whose `/wp-json` root is locked down — or a
+  host answering `500` to everything — produced `{"name": "", "description": "",
+  …}` with no error and no warning. That record is indistinguishable from a real
+  one: an assistant reads the empty name as *"this site has no title"*, not as
+  *"this site did not answer"*, and says so to a user who has no console to
+  check against. Then `list_posts` fails against the same host, and step one
+  having "succeeded" is the confusing part.
+
+  The tolerance itself was right — a sparse root does not make a site
+  unexportable — but it erased the difference between *answered sparsely* and
+  *never answered*. A root that could not be read is now a **gap**, the same
+  kind the collections already report: the record still comes back, and
+  `incomplete` names what happened beside it. `get_site_info`, `export_site` and
+  the CLI all draw that line in one place, through `api.Gap`.
+
+  The gap is reported only when **nothing** described the site. A root that
+  404s while `/wp/v2/settings` answers is not a hole — the site was described,
+  just not by the endpoint asked first. An unread record is also never cached,
+  since the next run would otherwise read the empty one back with no gap
+  attached.
+
+  This is #65 and #73's rule reaching the tool results: *a report may state what
+  happened, never what it concluded.* An empty record returned as though it had
+  been read is a conclusion.
+
+- **A custom post type without a pretty permalink was exported with an address
+  that pointed at the site root (#78).** WordPress publishes an entry of a type
+  registered without a rewrite rule at `/?modula-gallery=1289`: the path is `/`
+  and the whole meaning is in the query. That string was carried into front
+  matter verbatim as `link:`, so every consumer that routes on paths read the
+  document as the **front page** — on one migration two gallery entries
+  overwrote the exported home page and the site led with a gallery.
+
+  The export already disagreed with itself here: it filed the document at
+  `pages/modula-gallery/1289.md`, a perfectly good address, while the front
+  matter it wrote into that file still claimed `/`. A type with no rewrite rule
+  has no SEO-visible address to preserve, so the export now **gives it the one
+  it files it at** — `/modula-gallery/1289/` for a custom post type, `/about/`
+  for a page or post on a WordPress left on plain permalinks. Placement and
+  front matter finally say the same thing.
+
+  Three addresses are deliberately left alone: the front page's own `/`, which
+  is a real address rather than a missing one; a permalink that already carries
+  a path; and `canonical`/`hreflang`, which name a document **on the source
+  site**, where the query genuinely is the address.
+
+## [1.8.17] - 2026-08-20
 
 ### Fixed
 - **A route that answered was reported as having published nothing (#73).** On a

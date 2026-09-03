@@ -136,16 +136,55 @@ func (e *PartialError) Error() string {
 
 func (e *PartialError) Unwrap() error { return e.Err }
 
+// UnansweredError reports a document the site did not serve.
+//
+// It is the single-document twin of PartialError. The caller is handed the
+// empty record rather than nothing, because an export of a site whose /wp-json
+// root is locked down is still worth having — but it is told, so it can say
+// "the site did not answer" instead of "the site has no name" (#79). An empty
+// record returned as though it had been read is a conclusion, and a report may
+// state what happened, never what it concluded.
+type UnansweredError struct {
+	// Endpoint is the document that did not answer ("site info").
+	Endpoint string
+	// Status is the HTTP status it answered with, 0 when nothing came back.
+	Status int
+	// Err is what reading it reported, when there was anything to report.
+	Err error
+}
+
+func (e *UnansweredError) Error() string {
+	switch {
+	case e.Err != nil:
+		return fmt.Sprintf("%s: %v", e.Endpoint, e.Err)
+	case e.Status != 0:
+		return fmt.Sprintf("%s: site answered %d", e.Endpoint, e.Status)
+	default:
+		return e.Endpoint + ": site answered nothing a reader could use"
+	}
+}
+
+func (e *UnansweredError) Unwrap() error { return e.Err }
+
 // Gap describes err as an incomplete read, and reports whether it was one.
 //
 // It exists so every caller draws the same line in the same place: a hole in a
 // collection is reported and survived, anything else ends the export. The CLI
 // and the MCP server used to be free to disagree about that, which is how one
 // entry point can quietly lose what the other refuses to.
+//
+// A document the site never served is the same kind of hole as a collection
+// that broke off half way, so both are named here rather than leaving each
+// caller to decide which of the two it will survive.
 func Gap(err error) (string, bool) {
 	var partial *PartialError
 	if errors.As(err, &partial) {
 		return partial.Error(), true
+	}
+
+	var unanswered *UnansweredError
+	if errors.As(err, &unanswered) {
+		return unanswered.Error(), true
 	}
 
 	return "", false

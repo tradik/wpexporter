@@ -82,7 +82,7 @@ wpexporter/
 ├── internal/
 │   ├── api/                 # WordPress REST client
 │   ├── xmlrpc/              # XML-RPC client
-│   ├── mcp/                 # MCP protocol server
+│   ├── mcp/                 # MCP protocol server, both eras (see docs/MCP.md)
 │   ├── bruteforce/          # ID enumeration for unlisted content
 │   ├── cli/                 # command wiring shared by the binaries
 │   ├── config/              # configuration, CLI and file

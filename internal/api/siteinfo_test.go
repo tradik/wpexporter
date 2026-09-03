@@ -1,8 +1,10 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -110,21 +112,31 @@ func TestGetSiteInfoSettingsOverlay(t *testing.T) {
 }
 
 // TestGetSiteInfoFallsBackToConfiguredURL covers a site whose API root is
-// unreachable: the export still records which URL it was pointed at.
+// unreachable: the export still records which URL it was pointed at, and says
+// that nothing described the site rather than presenting the blanks as the
+// site's own answer (#79).
 func TestGetSiteInfoFallsBackToConfiguredURL(t *testing.T) {
 	client, server := newSiteInfoClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	})
 
 	info, err := client.GetSiteInfo()
-	require.NoError(t, err)
+
+	// A gap, not a failure: the collections are read separately and the export
+	// goes on.
+	description, unread := Gap(err)
+	require.True(t, unread, "an unread root has to be reported as a gap")
+	assert.Contains(t, description, "site info")
+	assert.Contains(t, description, "500")
 
 	assert.Equal(t, server.URL, info.URL)
 	assert.Empty(t, info.Name)
 }
 
 // TestGetSiteInfoIgnoresMalformedDocuments pins that unreadable JSON from either
-// endpoint degrades to the configured URL rather than failing the export.
+// endpoint degrades to the configured URL rather than failing the export — and
+// is still named, since the record it leaves behind is indistinguishable from a
+// site that genuinely has no name.
 func TestGetSiteInfoIgnoresMalformedDocuments(t *testing.T) {
 	client, server := newSiteInfoClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -132,9 +144,33 @@ func TestGetSiteInfoIgnoresMalformedDocuments(t *testing.T) {
 	})
 
 	info, err := client.GetSiteInfo()
-	require.NoError(t, err)
+
+	description, unread := Gap(err)
+	require.True(t, unread)
+	assert.Contains(t, description, "other than a REST document")
 
 	assert.Equal(t, server.URL, info.URL)
+}
+
+// TestGetSiteInfoIsDescribedBySettingsAlone: a root that 404s is not a hole
+// when the settings document answered. The site was described, just not by the
+// endpoint asked first.
+func TestGetSiteInfoIsDescribedBySettingsAlone(t *testing.T) {
+	client, _ := newSiteInfoClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/wp/v2/settings") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"title":"Zonqor","language":"en_GB"}`))
+
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	info, err := client.GetSiteInfo()
+	require.NoError(t, err)
+
+	assert.Equal(t, "Zonqor", info.Name)
 }
 
 // TestGetSiteInfoNumericGMTOffset is the regression from bociany.pl (#32):
@@ -225,4 +261,41 @@ func TestOverlay(t *testing.T) {
 
 	overlay(&value, "replacement")
 	assert.Equal(t, "replacement", value)
+}
+
+// TestUnansweredErrorSaysWhichSilence: the three ways a document fails to be
+// read each get their own sentence, because "site info: " followed by nothing
+// tells a user no more than the empty record did.
+func TestUnansweredErrorSaysWhichSilence(t *testing.T) {
+	tests := []struct {
+		name string
+		err  *UnansweredError
+		want string
+	}{
+		{
+			name: "a reason to give",
+			err:  &UnansweredError{Endpoint: "site info", Err: errors.New("connection reset")},
+			want: "site info: connection reset",
+		},
+		{
+			name: "a status and nothing else",
+			err:  &UnansweredError{Endpoint: "site info", Status: 403},
+			want: "site info: site answered 403",
+		},
+		{
+			name: "neither",
+			err:  &UnansweredError{Endpoint: "site info"},
+			want: "site info: site answered nothing a reader could use",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.err.Error())
+
+			description, unread := Gap(tc.err)
+			assert.True(t, unread)
+			assert.Equal(t, tc.want, description)
+		})
+	}
 }
