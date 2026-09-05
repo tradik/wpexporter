@@ -47,6 +47,7 @@ Single-spelled — a generator reads one name per concept, not three:
 | `description` | `meta_description`, else `og_description`, else the excerpt |
 | `excerpt` | plain text, theme "Continue reading" chrome removed |
 | `featured_image` | localised media path |
+| `source_template` | the page template WordPress drew it with, when it is not the default — see [The page template](#the-page-template) |
 
 Empty values emit **no key at all**, so a generator sees an absent key rather than an empty
 string.
@@ -65,6 +66,27 @@ Applied to the body of every `ssg` document:
 
 The `markdown` format keeps its existing output, with two exceptions that were plainly bugs:
 entities are decoded there too, and the excerpt no longer carries the "Continue reading" anchor.
+
+## The page template
+
+`source_template` carries the page template WordPress drew a page with —
+`people-content-page.php`, `page-services-template.php` — and is absent where
+WordPress reports none, which is what it reports for the default one.
+
+It is there because **a theme is often two designs rather than one**: a page
+opening with a photographic banner and a page opening with a plain title band,
+an author profile laid out unlike anything else on the site. Which of them a page
+gets is decided by its page template, and no other field in an export says so. A
+consumer rebuilding the theme was otherwise left guessing from the content, or
+fetching every page again to look at it. Measured on one site being migrated, the
+pair (page template, featured image) predicted the layout on every page checked
+— and the template was the half that could not be had (#81).
+
+The name is not `template` on purpose. That one is the **target's** field: it
+names the template a generator should render a document with, and a WordPress
+file name written there would send the build looking for a template it does not
+have. `source_template` says what the source used; what to do about it is the
+consumer's decision.
 
 ## A pinned post
 

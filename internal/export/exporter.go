@@ -621,6 +621,29 @@ func (e *Exporter) generateMarkdownContent(post models.WordPressPost, contentTyp
 		builder.WriteString("sticky: true\n")
 	}
 
+	// Which page template WordPress drew it with, when it is not the default
+	// (#81).
+	//
+	// A theme is often two designs rather than one: a page opening with a
+	// photographic banner and a page opening with a plain title band, an author
+	// profile laid out unlike anything else on the site. Which of them a page
+	// gets is decided by its page template, and nothing else in an export says
+	// so — a consumer rebuilding the theme is otherwise left guessing from the
+	// content, or fetching every page again to look.
+	//
+	// `source_template` rather than `template`: the latter is the *target's*
+	// field, naming the template a generator should render this document with,
+	// and a WordPress file name written there would send the build looking for
+	// a template it does not have. This says what the source used; what to do
+	// about it is the consumer's decision.
+	//
+	// Omitted when WordPress reports none, which is what it reports for the
+	// default template — an empty value here would say "no template" where the
+	// truth is "the ordinary one".
+	if template := strings.TrimSpace(post.Template); template != "" {
+		builder.WriteString(fmt.Sprintf("source_template: \"%s\"\n", e.escapeYAML(template)))
+	}
+
 	// A page whose body is a listing element says so, so a target points its
 	// own archive at this address instead of migrating a page over it (#41).
 	e.writePostLoopFrontMatter(&builder, post, contentType)

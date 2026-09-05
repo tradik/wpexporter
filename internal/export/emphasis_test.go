@@ -118,3 +118,52 @@ func readExportedFile(t *testing.T, output string, parts ...string) string {
 
 	return string(body)
 }
+
+// TestPageTemplateSurvivesTheExport: a theme is often two designs rather than
+// one — a page opening with a photographic banner and a page opening with a
+// plain title band, a profile laid out unlike anything else on the site. Which
+// of them a page gets is decided by its page template, and nothing else in an
+// export says so: a consumer rebuilding the theme was left guessing from the
+// content, or fetching every page again to look (#81).
+func TestPageTemplateSurvivesTheExport(t *testing.T) {
+	exporter, output := newMarkdownExporter(t)
+
+	profile := models.WordPressPost{
+		ID: 69, Slug: "matt-jones", Link: "https://x.test/people/matt-jones/",
+		Template: "people-content-page.php",
+	}
+	profile.Title.Rendered = "Matt Jones"
+	ordinary := models.WordPressPost{ID: 10, Slug: "services", Link: "https://x.test/services/"}
+	ordinary.Title.Rendered = "Services"
+
+	data := &models.ExportData{Pages: []models.WordPressPost{profile, ordinary}}
+	exporter.buildLookupMaps(data)
+
+	for _, generated := range []string{
+		exporter.generateMarkdownContent(profile, "page"),
+		exporter.generateSSGContent(profile, "page"),
+	} {
+		assert.Contains(t, generated, "source_template: \"people-content-page.php\"")
+		// Not `template`: that names the template a generator should render
+		// this document with, and a WordPress file name there would send the
+		// build looking for one it does not have.
+		assert.NotContains(t, generated, "\ntemplate:")
+	}
+
+	// WordPress reports an empty template for the default one, and an empty
+	// value here would say "no template" where the truth is "the ordinary one".
+	for _, generated := range []string{
+		exporter.generateMarkdownContent(ordinary, "page"),
+		exporter.generateSSGContent(ordinary, "page"),
+	} {
+		assert.NotContains(t, generated, "source_template:",
+			"omitted for the default template, which WordPress reports as empty")
+	}
+
+	// And it has to reach the file on disk, not just the string builder.
+	require.NoError(t, exporter.exportPagesMarkdown(data))
+	// Under the path its link implies: a child page is written where the site
+	// published it.
+	assert.Contains(t, readExportedFile(t, output, "pages", "people", "matt-jones.md"),
+		"source_template: \"people-content-page.php\"")
+}

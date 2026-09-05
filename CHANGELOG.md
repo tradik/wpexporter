@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.19] - 2026-09-05
+
+### Added
+- **The page template a page was drawn with is exported (#81).** A WordPress
+  theme is often two designs rather than one: a page opening with a photographic
+  banner and a page opening with a plain title band, an author profile laid out
+  unlike anything else on the site. Which of them a page gets is decided by its
+  **page template**, and nothing in an export said so — the field was read from
+  the API into the model and then dropped.
+
+  A consumer rebuilding the theme was left with two bad options: guess the layout
+  from the content, or fetch every page again to look at it. Measured on a
+  hundred-and-twelve-page site being migrated, the pair (page template, featured
+  image) predicted the layout on every page checked, and the template was the
+  half that could not be had:
+
+  | `template` | featured image | layout |
+  |---|---|---|
+  | *(default)* | no | plain title band |
+  | *(default)* | yes | photographic banner |
+  | `people-content-page.php` | yes | **plain title band** |
+  | `page-services-template.php` | yes | photographic banner |
+
+  Written as **`source_template`**, not `template`. The latter is the *target's*
+  field — it names the template a generator should render a document with — and
+  a WordPress file name written there would send the build looking for a template
+  it does not have. This one says what the source used; what to do about it is
+  the consumer's decision.
+
+  Omitted where WordPress reports none, which is what it reports for the default
+  template: an empty value would say "no template" where the truth is "the
+  ordinary one". In both the Markdown and the SSG front matter.
+
 ## [1.8.18] - 2026-09-03
 
 ### Added

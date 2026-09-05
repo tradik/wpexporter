@@ -160,6 +160,15 @@ A post the editor **pinned to the top of the blog** carries `sticky: true`,
 omitted when false. A listing sorted by date alone buries it wherever its date
 falls — sixth, on the site that reported it (#51).
 
+The **page template** WordPress drew a page with is carried as
+`source_template`, absent where WordPress reports none — which is what it
+reports for the default one. A theme is often two designs rather than one, and
+the template is what decides which a page gets; nothing else in an export says
+so. Not `template`: that names the template a *generator* should render the
+document with, and a WordPress file name there would send the build looking for
+one it does not have (#81). Both the `markdown` and the `ssg` front matter carry
+it — see [SSG-FORMAT](SSG-FORMAT.md#the-page-template).
+
 Emphasis is written so that it **closes**: WordPress content is full of
 `<strong>text </strong>`, with the space inside the tags, and converted tag for
 tag that becomes `**text **`, which in CommonMark closes nothing and prints the
