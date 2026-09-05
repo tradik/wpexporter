@@ -38,6 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   template: an empty value would say "no template" where the truth is "the
   ordinary one". In both the Markdown and the SSG front matter.
 
+### Changed
+- **`stretchr/testify` 1.11.1 → 1.12.1**, which also drops four transitive
+  dependencies from the module graph — `go-spew`, `go-difflib`, `check.v1` and
+  `yaml.v3` are no longer pulled in. Test-only; nothing in a shipped binary
+  moves.
+
 ## [1.8.18] - 2026-09-03
 
 ### Added
