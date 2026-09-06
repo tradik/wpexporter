@@ -261,6 +261,17 @@ func (e *Exporter) writeSSGFrontMatter(builder *strings.Builder, post models.Wor
 		writeYAMLString(builder, "featured_image", e.escapeYAML(e.mediaMap[post.FeaturedMedia]))
 	}
 
+	// Which page template WordPress drew it with, when it is not the default
+	// (#81). A theme is often two designs — a banner page and a plain one, a
+	// profile laid out unlike anything else — and the page template is what
+	// decides which a page gets. `source_template` rather than `template`: the
+	// latter names the template a *generator* should render this document with,
+	// and a WordPress file name written there would send the build looking for
+	// one it does not have.
+	if template := strings.TrimSpace(post.Template); template != "" {
+		writeYAMLString(builder, "source_template", e.escapeYAML(template))
+	}
+
 	// The page renders an archive rather than storing one (#41).
 	e.writePostLoopFrontMatter(builder, post, contentType)
 
