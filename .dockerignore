@@ -10,6 +10,7 @@ dist/
 *.test
 coverage.out
 coverage.html
+*.bak
 
 # Temporary files
 *.tmp

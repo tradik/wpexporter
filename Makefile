@@ -69,6 +69,9 @@ PROD_LDFLAGS := -ldflags "$(VERSION_VARS) -s -w -extldflags '-static'"
 GOSEC_BIN := $(BUILD_DIR)/gosec
 GOSEC_EXCLUDE := G703,G704,G117,G122
 
+# The linter version CI pins in .github/workflows/ci.yml — keep the two equal.
+GOLANGCI_LINT_VERSION := v2.15.0
+
 .PHONY: help build clean test test-coverage deps run install dev lint vet sec check format build-prod release package packages docker-build docker-push version tag snap site site-serve site-check site-clean
 
 help: ## Show this help message
@@ -311,10 +314,13 @@ coverage: ## Generate test coverage report
 
 install-tools: ## Install development tools
 	@echo "${BLUE}Installing development tools...${RESET}"
-	$(GOGET) github.com/air-verse/air@latest
-	$(GOGET) golang.org/x/vuln/cmd/govulncheck@latest
-	$(GOGET) github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	$(GOGET) github.com/securego/gosec/v2/cmd/gosec@latest
+	@# `go install`, not `go get`: in module mode `go get` edits go.mod and
+	@# installs nothing. golangci-lint is pinned to the version CI runs (ci.yml),
+	@# so a local `make lint` and the pipeline agree. gosec is not installed here
+	@# at all: `make sec` builds the copy pinned by tools/go.sum.
+	$(GOCMD) install github.com/air-verse/air@latest
+	$(GOCMD) install golang.org/x/vuln/cmd/govulncheck@latest
+	$(GOCMD) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	@echo "${GREEN}Development tools installed${RESET}"
 
 # ── Documentation site ────────────────────────────────────────────────────────

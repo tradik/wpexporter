@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-11-14
+
+### Security
+- **Go 1.27.1 → 1.27.4.** `govulncheck` reported ten standard-library
+  vulnerabilities this program actually reaches — every one of them on the path
+  from `seo.Crawler.fetchHTML` into `http.Client.Do`, which is the path that talks
+  to other people's servers. The ones that matter most for a tool that fetches
+  from hosts it does not control are on the client side: an HTTP/2 transport
+  that accepted malformed framing headers (GO-2026-6610), an HTTP/1 client that
+  could be desynchronised by a rejected `CONNECT` (GO-2026-6605), MIME header
+  parsing that could exceed its memory limit (GO-2026-6608), and intermediate
+  CAs that should no longer be trusted (GO-2026-6809). CI, the release binaries
+  and the snap now build on 1.27.4; `go.mod` keeps its `go 1.27.0` floor, which
+  is a minimum, not a pin. `govulncheck ./...` is clean.
+- **`golang.org/x/net` 0.58.0 → 0.62.0** (the same HTTP/2 fixes on the x/net
+  side), with `x/term` 0.48.0, `x/sys` 0.50.0, `x/text` 0.44.0, `spf13/pflag`
+  1.1.0, `go.yaml.in/yaml/v3` 3.0.6 and `mattn/go-runewidth` 0.0.31.
+
+### Changed
+- **gosec 2.28.0 → 2.30.0** in the `tools/` module. Its new rules find nothing
+  in this code base; no exclusion was added.
+- **CI actions**, each pinned to the commit of its release:
+  `codecov/codecov-action` 7.1.1, `docker/build-push-action` 7.4.0 (which stops a
+  workflow-command injection through metadata written to the log),
+  `docker/setup-buildx-action` 4.4.1, `docker/login-action` 4.8.0,
+  `actions/upload-artifact` 7.0.2, `actions/download-artifact` 8.0.2,
+  `softprops/action-gh-release` 3.0.4 and `spagu/ssg` 1.9.8 for the
+  documentation site.
+- **golangci-lint is pinned** (`v2.15.0`) instead of resolving `latest`, so a
+  new linter release cannot fail CI on a commit that changed no code.
+- `coverage.html` and `.golangci.yml.bak` are no longer tracked; both are
+  ignored, and `*.bak` with them.
+
 ## [1.8.19] - 2026-09-05
 
 ### Added
