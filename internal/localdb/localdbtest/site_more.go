@@ -56,16 +56,22 @@ func expectMenus(mock sqlmock.Sqlmock) {
 			[]any{`a:1:{s:18:"nav_menu_locations";a:2:{s:7:"primary";i:50;s:6:"footer";i:50;}}`}))
 }
 
+// The two media items' dates, each used for all four of its date columns.
+const (
+	photoDate    = "2024-05-01 00:00:00"
+	brochureDate = "2024-05-02 00:00:00"
+)
+
 // expectMedia registers an image and a PDF.
 func expectMedia(mock sqlmock.Sqlmock) {
 	p := Site.Prefix
 	mock.ExpectQuery("FROM " + p + "posts a LEFT JOIN").WillReturnRows(rows(
 		[]string{"ID", "post_author", "post_date", "post_date_gmt", "post_title", "post_excerpt", "post_content",
 			"post_name", "post_modified", "post_modified_gmt", "post_parent", "post_mime_type", "guid"},
-		[]any{20, 1, "2024-05-01 00:00:00", "2024-05-01 00:00:00", "Photo", "A caption", "A description",
-			"photo", "2024-05-01 00:00:00", "2024-05-01 00:00:00", 1, "image/jpeg", "https://example.com/wp-content/uploads/2024/05/photo.jpeg"},
-		[]any{21, 1, "2024-05-02 00:00:00", "2024-05-02 00:00:00", "Brochure", "", "",
-			"brochure", "2024-05-02 00:00:00", "2024-05-02 00:00:00", 0, "application/pdf", "https://example.com/?attachment_id=21"}))
+		[]any{20, 1, photoDate, photoDate, "Photo", "A caption", "A description",
+			"photo", photoDate, photoDate, 1, "image/jpeg", "https://example.com/wp-content/uploads/2024/05/photo.jpeg"},
+		[]any{21, 1, brochureDate, brochureDate, "Brochure", "", "",
+			"brochure", brochureDate, brochureDate, 0, "application/pdf", "https://example.com/?attachment_id=21"}))
 	mock.ExpectQuery("'_wp_attached_file'").WillReturnRows(rows(metaColumns,
 		[]any{20, "_wp_attached_file", "2024/05/photo.jpeg"}, []any{20, "_wp_attachment_image_alt", "A photo"},
 		[]any{20, "_wp_attachment_metadata", AttachmentMetadata}, []any{21, "_wp_attached_file", "2024/05/brochure.pdf"},

@@ -66,7 +66,7 @@ func (s *Source) mediaBatch(query string, args ...any) ([]models.WordPressMedia,
 	home, _ := s.home()
 
 	var batch []models.WordPressMedia
-	err = s.q.each(s.ctx, func(r *sql.Rows) error {
+	err = s.q.each(func(r *sql.Rows) error {
 		var m models.WordPressMedia
 		var date, dateGMT, modified, modifiedGMT, title, caption, description, guid string
 		if err := r.Scan(&m.ID, &m.Author, &date, &dateGMT, &title, &caption, &description, &m.Slug,
@@ -101,7 +101,7 @@ func (s *Source) attachMediaMeta(batch []models.WordPressMedia, baseURL string) 
 	for i, m := range batch {
 		index[m.ID], mediaIDs[i] = i, m.ID
 	}
-	return s.q.each(s.ctx, func(r *sql.Rows) error {
+	return s.q.each(func(r *sql.Rows) error {
 		var id int
 		var key string
 		var value sql.NullString

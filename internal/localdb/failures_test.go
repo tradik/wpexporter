@@ -67,35 +67,52 @@ func TestEveryQueryFailureIsReportedWithoutThePassword(t *testing.T) {
 	for _, f := range failures {
 		for _, mode := range []string{"error", "garbled"} {
 			t.Run(f.getter+"/"+mode+"/"+f.fragment, func(t *testing.T) {
-				db, mock, _ := localdbtest.New(t)
-				localdbtest.ExpectSnapshot(mock)
-				if mode == "error" {
-					localdbtest.Fail(mock, f.fragment, f.args...)
-				} else {
-					localdbtest.Garble(mock, f.fragment, f.args...)
-				}
-				localdbtest.ExpectSite(mock)
-
-				s := settings()
-				s.DBPassword = localdbtest.Password
-				src, err := New(context.Background(), db, s, Options{})
-				require.NoError(t, err)
-				defer func() { _ = src.Close() }()
-
-				errs := getters(src)
-				if mode == "garbled" && f.fragment == "WHERE option_name = ?" {
-					// One text column scans whatever it holds; theme mods that
-					// do not decode simply assign no locations.
+				errs := getters(openFailing(t, f, mode))
+				if f.toleratedWhen(mode) {
 					assert.NoError(t, errs[f.getter])
 				} else {
 					assert.Error(t, errs[f.getter])
 				}
-				for name, err := range errs {
-					if err != nil {
-						assert.NotContains(t, err.Error(), localdbtest.Password, name)
-					}
-				}
+				assertNoPassword(t, errs)
 			})
+		}
+	}
+}
+
+// openFailing opens the canned site with f's statement made to fail, or to
+// return garbled rows.
+func openFailing(t *testing.T, f failure, mode string) *Source {
+	t.Helper()
+	db, mock, _ := localdbtest.New(t)
+	localdbtest.ExpectSnapshot(mock)
+	if mode == "error" {
+		localdbtest.Fail(mock, f.fragment, f.args...)
+	} else {
+		localdbtest.Garble(mock, f.fragment, f.args...)
+	}
+	localdbtest.ExpectSite(mock)
+
+	s := settings()
+	s.DBPassword = localdbtest.Password
+	src, err := New(context.Background(), db, s, Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = src.Close() })
+	return src
+}
+
+// toleratedWhen reports the one failure a getter absorbs: theme mods are a
+// single text column, which scans whatever it holds, and mods that do not
+// decode simply assign no locations.
+func (f failure) toleratedWhen(mode string) bool {
+	return mode == "garbled" && f.fragment == "WHERE option_name = ?"
+}
+
+// assertNoPassword checks that no getter's error carries the password.
+func assertNoPassword(t *testing.T, errs map[string]error) {
+	t.Helper()
+	for name, err := range errs {
+		if err != nil {
+			assert.NotContains(t, err.Error(), localdbtest.Password, name)
 		}
 	}
 }

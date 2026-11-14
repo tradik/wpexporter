@@ -32,7 +32,7 @@ func (s *Source) GetComments() ([]models.WordPressComment, error) {
 	comments := []models.WordPressComment{}
 	for start := 0; start < len(docIDs); start += batchSize {
 		chunk := docIDs[start:min(start+batchSize, len(docIDs))]
-		err := s.q.each(s.ctx, func(r *sql.Rows) error {
+		err := s.q.each(func(r *sql.Rows) error {
 			var c models.WordPressComment
 			var date, dateGMT, content string
 			if err := r.Scan(&c.ID, &c.Post, &c.Parent, &c.Author, &c.AuthorURL, &date, &dateGMT, &content); err != nil {

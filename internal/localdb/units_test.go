@@ -82,9 +82,9 @@ func TestGuardAndBindLists(t *testing.T) {
 
 func TestQueryRefusesBeforeSending(t *testing.T) {
 	src, _ := openSite(t)
-	_, err := src.q.query(context.Background(), "SELECT user_email FROM {users}")
+	_, err := src.q.query("SELECT user_email FROM {users}")
 	assert.ErrorContains(t, err, "user_email")
-	_, err = src.q.query(context.Background(), "UPDATE {posts} SET post_title = ''")
+	_, err = src.q.query("UPDATE {posts} SET post_title = ''")
 	assert.ErrorContains(t, err, "not a SELECT")
 }
 

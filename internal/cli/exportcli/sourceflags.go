@@ -88,6 +88,9 @@ func validateSource(cfg *config.Config) error {
 	return nil
 }
 
+// notThroughREST is why REST credentials mean nothing in local mode.
+const notThroughREST = "nothing is read through the REST API"
+
 // localConflicts are the options local mode cannot honor, each with why.
 var localConflicts = []struct {
 	flag   string
@@ -99,9 +102,9 @@ var localConflicts = []struct {
 	{"max-id", func(cmd *cobra.Command, _ *config.Config) bool { return cmd.Flags().Changed("max-id") }, "it bounds --brute-force"},
 	{"resume", func(_ *cobra.Command, c *config.Config) bool { return c.Resume }, "a database snapshot is read in one go"},
 	{"from-sitemap", func(_ *cobra.Command, c *config.Config) bool { return c.FromSitemap }, "the database is the inventory"},
-	{"auth-user", func(_ *cobra.Command, c *config.Config) bool { return c.AuthUser != "" }, "nothing is read through the REST API"},
-	{"auth-pass", func(_ *cobra.Command, c *config.Config) bool { return c.AuthPass != "" }, "nothing is read through the REST API"},
-	{"auth-token", func(_ *cobra.Command, c *config.Config) bool { return c.AuthToken != "" }, "nothing is read through the REST API"},
+	{"auth-user", func(_ *cobra.Command, c *config.Config) bool { return c.AuthUser != "" }, notThroughREST},
+	{"auth-pass", func(_ *cobra.Command, c *config.Config) bool { return c.AuthPass != "" }, notThroughREST},
+	{"auth-token", func(_ *cobra.Command, c *config.Config) bool { return c.AuthToken != "" }, notThroughREST},
 }
 
 // checkLocalFlags names the first option given that local mode cannot honor.

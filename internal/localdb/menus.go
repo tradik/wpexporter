@@ -32,7 +32,7 @@ func (s *Source) GetMenus() ([]models.WordPressMenu, error) {
 	}
 
 	menus := []models.WordPressMenu{}
-	err = s.q.each(s.ctx, func(r *sql.Rows) error {
+	err = s.q.each(func(r *sql.Rows) error {
 		var m models.WordPressMenu
 		if err := r.Scan(&m.ID, &m.Name, &m.Slug, &m.Description); err != nil {
 			return err
@@ -80,7 +80,7 @@ func (s *Source) GetMenus() ([]models.WordPressMenu, error) {
 func (s *Source) menuItems() ([]models.WordPressMenuItem, map[int]int, error) {
 	var items []models.WordPressMenuItem
 	owner := map[int]int{}
-	err := s.q.each(s.ctx, func(r *sql.Rows) error {
+	err := s.q.each(func(r *sql.Rows) error {
 		var it models.WordPressMenuItem
 		var menuID int
 		if err := r.Scan(&it.ID, &it.Title, &it.Description, &it.Order, &menuID); err != nil {
@@ -99,7 +99,7 @@ func (s *Source) menuItems() ([]models.WordPressMenuItem, map[int]int, error) {
 	for i, it := range items {
 		index[it.ID], itemIDs[i] = i, it.ID
 	}
-	err = s.q.each(s.ctx, func(r *sql.Rows) error {
+	err = s.q.each(func(r *sql.Rows) error {
 		var id int
 		var key string
 		var value sql.NullString
@@ -142,7 +142,7 @@ func applyMenuMeta(it *models.WordPressMenuItem, key, value string) {
 func (s *Source) menuLocations() (map[int][]string, error) {
 	stylesheet := s.options["stylesheet"]
 	var raw sql.NullString
-	err := s.q.each(s.ctx, func(r *sql.Rows) error { return r.Scan(&raw) },
+	err := s.q.each(func(r *sql.Rows) error { return r.Scan(&raw) },
 		"SELECT option_value FROM {options} WHERE option_name = ?", "theme_mods_"+stylesheet)
 	if err != nil {
 		return nil, s.fail(fmt.Errorf("reading theme menu locations: %w", err))

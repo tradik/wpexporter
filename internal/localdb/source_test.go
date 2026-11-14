@@ -2,10 +2,10 @@ package localdb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -77,7 +77,7 @@ func TestNewRefusals(t *testing.T) {
 
 func TestNewBeginFails(t *testing.T) {
 	db, mock, _ := localdbtest.New(t)
-	mock.ExpectExec(localdbtest.Begin).WillReturnError(errors.New("denied for hunter2"))
+	mock.ExpectBegin().WillReturnError(errors.New("denied for hunter2"))
 	_, err := New(context.Background(), db, settings(), Options{})
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "hunter2")
@@ -94,8 +94,8 @@ func TestNewConnFails(t *testing.T) {
 
 func TestCloseReportsRollbackError(t *testing.T) {
 	db, mock, _ := localdbtest.New(t)
-	mock.ExpectExec(localdbtest.Begin).WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(localdbtest.End).WillReturnError(errors.New("gone"))
+	mock.ExpectBegin()
+	mock.ExpectRollback().WillReturnError(errors.New("gone"))
 	src, err := New(context.Background(), db, settings(), Options{})
 	require.NoError(t, err)
 	assert.ErrorContains(t, src.Close(), "gone")
@@ -122,10 +122,14 @@ func TestEveryStatementIsAReadOfAllowedColumns(t *testing.T) {
 	require.NotEmpty(t, statements)
 	for _, s := range statements {
 		require.NoError(t, localdbtest.Check(s), s)
-		if s != localdbtest.Begin && s != localdbtest.End {
-			assert.Regexp(t, `^SELECT `, s)
-			assert.NotContains(t, s, "SELECT *")
-		}
+		assert.Regexp(t, `^SELECT `, s)
+		assert.NotContains(t, s, "SELECT *")
 	}
-	assert.Contains(t, statements, localdbtest.Begin)
+}
+
+// The snapshot is a read-only transaction at REPEATABLE READ: the server
+// refuses any write in it, and every read sees the same moment.
+func TestSnapshotIsReadOnlyRepeatableRead(t *testing.T) {
+	assert.True(t, snapshot.ReadOnly)
+	assert.Equal(t, sql.LevelRepeatableRead, snapshot.Isolation)
 }

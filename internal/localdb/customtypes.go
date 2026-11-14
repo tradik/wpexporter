@@ -26,7 +26,7 @@ func (s *Source) GetPostTypes() ([]api.PostType, error) {
 		return s.types, nil
 	}
 	types := []api.PostType{}
-	err := s.q.each(s.ctx, func(r *sql.Rows) error {
+	err := s.q.each(func(r *sql.Rows) error {
 		var slug string
 		var count int
 		if err := r.Scan(&slug, &count); err != nil {

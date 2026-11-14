@@ -54,30 +54,13 @@ func parseEndpoint(dbHost string, resolve resolver) (endpoint, error) {
 		return endpoint{network: "unix", addr: h[i+1:]}, nil
 	}
 
-	host, port := h, "3306"
-	if strings.HasPrefix(h, "[") {
-		if end := strings.Index(h, "]"); end > 0 {
-			host = h[1:end]
-			if rest := h[end+1:]; strings.HasPrefix(rest, ":") {
-				port = rest[1:]
-			}
-		}
-	} else if i := strings.LastIndex(h, ":"); i >= 0 && strings.Count(h, ":") == 1 {
-		host, port = h[:i], h[i+1:]
-	}
+	host, port := splitHost(h)
 	if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
 		return endpoint{}, fmt.Errorf("DB_HOST %q: port must be a number between 1 and 65535", dbHost)
 	}
 
 	if host == "" || strings.EqualFold(host, "localhost") {
-		if !strings.Contains(h, ":") {
-			for _, path := range socketPaths {
-				if socketExists(path) {
-					return endpoint{network: "unix", addr: path}, nil
-				}
-			}
-		}
-		return endpoint{network: "tcp", addr: net.JoinHostPort("127.0.0.1", port)}, nil
+		return localEndpoint(h, port), nil
 	}
 
 	if net.ParseIP(host) == nil {
@@ -88,4 +71,38 @@ func parseEndpoint(dbHost string, resolve resolver) (endpoint, error) {
 		}
 	}
 	return endpoint{network: "tcp", addr: net.JoinHostPort(host, port)}, nil
+}
+
+// splitHost separates host and port as PHP does: [v6]:port, host:port with a
+// single colon, or a bare host on port 3306.
+func splitHost(h string) (host, port string) {
+	host, port = h, "3306"
+	if strings.HasPrefix(h, "[") {
+		end := strings.Index(h, "]")
+		if end <= 0 {
+			return host, port
+		}
+		host = h[1:end]
+		if rest := h[end+1:]; strings.HasPrefix(rest, ":") {
+			port = rest[1:]
+		}
+		return host, port
+	}
+	if i := strings.LastIndex(h, ":"); i >= 0 && strings.Count(h, ":") == 1 {
+		host, port = h[:i], h[i+1:]
+	}
+	return host, port
+}
+
+// localEndpoint is "localhost": PHP's socket when DB_HOST names no port and one
+// of the usual sockets exists, otherwise TCP on 127.0.0.1.
+func localEndpoint(h, port string) endpoint {
+	if !strings.Contains(h, ":") {
+		for _, path := range socketPaths {
+			if socketExists(path) {
+				return endpoint{network: "unix", addr: path}
+			}
+		}
+	}
+	return endpoint{network: "tcp", addr: net.JoinHostPort("127.0.0.1", port)}
 }

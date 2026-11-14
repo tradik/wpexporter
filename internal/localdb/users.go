@@ -28,7 +28,7 @@ func (s *Source) GetUsers() ([]models.WordPressUser, error) {
 	}
 
 	users := []models.WordPressUser{}
-	err = s.q.each(s.ctx, func(r *sql.Rows) error {
+	err = s.q.each(func(r *sql.Rows) error {
 		var u models.WordPressUser
 		if err := r.Scan(&u.ID, &u.Name, &u.Slug, &u.URL); err != nil {
 			return err
@@ -51,7 +51,7 @@ func (s *Source) GetUsers() ([]models.WordPressUser, error) {
 	}
 	// From usermeta, the biography and nothing else: the same table holds
 	// session tokens and capabilities.
-	err = s.q.each(s.ctx, func(r *sql.Rows) error {
+	err = s.q.each(func(r *sql.Rows) error {
 		var id int
 		var bio sql.NullString
 		if err := r.Scan(&id, &bio); err != nil {
@@ -69,7 +69,7 @@ func (s *Source) GetUsers() ([]models.WordPressUser, error) {
 // authorSlugs maps author IDs to their nicename, for %author% permalinks.
 func (s *Source) authorSlugs(ids []int) (map[int]string, error) {
 	out := map[int]string{}
-	err := s.q.each(s.ctx, func(r *sql.Rows) error {
+	err := s.q.each(func(r *sql.Rows) error {
 		var id int
 		var slug string
 		if err := r.Scan(&id, &slug); err != nil {

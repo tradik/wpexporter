@@ -3,9 +3,7 @@ package exportcli
 // The stages every export shares, whatever it read the site from.
 
 import (
-	"github.com/tradik/wpexporter/internal/basichtml"
 	"github.com/tradik/wpexporter/internal/filter"
-	"github.com/tradik/wpexporter/internal/flathtml"
 	mediafilter "github.com/tradik/wpexporter/internal/media"
 	"github.com/tradik/wpexporter/internal/seo"
 	"github.com/tradik/wpexporter/pkg/models"
@@ -91,60 +89,6 @@ func (r *exportRun) filterRelevantMedia() {
 		originalMedia := len(r.c.media)
 		r.c.media = mf.FilterRelevantMedia(r.c.posts, r.c.pages, r.c.media)
 		logf("Filtered to %d relevant media items (from %d total)\n", len(r.c.media), originalMedia)
-	}
-}
-
-// convertContent applies --flat-html or --basic-html. Must happen AFTER media
-// filtering (the filter needs HTML tags).
-func (r *exportRun) convertContent() {
-	cfg, c := r.cfg, &r.c
-
-	// Convert HTML to Markdown if flat-html is enabled
-	if cfg.FlatHTML {
-		logln("\nConverting HTML to Markdown...")
-		var preserveOpts *flathtml.PreserveOptions
-		if len(cfg.PreserveClasses) > 0 || len(cfg.PreserveIDs) > 0 {
-			preserveOpts = &flathtml.PreserveOptions{Classes: cfg.PreserveClasses, IDs: cfg.PreserveIDs}
-		}
-		// Pick the narrowest constructor for the configured options.
-		var converter *flathtml.Converter
-		switch {
-		case preserveOpts != nil:
-			converter = flathtml.NewConverterWithOptions(cfg.FlatHTMLRules, preserveOpts)
-		case len(cfg.FlatHTMLRules) > 0:
-			converter = flathtml.NewConverterWithRules(cfg.FlatHTMLRules)
-		default:
-			converter = flathtml.NewConverter()
-		}
-		if len(c.posts) > 0 {
-			c.posts = converter.ConvertPosts(c.posts)
-		}
-		if len(c.pages) > 0 {
-			c.pages = converter.ConvertPosts(c.pages)
-		}
-		logln("HTML to Markdown conversion complete")
-	}
-
-	// Sanitize HTML to basic elements if basic-html is enabled
-	if cfg.BasicHTML {
-		logln("\nSanitizing HTML to basic elements...")
-		var preserveOpts *basichtml.PreserveOptions
-		if len(cfg.PreserveClasses) > 0 || len(cfg.PreserveIDs) > 0 {
-			preserveOpts = &basichtml.PreserveOptions{Classes: cfg.PreserveClasses, IDs: cfg.PreserveIDs}
-		}
-		var sanitizer *basichtml.Sanitizer
-		if preserveOpts != nil {
-			sanitizer = basichtml.NewSanitizerWithOptions(preserveOpts)
-		} else {
-			sanitizer = basichtml.NewSanitizer()
-		}
-		if len(c.posts) > 0 {
-			c.posts = sanitizer.SanitizePosts(c.posts)
-		}
-		if len(c.pages) > 0 {
-			c.pages = sanitizer.SanitizePosts(c.pages)
-		}
-		logln("HTML sanitization complete")
 	}
 }
 

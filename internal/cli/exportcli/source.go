@@ -18,13 +18,13 @@ type contentSource interface {
 	GetCategories() ([]models.WordPressCategory, error)
 	GetTags() ([]models.WordPressTag, error)
 	GetUsers() ([]models.WordPressUser, error)
-	menuSource
-	commentSource
+	menuReader
+	commentReader
 	customTypeSource
 }
 
-// commentSource is what fetchComments reads from.
-type commentSource interface {
+// commentReader is what fetchComments reads from.
+type commentReader interface {
 	GetComments() ([]models.WordPressComment, error)
 }
 

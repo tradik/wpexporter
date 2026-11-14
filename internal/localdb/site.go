@@ -23,7 +23,7 @@ var siteOptions = []string{
 func (s *Source) option(name string) (string, error) {
 	if s.options == nil {
 		opts := map[string]string{}
-		err := s.q.each(s.ctx, func(r *sql.Rows) error {
+		err := s.q.each(func(r *sql.Rows) error {
 			var k string
 			var v sql.NullString
 			if err := r.Scan(&k, &v); err != nil {

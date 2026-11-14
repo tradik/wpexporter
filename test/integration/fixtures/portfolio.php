@@ -5,10 +5,10 @@
  * which is what wpexporter's local mode has to ask the web server for.
  */
 add_action( 'init', function () {
-	register_post_type( 'portfolio', array(
-		'label'        => 'Portfolio',
-		'public'       => true,
-		'show_in_rest' => true,
-		'rewrite'      => array( 'slug' => 'work' ),
-	) );
+    register_post_type( 'portfolio', array(
+        'label'        => 'Portfolio',
+        'public'       => true,
+        'show_in_rest' => true,
+        'rewrite'      => array( 'slug' => 'work' ),
+    ) );
 } );

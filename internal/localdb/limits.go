@@ -132,7 +132,7 @@ func (s *Source) pageAncestors(pages []models.WordPressPost) ([]models.WordPress
 	var ancestors []models.WordPressPost
 	for wanted := missing(pages); len(wanted) > 0; {
 		var level []models.WordPressPost
-		err := s.q.each(s.ctx, func(r *sql.Rows) error {
+		err := s.q.each(func(r *sql.Rows) error {
 			var p models.WordPressPost
 			if err := r.Scan(&p.ID, &p.Slug, &p.Parent); err != nil {
 				return err
@@ -166,7 +166,7 @@ func (s *Source) newestMedia(budget int) ([]models.WordPressMedia, error) {
 	s.opts.Limits.Spend(len(all))
 
 	var count int
-	if err := s.q.each(s.ctx, func(r *sql.Rows) error { return r.Scan(&count) }, mediaCountQuery); err != nil {
+	if err := s.q.each(func(r *sql.Rows) error { return r.Scan(&count) }, mediaCountQuery); err != nil {
 		return nil, s.fail(fmt.Errorf("counting media: %w", err))
 	}
 	s.stated[api.CollectionMedia] = count

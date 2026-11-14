@@ -8,96 +8,11 @@ package api
 import (
 	"errors"
 	"fmt"
-	"net/http"
-	"strconv"
-	"strings"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/tradik/wpexporter/internal/config"
 )
-
-// listing is how the stub site paginates.
-type listing struct {
-	// records is the collection's size; pages past it are refused or empty.
-	records int
-	// ignorePage serves the first page for every ?page=.
-	ignorePage bool
-	// headers sends X-WP-Total and X-WP-TotalPages.
-	headers bool
-	// claimPages overrides X-WP-TotalPages, to state fewer pages than served.
-	claimPages int
-	// refuseEnd answers 400 rest_post_invalid_page_number past the end,
-	// as WordPress does; otherwise it answers [].
-	refuseEnd bool
-}
-
-// walkSite serves every collection the client walks as records {"id": N},
-// and counts the requests made for each path.
-func walkSite(t *testing.T, l listing) (*Client, func(path string) int) {
-	t.Helper()
-	var mu sync.Mutex
-	asked := map[string]int{}
-
-	url := startServer(t, func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		asked[r.URL.Path]++
-		mu.Unlock()
-
-		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-		perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
-		if page < 1 {
-			page = 1
-		}
-		if perPage < 1 {
-			perPage = 10
-		}
-		if l.ignorePage {
-			page = 1
-		}
-		pages := (l.records + perPage - 1) / perPage
-		if l.claimPages > 0 {
-			pages = l.claimPages
-		}
-		if l.headers {
-			w.Header().Set("X-WP-Total", strconv.Itoa(l.records))
-			w.Header().Set("X-WP-TotalPages", strconv.Itoa(pages))
-		}
-
-		start := (page - 1) * perPage
-		if start >= l.records {
-			if l.refuseEnd {
-				w.WriteHeader(http.StatusBadRequest)
-				_, _ = w.Write([]byte(`{"code":"rest_post_invalid_page_number"}`))
-				return
-			}
-			_, _ = w.Write([]byte(`[]`))
-			return
-		}
-		ids := make([]string, 0, perPage)
-		for id := start + 1; id <= min(start+perPage, l.records); id++ {
-			ids = append(ids, fmt.Sprintf(`{"id":%d}`, id))
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte("[" + strings.Join(ids, ",") + "]"))
-	})
-
-	cfg := config.DefaultConfig()
-	cfg.URL = url
-	cfg.Timeout = 5
-	cfg.Retries = 0
-	client, err := NewClient(cfg)
-	require.NoError(t, err)
-
-	return client, func(path string) int {
-		mu.Lock()
-		defer mu.Unlock()
-		return asked[path]
-	}
-}
 
 // walk is one paginated read, reduced to what it returned.
 type walk struct {

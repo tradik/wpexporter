@@ -62,6 +62,7 @@ func TestParseEndpoint(t *testing.T) {
 		"db.internal:0": "port",
 		"db.internal:x": "port",
 		"[::1]:99999":   "port",
+		"[::1":          "does not resolve", // unclosed: the whole text is the host
 	} {
 		_, err := parseEndpoint(host, known)
 		assert.ErrorContains(t, err, want, host)
@@ -120,8 +121,8 @@ func (c mockConnector) Driver() driver.Driver                        { return c.
 func TestOpenSucceeds(t *testing.T) {
 	db, mock, err := sqlmock.NewWithDSN("localdb-open-test")
 	require.NoError(t, err)
-	mock.ExpectExec("START TRANSACTION").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("ROLLBACK").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectBegin()
+	mock.ExpectRollback()
 	newConnector = func(cfg *mysql.Config) (driver.Connector, error) {
 		assert.Empty(t, cfg.Params, "no session variables: charset is not one")
 		assert.Contains(t, cfg.FormatDSN(), "charset=utf8mb4")

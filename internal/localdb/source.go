@@ -25,7 +25,6 @@ import (
 // Source is one site's database, opened on a read-only snapshot. It answers
 // the same questions as the REST client, with the same signatures.
 type Source struct {
-	ctx      context.Context
 	db       *sql.DB
 	q        *querier
 	settings *wpconfig.Settings
@@ -44,8 +43,10 @@ type Source struct {
 	stated map[string]int
 }
 
-// New starts the read-only snapshot on db and returns the source. Open is the
-// usual way in; New exists so tests can hand in a mock database.
+// New starts the read-only snapshot on db and returns the source. ctx governs
+// the snapshot transaction for the source's whole life: canceling it ends
+// every read. Open is the usual way in; New exists so tests can hand in a mock
+// database.
 func New(ctx context.Context, db *sql.DB, s *wpconfig.Settings, opts Options) (*Source, error) {
 	if !wpconfig.ValidPrefix(s.TablePrefix) {
 		return nil, fmt.Errorf("table prefix %q is not valid", s.TablePrefix)
@@ -54,21 +55,15 @@ func New(ctx context.Context, db *sql.DB, s *wpconfig.Settings, opts Options) (*
 		return nil, fmt.Errorf("--blog-id %d: wp-config.php does not enable MULTISITE", opts.BlogID)
 	}
 
-	conn, err := db.Conn(ctx)
+	tx, err := db.BeginTx(ctx, &snapshot)
 	if err != nil {
-		_ = db.Close()
-		return nil, redact(err, s.DBPassword)
-	}
-	if _, err := conn.ExecContext(ctx, beginReadOnly); err != nil {
-		_ = conn.Close()
 		_ = db.Close()
 		return nil, redact(err, s.DBPassword)
 	}
 
 	return &Source{
-		ctx:      ctx,
 		db:       db,
-		q:        &querier{conn: conn, prefix: s.TablePrefix, blogID: opts.BlogID},
+		q:        &querier{tx: tx, prefix: s.TablePrefix, blogID: opts.BlogID},
 		settings: s,
 		opts:     opts,
 		docs:     map[string][]models.WordPressPost{},
@@ -79,8 +74,7 @@ func New(ctx context.Context, db *sql.DB, s *wpconfig.Settings, opts Options) (*
 
 // Close ends the snapshot and releases the connection.
 func (s *Source) Close() error {
-	_, err := s.q.conn.ExecContext(s.ctx, endReadOnly)
-	_ = s.q.conn.Close()
+	err := s.q.tx.Rollback()
 	_ = s.db.Close()
 	return s.fail(err)
 }

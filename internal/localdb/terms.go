@@ -23,7 +23,7 @@ func (s *Source) attachTerms(batch []models.WordPressPost, postType string) erro
 			batch[i].Format = "standard"
 		}
 	}
-	return s.q.each(s.ctx, func(r *sql.Rows) error {
+	return s.q.each(func(r *sql.Rows) error {
 		var id, termID int
 		var taxonomy, slug string
 		if err := r.Scan(&id, &termID, &taxonomy, &slug); err != nil {
@@ -52,7 +52,7 @@ func (s *Source) GetCategories() ([]models.WordPressCategory, error) {
 		return s.categories, nil
 	}
 	cats := []models.WordPressCategory{}
-	err := s.q.each(s.ctx, func(r *sql.Rows) error {
+	err := s.q.each(func(r *sql.Rows) error {
 		c := models.WordPressCategory{Taxonomy: "category"}
 		if err := r.Scan(&c.ID, &c.Name, &c.Slug, &c.Description, &c.Parent, &c.Count); err != nil {
 			return err
@@ -81,7 +81,7 @@ func (s *Source) GetTags() ([]models.WordPressTag, error) {
 		return s.tags, nil
 	}
 	tags := []models.WordPressTag{}
-	err := s.q.each(s.ctx, func(r *sql.Rows) error {
+	err := s.q.each(func(r *sql.Rows) error {
 		t := models.WordPressTag{Taxonomy: "post_tag"}
 		var parent int
 		if err := r.Scan(&t.ID, &t.Name, &t.Slug, &t.Description, &parent, &t.Count); err != nil {

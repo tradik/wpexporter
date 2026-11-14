@@ -17,7 +17,7 @@ import (
 
 // fetchComments retrieves every comment the site publishes. Any failure is a
 // warning, never fatal: the rest of the export is still worth having.
-func fetchComments(client commentSource, cfg *config.Config) []models.WordPressComment {
+func fetchComments(client commentReader, cfg *config.Config) []models.WordPressComment {
 	if cfg.NoComments {
 		logln("Skipping comments (--no-comments)")
 		return nil

@@ -69,7 +69,7 @@ func (s *Source) documents(postType string) ([]models.WordPressPost, error) {
 // their meta and terms.
 func (s *Source) documentBatch(postType, query string, args ...any) ([]models.WordPressPost, error) {
 	var batch []models.WordPressPost
-	err := s.q.each(s.ctx, func(r *sql.Rows) error {
+	err := s.q.each(func(r *sql.Rows) error {
 		var p models.WordPressPost
 		var date, dateGMT, modified, modifiedGMT, content, excerpt, title, guid string
 		if err := r.Scan(&p.ID, &p.Author, &date, &dateGMT, &content, &title, &excerpt,
@@ -104,7 +104,7 @@ const metaQuery = "SELECT post_id, meta_key, meta_value FROM {postmeta} WHERE po
 // attachMeta fills FeaturedMedia, Template, Sticky and Meta.
 func (s *Source) attachMeta(batch []models.WordPressPost) error {
 	index := indexByID(batch)
-	err := s.q.each(s.ctx, func(r *sql.Rows) error {
+	err := s.q.each(func(r *sql.Rows) error {
 		var id int
 		var key string
 		var value sql.NullString

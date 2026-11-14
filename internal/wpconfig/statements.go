@@ -30,7 +30,7 @@ func findDefines(code string) []statement {
 		at += from
 		from = at + len("define")
 
-		if at > 0 && (isIdent(code[at-1]) || code[at-1] == '>' || code[at-1] == ':' || code[at-1] == '$') {
+		if !standsAlone(code, at) {
 			continue
 		}
 		open := skipSpace(code, from)
@@ -41,19 +41,36 @@ func findDefines(code string) []statement {
 		if !ok {
 			return out
 		}
-		// define() once took a third, case-insensitivity argument; the value
-		// is still the second.
-		parts := splitTopLevel(args)
-		if len(parts) < 2 {
-			continue
+		if st, ok := defineCall(args); ok {
+			out = append(out, st)
+			from = next
 		}
-		name, ok := literalName(strings.TrimSpace(parts[0]))
-		if !ok {
-			continue
-		}
-		out = append(out, statement{name: name, expr: strings.TrimSpace(parts[1])})
-		from = next
 	}
+}
+
+// standsAlone reports whether the word at is the define function itself, not
+// part of an identifier, a method (->define, ::define) or a variable.
+func standsAlone(code string, at int) bool {
+	if at == 0 {
+		return true
+	}
+	c := code[at-1]
+	return !isIdent(c) && c != '>' && c != ':' && c != '$'
+}
+
+// defineCall reads a define()'s arguments: a literal name and the expression.
+// define() once took a third, case-insensitivity argument; the value is still
+// the second.
+func defineCall(args string) (statement, bool) {
+	parts := splitTopLevel(args)
+	if len(parts) < 2 {
+		return statement{}, false
+	}
+	name, ok := literalName(strings.TrimSpace(parts[0]))
+	if !ok {
+		return statement{}, false
+	}
+	return statement{name: name, expr: strings.TrimSpace(parts[1])}, true
 }
 
 // literalName returns the content of a quoted constant name such as 'DB_NAME'.

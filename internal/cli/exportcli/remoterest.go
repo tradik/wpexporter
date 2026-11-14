@@ -67,15 +67,15 @@ func (r *exportRun) fetchRemoteRest() error {
 	return nil
 }
 
-// menuSource is what fetchMenus reads menus from: the REST client, or the
+// menuReader is what fetchMenus reads menus from: the REST client, or the
 // database.
-type menuSource interface {
+type menuReader interface {
 	GetMenus() ([]models.WordPressMenu, error)
 }
 
 // fetchMenus reads the navigation menus. Menu structure is the one part of a
 // site that cannot be reconstructed from the content afterwards.
-func fetchMenus(src menuSource, cfg *config.Config) []models.WordPressMenu {
+func fetchMenus(src menuReader, cfg *config.Config) []models.WordPressMenu {
 	if cfg.NoMenus {
 		logln("Skipping menus (--no-menus)")
 		return nil

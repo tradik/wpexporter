@@ -187,7 +187,9 @@ func checkOutput(cfg *config.Config) error {
 // newRemoteRun creates the API client, cache, scanner and checkpoint for a
 // REST export, and announces the run.
 func newRemoteRun(cfg *config.Config) (*exportRun, func(), error) {
-	noop := func() {}
+	noop := func() {
+		// Nothing was opened yet, so a failed start has nothing to close.
+	}
 
 	// Create API client
 	apiClient, err := api.NewClient(cfg)
