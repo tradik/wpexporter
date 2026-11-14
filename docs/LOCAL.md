@@ -97,8 +97,31 @@ from where you run — a Docker service name like `db` — is an error suggestin
 `--db-host`.
 
 Options that make no sense against a database are refused with the reason:
-`--brute-force`, `--scan-range`, `--max-id`, `--resume`, `--from-sitemap`,
-`--auth-*`, `--limit*` and `--cache`.
+`--brute-force`, `--scan-range`, `--max-id`, `--resume`, `--from-sitemap` and
+`--auth-*`.
+
+### A preview: `--limit` and its kin
+
+`--limit`, `--limit-per-type` and `--limit-posts`/`-pages`/`-media`/`-products`
+mean what they mean over REST: newest first, one total budget spent across the
+kinds in the order they are read (posts, pages, products, custom types,
+media), and a budget per kind — a custom type named by its slug. The budget is
+the SQL `LIMIT`: `--limit-posts 5` reads five rows, not the table. The summary
+says what was left (`Posts: 5 (limited from 75)`), counted by the database
+under the same filter as the read. Products, read over REST through the
+origin, draw on the same budget. A limited export copies only the media its
+documents reference, as on the REST path.
+
+Menus, comments and users are not limited, on REST or here. The addresses
+their links need still come from a full read of the published documents, so
+for a strictly bounded database read add `--no-menus --no-comments`.
+
+### `--cache`
+
+There are no API responses to cache in local mode; what `--cache` keeps
+(with `--cache-ttl`, `--cache-dir` and `--cache-clear`) is the crawl through
+the origin — each rendered page's content and SEO — exactly as it does for
+the REST path's crawl, plus the products read over REST.
 
 ### Docker
 

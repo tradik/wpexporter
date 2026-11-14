@@ -17,6 +17,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/tradik/wpexporter/internal/api"
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/internal/export"
 	"github.com/tradik/wpexporter/internal/localdb"
@@ -38,11 +39,23 @@ func exportLocal(cmd *cobra.Command, cfg *config.Config) error {
 		return err
 	}
 
-	src, err := openLocal(cfg)
+	// One budget for the database's walks and the REST client's products.
+	limits := api.NewLimits(cfg.Limit, cfg.LimitPerType, cfg.LimitByType)
+	src, err := openLocal(cfg, limits)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = src.Close() }()
+
+	// There are no API responses to cache here; the crawl through the origin
+	// is what --cache keeps, as it does on the REST path.
+	fileCache, err := initializeCache(cfg, nil)
+	if err != nil {
+		return err
+	}
+	if fileCache != nil {
+		defer func() { _ = fileCache.Close() }()
+	}
 
 	if err := checkOutput(cfg); err != nil {
 		return err
@@ -57,13 +70,14 @@ func exportLocal(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	cfg.UploadsURL, cfg.UploadsDir = up.BaseURL, up.Dir
 
-	r := &exportRun{cfg: cfg, src: src, exporter: export.NewExporter(cfg)}
+	r := &exportRun{cfg: cfg, src: src, exporter: export.NewExporter(cfg), fileCache: fileCache, limits: limits}
 	r.announce()
 	return r.runLocal(src, originUp)
 }
 
 // runLocal runs the local stages.
 func (r *exportRun) runLocal(src *localdb.Source, originUp bool) error {
+	r.limitMedia()
 	if err := r.fetchLocal(src, originUp); err != nil {
 		return err
 	}
@@ -89,10 +103,9 @@ func (r *exportRun) runLocal(src *localdb.Source, originUp bool) error {
 	}
 	r.convertContent()
 
-	// The stated totals are the database's own counts: what this run read,
-	// before any filter. There is no sitemap check: the database is the
-	// inventory.
-	r.stated = newLocalCounts(&r.c)
+	// The stated totals are the database's own counts of what a limit cut
+	// short. There is no sitemap check: the database is the inventory.
+	r.stated = localStated{src: src, client: r.apiClient, limits: r.limits}
 	r.c.notices = append(r.c.notices, src.Notes()...)
 
 	exportData := r.assemble()
@@ -106,7 +119,7 @@ func (r *exportRun) runLocal(src *localdb.Source, originUp bool) error {
 
 // openLocal reads wp-config.php and opens the database. A run given --local
 // without --url takes the site's address from the database.
-func openLocal(cfg *config.Config) (*localdb.Source, error) {
+func openLocal(cfg *config.Config, limits *api.Limits) (*localdb.Source, error) {
 	logf("Reading WordPress settings from %s...\n", cfg.LocalPath)
 	settings, err := wpconfig.Load(cfg.LocalPath, wpconfig.Overrides{
 		DBHost: cfg.DBHost, DBName: cfg.DBName, DBUser: cfg.DBUser, TablePrefix: cfg.DBPrefix,
@@ -116,7 +129,7 @@ func openLocal(cfg *config.Config) (*localdb.Source, error) {
 	}
 
 	src, err := openDatabase(context.Background(), settings, localdb.Options{
-		BlogID: cfg.BlogID, Timeout: seconds(cfg.Timeout),
+		BlogID: cfg.BlogID, Timeout: seconds(cfg.Timeout), Limits: limits,
 	})
 	if err != nil {
 		return nil, err

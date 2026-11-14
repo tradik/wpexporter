@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tradik/wpexporter/internal/api"
 	"github.com/tradik/wpexporter/internal/phpserialize"
 	"github.com/tradik/wpexporter/pkg/models"
 )
@@ -20,16 +21,23 @@ const batchSize = 500
 // documents never leave the database.
 const published = "post_status = 'publish' AND post_password = ''"
 
-// docQuery reads one batch of one type's published documents.
-const docQuery = "SELECT ID, post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt, " +
+// docColumns are what a document read selects.
+const docColumns = "SELECT ID, post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt, " +
 	"comment_status, ping_status, post_name, post_modified, post_modified_gmt, post_parent, guid " +
-	"FROM {posts} WHERE post_type = ? AND " + published + " AND ID > ? ORDER BY ID LIMIT ?"
+	"FROM {posts} WHERE post_type = ? AND " + published
 
-// GetPosts returns the published blog posts.
-func (s *Source) GetPosts() ([]models.WordPressPost, error) { return s.documents("post") }
+// docQuery reads one batch of one type's published documents, by ID.
+const docQuery = docColumns + " AND ID > ? ORDER BY ID LIMIT ?"
 
-// GetPages returns the published pages.
-func (s *Source) GetPages() ([]models.WordPressPost, error) { return s.documents("page") }
+// GetPosts returns the published blog posts the export carries.
+func (s *Source) GetPosts() ([]models.WordPressPost, error) {
+	return s.exported("post", api.CollectionPosts)
+}
+
+// GetPages returns the published pages the export carries.
+func (s *Source) GetPages() ([]models.WordPressPost, error) {
+	return s.exported("page", api.CollectionPages)
+}
 
 // documents returns every published document of one type, read once.
 func (s *Source) documents(postType string) ([]models.WordPressPost, error) {
@@ -39,7 +47,7 @@ func (s *Source) documents(postType string) ([]models.WordPressPost, error) {
 
 	var all []models.WordPressPost
 	for after := 0; ; {
-		batch, err := s.documentBatch(postType, after)
+		batch, err := s.documentBatch(postType, docQuery, postType, after, batchSize)
 		if err != nil {
 			return nil, s.fail(fmt.Errorf("reading %s documents: %w", postType, err))
 		}
@@ -50,16 +58,16 @@ func (s *Source) documents(postType string) ([]models.WordPressPost, error) {
 		after = batch[len(batch)-1].ID
 	}
 
-	if err := s.applyLinks(postType, all); err != nil {
+	if err := s.applyLinks(postType, all, nil); err != nil {
 		return nil, err
 	}
 	s.docs[postType] = all
 	return all, nil
 }
 
-// documentBatch reads up to batchSize documents with IDs above after, with
+// documentBatch reads one batch of a type's documents with query and args, with
 // their meta and terms.
-func (s *Source) documentBatch(postType string, after int) ([]models.WordPressPost, error) {
+func (s *Source) documentBatch(postType, query string, args ...any) ([]models.WordPressPost, error) {
 	var batch []models.WordPressPost
 	err := s.q.each(s.ctx, func(r *sql.Rows) error {
 		var p models.WordPressPost
@@ -76,7 +84,7 @@ func (s *Source) documentBatch(postType string, after int) ([]models.WordPressPo
 		p.Excerpt.Rendered = CleanRawContent(excerpt)
 		batch = append(batch, p)
 		return nil
-	}, docQuery, postType, after, batchSize)
+	}, query, args...)
 	if err != nil || len(batch) == 0 {
 		return batch, err
 	}

@@ -35,7 +35,7 @@ type Client struct {
 	cache      *cache.FileCache // Optional cache (nil if disabled)
 	// limits caps how much this client fetches, so a preview of a site does not
 	// download the site (#60).
-	limits limits
+	limits *Limits
 	// stated remembers each collection's size as the site reported it, so a
 	// truncated export can say what it truncated.
 	stated   map[string]int
@@ -112,7 +112,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 		httpClient: httpClient,
 		baseURL:    baseURL,
 		cache:      nil, // Set via SetCache()
-		limits:     newLimits(cfg.Limit, cfg.LimitPerType, cfg.LimitByType),
+		limits:     NewLimits(cfg.Limit, cfg.LimitPerType, cfg.LimitByType),
 	}, nil
 }
 

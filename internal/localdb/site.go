@@ -83,7 +83,7 @@ func (s *Source) GetSiteInfo() (*models.SiteInfo, error) {
 		info.Language = "en_US"
 	}
 
-	pages, err := s.GetPages()
+	pages, err := s.sitePages(o["page_on_front"], o["page_for_posts"])
 	if err != nil {
 		return nil, err
 	}

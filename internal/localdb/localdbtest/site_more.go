@@ -71,3 +71,14 @@ func expectMedia(mock sqlmock.Sqlmock) {
 		[]any{20, "_wp_attachment_metadata", AttachmentMetadata}, []any{21, "_wp_attached_file", "2024/05/brochure.pdf"},
 		[]any{21, "_wp_attachment_metadata", "not serialized"}))
 }
+
+// ExpectNamedPages registers the read a limited run makes for the site
+// description: the front page (10) and the posts page (11) alone.
+func ExpectNamedPages(mock sqlmock.Sqlmock) {
+	p := Site.Prefix
+	mock.ExpectQuery("FROM "+p+"posts WHERE post_type = ?").WithArgs("page", 10, 11).WillReturnRows(rows(docColumns,
+		doc(10, 0, "home", "Home", "<p>Welcome</p>"), doc(11, 0, "blog", "Blog", "")))
+	mock.ExpectQuery("FROM "+p+"postmeta WHERE post_id IN").WithArgs(10, 11, `\_%`).WillReturnRows(rows(metaColumns))
+	mock.ExpectQuery("FROM "+p+"term_relationships tr").WithArgs(10, 11).WillReturnRows(
+		rows([]string{"object_id", "term_id", "taxonomy", "slug"}))
+}

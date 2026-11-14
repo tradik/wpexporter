@@ -32,6 +32,7 @@ func (s *Source) GetPostTypes() ([]api.PostType, error) {
 		if err := r.Scan(&slug, &count); err != nil {
 			return err
 		}
+		s.counts[slug] = count
 		if slug == "product" {
 			s.products = count
 		}
@@ -47,9 +48,10 @@ func (s *Source) GetPostTypes() ([]api.PostType, error) {
 	return types, nil
 }
 
-// GetCustomPosts returns the published entries of one custom type, by slug.
+// GetCustomPosts returns the published entries of one custom type the export
+// carries, by slug — which is also the name a --limit-per-type gives it.
 func (s *Source) GetCustomPosts(slug string) ([]models.WordPressPost, error) {
-	return s.documents(slug)
+	return s.exported(slug, slug)
 }
 
 // documentTypes lists the types whose documents the export carries: posts,

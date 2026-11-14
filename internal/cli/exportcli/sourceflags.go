@@ -102,8 +102,6 @@ var localConflicts = []struct {
 	{"auth-user", func(_ *cobra.Command, c *config.Config) bool { return c.AuthUser != "" }, "nothing is read through the REST API"},
 	{"auth-pass", func(_ *cobra.Command, c *config.Config) bool { return c.AuthPass != "" }, "nothing is read through the REST API"},
 	{"auth-token", func(_ *cobra.Command, c *config.Config) bool { return c.AuthToken != "" }, "nothing is read through the REST API"},
-	{"limit", func(_ *cobra.Command, c *config.Config) bool { return limitsActive(c) }, "limits are not applied to a database read in this release"},
-	{"cache", func(_ *cobra.Command, c *config.Config) bool { return c.Cache }, "the database is read directly; there is nothing to cache"},
 }
 
 // checkLocalFlags names the first option given that local mode cannot honor.

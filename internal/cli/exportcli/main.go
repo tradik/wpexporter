@@ -683,8 +683,10 @@ func initializeCache(cfg *config.Config, apiClient *api.Client) (*cache.FileCach
 		logln("Cache cleared")
 	}
 
-	// Set cache on API client
-	apiClient.SetCache(fileCache)
+	// Set cache on API client; local mode has none, only the crawl.
+	if apiClient != nil {
+		apiClient.SetCache(fileCache)
+	}
 
 	logf("Cache enabled (TTL: %s, dir: %s)\n", cfg.CacheTTL, fileCache.GetCacheDir())
 

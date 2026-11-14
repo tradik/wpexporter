@@ -61,7 +61,10 @@ type exportRun struct {
 	src       contentSource
 	c         collected
 
-	// REST only.
+	// Local only: the budget the database and the products client share.
+	limits *api.Limits
+
+	// REST only (in local mode, apiClient reads products through the origin).
 	apiClient      *api.Client
 	scanner        contentScanner
 	checkpointMgr  *checkpoint.Manager

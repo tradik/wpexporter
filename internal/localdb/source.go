@@ -36,8 +36,12 @@ type Source struct {
 	categories []models.WordPressCategory
 	tags       []models.WordPressTag
 	types      []api.PostType
+	counts     map[string]int
 	products   int
 	notes      []string
+	// stated is each limited collection's size in the database, for the
+	// summary's "limited from".
+	stated map[string]int
 }
 
 // New starts the read-only snapshot on db and returns the source. Open is the
@@ -68,6 +72,8 @@ func New(ctx context.Context, db *sql.DB, s *wpconfig.Settings, opts Options) (*
 		settings: s,
 		opts:     opts,
 		docs:     map[string][]models.WordPressPost{},
+		counts:   map[string]int{},
+		stated:   map[string]int{},
 	}, nil
 }
 

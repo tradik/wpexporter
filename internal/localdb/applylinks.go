@@ -7,8 +7,9 @@ import (
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
-// applyLinks sets Link on a type's documents.
-func (s *Source) applyLinks(postType string, docs []models.WordPressPost) error {
+// applyLinks sets Link on a type's documents. ancestors are pages outside docs
+// that a page's address still runs through — a limited read leaves them out.
+func (s *Source) applyLinks(postType string, docs, ancestors []models.WordPressPost) error {
 	l, err := s.linker()
 	if err != nil {
 		return err
@@ -18,8 +19,8 @@ func (s *Source) applyLinks(postType string, docs []models.WordPressPost) error 
 	case "post":
 		return s.linkPosts(l, docs)
 	case "page":
-		byID := make(map[int]models.WordPressPost, len(docs))
-		for _, d := range docs {
+		byID := make(map[int]models.WordPressPost, len(docs)+len(ancestors))
+		for _, d := range append(ancestors, docs...) {
 			byID[d.ID] = d
 		}
 		for i := range docs {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/tradik/wpexporter/internal/api"
 	"github.com/tradik/wpexporter/internal/localdb"
 	"github.com/tradik/wpexporter/pkg/models"
 )
@@ -60,16 +61,24 @@ func eachDocument(c *collected, fn func(*models.WordPressPost)) {
 // docKey identifies a document across types.
 func docKey(d *models.WordPressPost) string { return d.Type + ":" + strconv.Itoa(d.ID) }
 
-// localCounts are the database's own totals, for the summary.
-type localCounts map[string]int
-
-// newLocalCounts records what the database held.
-func newLocalCounts(c *collected) localCounts {
-	return localCounts{"posts": len(c.posts), "pages": len(c.pages), "products": len(c.products), "media": len(c.media)}
+// localStated answers the summary's "limited from" in local mode: the
+// database's counts, and the REST client's for the products it read.
+type localStated struct {
+	src    *localdb.Source
+	client *api.Client
+	limits *api.Limits
 }
 
 // StatedTotal implements statedCounts.
-func (l localCounts) StatedTotal(kind string) int { return l[kind] }
+func (l localStated) StatedTotal(kind string) int {
+	if kind == api.CollectionProducts {
+		if l.client == nil {
+			return 0
+		}
+		return l.client.StatedTotal(kind)
+	}
+	return l.src.StatedTotal(kind)
+}
 
-// Limited implements statedCounts: local mode applies no limits.
-func (l localCounts) Limited() bool { return false }
+// Limited implements statedCounts.
+func (l localStated) Limited() bool { return l.limits.Active() }

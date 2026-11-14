@@ -104,6 +104,10 @@ func (r *exportRun) localProducts(src *localdb.Source, originUp bool) error {
 		if err != nil {
 			return fmt.Errorf("failed to create API client: %w", err)
 		}
+		client.ShareLimits(r.limits)
+		if r.fileCache != nil {
+			client.SetCache(r.fileCache)
+		}
 		r.apiClient = client
 		r.fetchRemoteProducts()
 		return nil

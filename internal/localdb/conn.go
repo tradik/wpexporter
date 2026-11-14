@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 
+	"github.com/tradik/wpexporter/internal/api"
 	"github.com/tradik/wpexporter/internal/wpconfig"
 )
 
@@ -19,6 +20,10 @@ type Options struct {
 	BlogID int
 	// Timeout bounds connecting and each read.
 	Timeout time.Duration
+	// Limits caps the exported collections (--limit and its kin); nil reads
+	// everything. It is shared with the REST client that reads products, so
+	// one total budget covers both.
+	Limits *api.Limits
 }
 
 // beginReadOnly opens the one transaction every query runs in: read only, on

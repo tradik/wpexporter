@@ -7,60 +7,46 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/tradik/wpexporter/internal/api"
 	"github.com/tradik/wpexporter/internal/phpserialize"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
-// mediaQuery reads one batch of the media library: attachments that are not
+// mediaLibrary is the media library a visitor sees: attachments that are not
 // attached to anything, or attached to a published document — what the REST
-// API shows a visitor.
-const mediaQuery = "SELECT a.ID, a.post_author, a.post_date, a.post_date_gmt, a.post_title, a.post_excerpt, " +
-	"a.post_content, a.post_name, a.post_modified, a.post_modified_gmt, a.post_parent, a.post_mime_type, a.guid " +
-	"FROM {posts} a LEFT JOIN {posts} parent ON parent.ID = a.post_parent " +
-	"WHERE a.post_type = 'attachment' AND a.post_status = 'inherit' AND a.ID > ? AND (a.post_parent = 0 OR " +
-	"(parent.post_status = 'publish' AND parent.post_password = '')) ORDER BY a.ID LIMIT ?"
+// API shows.
+const mediaLibrary = "FROM {posts} a LEFT JOIN {posts} parent ON parent.ID = a.post_parent " +
+	"WHERE a.post_type = 'attachment' AND a.post_status = 'inherit' AND (a.post_parent = 0 OR " +
+	"(parent.post_status = 'publish' AND parent.post_password = ''))"
+
+// mediaColumns are what a media read selects.
+const mediaColumns = "SELECT a.ID, a.post_author, a.post_date, a.post_date_gmt, a.post_title, a.post_excerpt, " +
+	"a.post_content, a.post_name, a.post_modified, a.post_modified_gmt, a.post_parent, a.post_mime_type, a.guid "
+
+// mediaQuery reads one batch of the media library, by ID.
+const mediaQuery = mediaColumns + mediaLibrary + " AND a.ID > ? ORDER BY a.ID LIMIT ?"
 
 // mediaMetaQuery reads the three attachment meta keys an export needs.
 const mediaMetaQuery = "SELECT post_id, meta_key, meta_value FROM {postmeta} WHERE post_id IN (?) AND meta_key IN " +
 	"('_wp_attached_file', '_wp_attachment_image_alt', '_wp_attachment_metadata')"
 
-// GetMedia returns the media library, with the addresses its files are served
-// at — under Uploads().BaseURL, which is how the downloader knows to read them
-// from disk instead.
+// GetMedia returns the media library the export carries, with the addresses
+// its files are served at — under Uploads().BaseURL, which is how the
+// downloader knows to read them from disk instead.
 func (s *Source) GetMedia() ([]models.WordPressMedia, error) {
-	up, err := s.Uploads()
-	if err != nil {
-		return nil, err
+	budget, proceed := s.opts.Limits.Take(api.CollectionMedia)
+	if !proceed {
+		return nil, nil
 	}
-	home, _ := s.home()
+	if budget > 0 {
+		return s.newestMedia(budget)
+	}
 
 	var all []models.WordPressMedia
 	for after := 0; ; {
-		var batch []models.WordPressMedia
-		err := s.q.each(s.ctx, func(r *sql.Rows) error {
-			var m models.WordPressMedia
-			var date, dateGMT, modified, modifiedGMT, title, caption, description, guid string
-			if err := r.Scan(&m.ID, &m.Author, &date, &dateGMT, &title, &caption, &description, &m.Slug,
-				&modified, &modifiedGMT, &m.Post, &m.MimeType, &guid); err != nil {
-				return err
-			}
-			m.Date, m.DateGMT = wpTime(date, ""), wpTime(dateGMT, date)
-			m.Modified, m.ModifiedGMT = wpTime(modified, ""), wpTime(modifiedGMT, modified)
-			m.Title.Rendered, m.Caption.Rendered, m.Description.Rendered = title, caption, description
-			m.GUID.Rendered, m.Type, m.Status = guid, "attachment", "inherit"
-			m.MediaType = "file"
-			if strings.HasPrefix(m.MimeType, "image/") {
-				m.MediaType = "image"
-			}
-			m.Link = home + "/?attachment_id=" + strconv.Itoa(m.ID)
-			batch = append(batch, m)
-			return nil
-		}, mediaQuery, after, batchSize)
-		if err == nil && len(batch) > 0 {
-			err = s.attachMediaMeta(batch, up.BaseURL)
-		}
+		batch, err := s.mediaBatch(mediaQuery, after, batchSize)
 		if err != nil {
-			return nil, s.fail(fmt.Errorf("reading media: %w", err))
+			return nil, err
 		}
 		all = append(all, batch...)
 		if len(batch) < batchSize {
@@ -68,6 +54,44 @@ func (s *Source) GetMedia() ([]models.WordPressMedia, error) {
 		}
 		after = batch[len(batch)-1].ID
 	}
+}
+
+// mediaBatch reads one batch of the library with query and args, with the
+// attachment meta.
+func (s *Source) mediaBatch(query string, args ...any) ([]models.WordPressMedia, error) {
+	up, err := s.Uploads()
+	if err != nil {
+		return nil, err
+	}
+	home, _ := s.home()
+
+	var batch []models.WordPressMedia
+	err = s.q.each(s.ctx, func(r *sql.Rows) error {
+		var m models.WordPressMedia
+		var date, dateGMT, modified, modifiedGMT, title, caption, description, guid string
+		if err := r.Scan(&m.ID, &m.Author, &date, &dateGMT, &title, &caption, &description, &m.Slug,
+			&modified, &modifiedGMT, &m.Post, &m.MimeType, &guid); err != nil {
+			return err
+		}
+		m.Date, m.DateGMT = wpTime(date, ""), wpTime(dateGMT, date)
+		m.Modified, m.ModifiedGMT = wpTime(modified, ""), wpTime(modifiedGMT, modified)
+		m.Title.Rendered, m.Caption.Rendered, m.Description.Rendered = title, caption, description
+		m.GUID.Rendered, m.Type, m.Status = guid, "attachment", "inherit"
+		m.MediaType = "file"
+		if strings.HasPrefix(m.MimeType, "image/") {
+			m.MediaType = "image"
+		}
+		m.Link = home + "/?attachment_id=" + strconv.Itoa(m.ID)
+		batch = append(batch, m)
+		return nil
+	}, query, args...)
+	if err == nil && len(batch) > 0 {
+		err = s.attachMediaMeta(batch, up.BaseURL)
+	}
+	if err != nil {
+		return nil, s.fail(fmt.Errorf("reading media: %w", err))
+	}
+	return batch, nil
 }
 
 // attachMediaMeta fills SourceURL, AltText and MediaDetails.

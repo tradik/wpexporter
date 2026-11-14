@@ -46,8 +46,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   machine can read in `ps`, and never a config key. Database settings are never
   serialized into an export, a checkpoint or a log line. Options that make no
   sense against a database (`--brute-force`, `--scan-range`, `--max-id`,
-  `--resume`, `--from-sitemap`, `--auth-*`, `--limit*`, `--cache`) are refused
-  with the reason. WooCommerce products are not read from the database in this
+  `--resume`, `--from-sitemap`, `--auth-*`) are refused with the reason.
+  `--limit`, `--limit-per-type` and the `--limit-<kind>` shortcuts mean what
+  they mean over REST — newest first, one total budget across kinds (shared
+  with the products read through the origin), a budget per kind with custom
+  types by slug — and are applied as an SQL `LIMIT`, so a preview of five posts
+  reads five rows; the summary's "limited from" comes from a `COUNT` under the
+  same filter, and a limited export copies only the media its documents
+  reference. Under a limit the site description reads only the front and
+  posts pages, and a limited page still carries its left-out parents in its
+  address. Menus, comments and users are not limited, as over REST. `--cache`
+  keeps the crawl through the origin, as it does for the REST path's crawl. WooCommerce products are not read from the database in this
   release: with a web server answering they come over the REST API as before,
   and without one the summary says how many were left out. The snap cannot
   reach `/var/www` or the MySQL socket and says so. Local mode is deliberately

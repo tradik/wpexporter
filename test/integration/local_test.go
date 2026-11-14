@@ -179,6 +179,28 @@ func TestLocalExport(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, pixel)
 	fmt.Println("media written:", pixel)
+
+	// A preview: the newest post alone, read with a LIMIT, the crawl cached.
+	limited := filepath.Join(e.work, "out", "limited")
+	cacheDir := filepath.Join(e.work, "out", "cache")
+	log, err = run(t, bin, containerEnv, "--local", site, "--db-host", e.dbHost, "--origin", e.origin,
+		"-f", "json", "-o", limited, "--limit-posts", "1", "--limit-pages", "1", "--cache", "--cache-dir", cacheDir, "--timeout", "20")
+	t.Log(log)
+	require.NoError(t, err, log)
+	assert.Contains(t, log, "Posts: 1 (limited from 2)")
+	assert.Contains(t, log, "Cache enabled")
+	raw, err = os.ReadFile(filepath.Join(limited, "export.json")) // #nosec G304 -- test output
+	require.NoError(t, err)
+	var preview models.ExportData
+	require.NoError(t, json.Unmarshal(raw, &preview))
+	assert.Equal(t, []string{"hello-local"}, slugs(preview.Posts), "the newest post")
+	assert.Contains(t, log, "Pages: 1 (limited from 3)")
+	assert.Equal(t, []string{"team"}, slugs(preview.Pages), "the newest page")
+	assert.Equal(t, "http://example.test/about/team/", linkOf(preview.Pages, "team"),
+		"its parent, left out by the limit, still in its address")
+	cached, err := os.ReadDir(cacheDir)
+	require.NoError(t, err)
+	assert.NotEmpty(t, cached, "the crawl through the origin was cached")
 }
 
 func slugs(docs []models.WordPressPost) []string {

@@ -129,9 +129,10 @@ wpexportjson export --config config.yaml
 
 On the WordPress server, `--local /var/www/html` reads the site from its own
 database instead of the REST API. It cannot be combined with `--brute-force`,
-`--scan-range`, `--max-id`, `--resume`, `--from-sitemap`, `--auth-*`,
-`--limit*` or `--cache`; the run names the conflict. Everything else — formats,
-filters, `--no-*`, conversions — works as usual. The full story is in
+`--scan-range`, `--max-id`, `--resume`, `--from-sitemap` or `--auth-*`; the
+run names the conflict. Everything else — formats, filters, `--no-*`,
+conversions, `--limit*` (newest first, read with an SQL `LIMIT`) and `--cache`
+(the crawl through the origin) — works as usual. The full story is in
 [LOCAL.md](LOCAL.md).
 
 ## Resume / checkpoint
