@@ -175,6 +175,15 @@ type Config struct {
 	CacheTTL           string         `mapstructure:"cache_ttl" json:"cache_ttl"`     // Cache TTL (e.g., "24h", "0" for unlimited)
 	CacheDir           string         `mapstructure:"cache_dir" json:"cache_dir"`     // Cache directory path
 	CacheClear         bool           `mapstructure:"cache_clear" json:"cache_clear"` // Clear cache before export
+	// Origin is where requests for the site's own host are really sent, as
+	// scheme://host[:port] — the web server behind Cloudflare or a tunnel,
+	// reached without DNS. Empty means DNS decides, exactly as before. Parsed
+	// and applied by internal/origin (FEAT-001).
+	Origin string `mapstructure:"origin" json:"origin,omitempty"`
+	// OriginInsecure skips certificate verification on connections to Origin
+	// only (a Cloudflare Origin CA certificate is not publicly trusted). Every
+	// other host is verified as usual.
+	OriginInsecure bool `mapstructure:"origin_insecure" json:"origin_insecure,omitempty"`
 }
 
 // FlatHTMLRule defines a custom HTML to Markdown conversion rule

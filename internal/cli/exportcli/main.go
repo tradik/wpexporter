@@ -182,6 +182,11 @@ Content Filters:
       --max-sitemap-documents Read at most N sitemap-index children (0 = all)
       --read-more-phrases     The read-more text this theme appends, if it cannot be learned
 
+Reaching the site:
+      --origin URL            Send the site's own requests to this web server
+                              (scheme://host[:port]) instead of via DNS/Cloudflare
+      --origin-insecure       Skip certificate checks on --origin connections only
+
 Advanced:
       --brute-force           Enable brute force ID discovery
       --max-id int            Max ID for brute force (default 10000)
@@ -641,6 +646,8 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 		cfg.CacheClear = cacheClear
 	}
 
+	applySourceFlagOverrides(cmd, cfg)
+
 	return nil
 }
 
@@ -791,6 +798,9 @@ func runExport(cmd *cobra.Command, args []string) error {
 
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
+	if err := validateSource(cfg); err != nil {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 

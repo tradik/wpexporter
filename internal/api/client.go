@@ -16,6 +16,7 @@ import (
 	"github.com/tradik/wpexporter/internal/cache"
 	"github.com/tradik/wpexporter/internal/checkpoint"
 	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/origin"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
@@ -91,6 +92,13 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	// Bound the response size to avoid unbounded memory use on a hostile or
 	// misbehaving endpoint (SEC-002).
 	httpClient.SetResponseBodyLimit(maxAPIResponseBytes)
+
+	// --origin: the site's own requests go to its web server, not through DNS
+	// to whatever fronts it. Left alone otherwise, so resty keeps its own
+	// transport exactly as before (FEAT-001).
+	if cfg.Origin != "" {
+		httpClient.SetTransport(origin.NewTransport(cfg, nil))
+	}
 
 	// Set authentication if configured
 	if cfg.AuthToken != "" {

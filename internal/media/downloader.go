@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/origin"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
@@ -29,10 +30,10 @@ type Downloader struct {
 func NewDownloader(cfg *config.Config) *Downloader {
 	return &Downloader{
 		config: cfg,
-		httpClient: &http.Client{
-			Timeout: time.Duration(cfg.Timeout) * time.Second,
-		},
-		mediaDir: cfg.GetMediaDir(),
+		// Routed to --origin when one is set; otherwise the plain client it
+		// always was (FEAT-001).
+		httpClient: origin.HTTPClient(cfg),
+		mediaDir:   cfg.GetMediaDir(),
 	}
 }
 
