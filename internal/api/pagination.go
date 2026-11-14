@@ -18,6 +18,10 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -87,6 +91,8 @@ type pageResult struct {
 	content []models.WordPressPost
 	// total is the site's own count for the collection, 0 when it did not say.
 	total int
+	// pages is the site's own page count at this size, 0 when it did not say.
+	pages int
 	// done reports that the collection ended here.
 	done bool
 	// retryWith is a smaller page size the site may accept, or 0.
@@ -127,3 +133,80 @@ func classifyRefusal(body []byte, perPage, fetched int) refusal {
 
 	return refusal{code: code}
 }
+
+// Ending a walk the site would not end (#37 for posts and pages; every other
+// walk followed a site that ignores ?page= until memory ran out).
+//
+// A server that ignores ?page= answers every page with the first one. Asking
+// for page N+1 then returns the records already kept, for ever: nothing in the
+// answer is empty and nothing is refused. Three things end a walk now, the
+// same way for every collection: the page count the site states in
+// X-WP-TotalPages, a page whose records are those of the page before — the
+// repeat, which needs no header to be seen — and the page ceiling.
+
+// totalPagesHeader carries how many pages the collection spans at this size.
+const totalPagesHeader = "X-WP-TotalPages"
+
+// errPageRepeated is the repeat, reported as a gap: what lies past the first
+// page could not be read.
+var errPageRepeated = errors.New("the site answered with the records of the page before — it ignores ?page=, " +
+	"so nothing past that page could be read")
+
+// pager follows one walk and says when it is over.
+type pager struct {
+	endpoint string
+	previous []int
+}
+
+// check refuses a page whose records are those of the page before. Its records
+// are not kept.
+func (p *pager) check(page int, ids []int, fetched int) error {
+	if p.previous != nil && slices.Equal(ids, p.previous) {
+		return &PartialError{Endpoint: p.endpoint, Page: page, Fetched: fetched, Err: errPageRepeated}
+	}
+	p.previous = ids
+	return nil
+}
+
+// done reports whether the page just kept was the last: the site's own page
+// count is reached (totalPages is 0 when it did not say), or the ceiling, which
+// is a gap.
+func (p *pager) done(page, totalPages, fetched int) (bool, error) {
+	switch {
+	case totalPages > 0 && page >= totalPages:
+		return true, nil
+	case page >= maxContentPages:
+		return true, &PartialError{Endpoint: p.endpoint, Page: page + 1, Fetched: fetched,
+			Err: fmt.Errorf("collection did not end within %d pages", maxContentPages)}
+	default:
+		return false, nil
+	}
+}
+
+// take keeps a page's records unless they repeat the page before, and reports
+// whether the walk is over. It is the one step every walk takes per page.
+func take[T any](p *pager, all *[]T, items []T, id func(T) int, page, totalPages int) (bool, error) {
+	ids := make([]int, len(items))
+	for i, item := range items {
+		ids[i] = id(item)
+	}
+	if err := p.check(page, ids, len(*all)); err != nil {
+		return true, err
+	}
+	*all = append(*all, items...)
+	return p.done(page, totalPages, len(*all))
+}
+
+// pageCount reads X-WP-TotalPages; 0 when the site did not say.
+func pageCount(h http.Header) int {
+	return collectionTotal(h.Get(totalPagesHeader))
+}
+
+// The record IDs a repeat is recognized by.
+func postID(p models.WordPressPost) int         { return p.ID }
+func mediaID(m models.WordPressMedia) int       { return m.ID }
+func categoryID(c models.WordPressCategory) int { return c.ID }
+func tagID(t models.WordPressTag) int           { return t.ID }
+func userID(u models.WordPressUser) int         { return u.ID }
+func productID(p models.WooCommerceProduct) int { return p.ID }
+func commentID(c models.WordPressComment) int   { return c.ID }

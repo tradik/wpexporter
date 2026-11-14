@@ -108,13 +108,14 @@ func (c *Client) walkStoreAPI(path string) ([]models.WooCommerceProduct, string,
 	}
 
 	var all []models.WooCommerceProduct
+	pg := pager{endpoint: CollectionProducts}
 
 	for page := 1; ; page++ {
 		if page > 1 {
 			c.applyRateLimit()
 		}
 
-		batch, total, ok := c.storeProductPage(route, page, perPage)
+		batch, total, pages, ok := c.storeProductPage(route, page, perPage)
 		if !ok {
 			// The first page deciding it is what tells a shop without a Store
 			// API from one whose second page failed: the first means fall
@@ -122,13 +123,16 @@ func (c *Client) walkStoreAPI(path string) ([]models.WooCommerceProduct, string,
 			return all, route, page > 1
 		}
 
+		// The storefront walk has no gap to report into: a repeated page or
+		// the ceiling ends it with what it read.
+		before := len(all)
+		last, _ := take(&pg, &all, batch, productID, page, pages)
 		c.recordStated(CollectionProducts, total)
-		c.spendBudget(len(batch))
-		all = append(all, batch...)
+		c.spendBudget(len(all) - before)
 
 		// A short page is the last one, and a budget already spent means the
 		// operator asked for a preview rather than a catalog (#62).
-		if len(batch) < perPage || (budget > 0 && len(all) >= budget) {
+		if last || len(batch) < perPage || (budget > 0 && len(all) >= budget) {
 			break
 		}
 	}
@@ -140,17 +144,17 @@ func (c *Client) walkStoreAPI(path string) ([]models.WooCommerceProduct, string,
 // 100 like the rest of WordPress.
 const storePageSize = 100
 
-// storeProductPage reads one page, reporting false for anything that is not a
-// page of products.
-func (c *Client) storeProductPage(route string, page, perPage int) ([]models.WooCommerceProduct, int, bool) {
+// storeProductPage reads one page, with the site's count of records and of
+// pages, reporting false for anything that is not a page of products.
+func (c *Client) storeProductPage(route string, page, perPage int) ([]models.WooCommerceProduct, int, int, bool) {
 	resp, err := c.httpClient.R().Get(fmt.Sprintf("%s?page=%d&per_page=%d", route, page, perPage))
 	if err != nil || resp.StatusCode() != http.StatusOK {
-		return nil, 0, false
+		return nil, 0, 0, false
 	}
 
 	var records []storeProduct
 	if err := json.Unmarshal(resp.Body(), &records); err != nil || len(records) == 0 {
-		return nil, 0, false
+		return nil, 0, 0, false
 	}
 
 	products := make([]models.WooCommerceProduct, 0, len(records))
@@ -158,7 +162,7 @@ func (c *Client) storeProductPage(route string, page, perPage int) ([]models.Woo
 		products = append(products, records[i].product())
 	}
 
-	return products, collectionTotal(resp.Header().Get(totalHeader)), true
+	return products, collectionTotal(resp.Header().Get(totalHeader)), pageCount(resp.Header()), true
 }
 
 // product maps a storefront record onto the export's own.

@@ -66,9 +66,12 @@ func TestRESTExportScenarios(t *testing.T) {
 						w.WriteHeader(http.StatusInternalServerError)
 						return
 					}
+					// Two pages stated, the second refused: a gap. (writeList
+					// would state one page, which now ends the walk.)
+					w.Header().Set("Content-Type", "application/json")
 					w.Header().Set("X-WP-TotalPages", "2")
 					w.Header().Set("X-WP-Total", "101")
-					writeList(w, r, `[{"id":8,"name":"t","slug":"t"}]`)
+					_, _ = w.Write([]byte(`[{"id":8,"name":"t","slug":"t"}]`))
 				},
 				"/sitemap.xml": func(w http.ResponseWriter, r *http.Request) {
 					_, _ = fmt.Fprintf(w, `<urlset><url><loc>http://%s/elsewhere/</loc></url></urlset>`, r.Host)

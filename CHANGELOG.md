@@ -106,6 +106,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New dependency: `go-sql-driver/mysql` 1.10.1 (and `DATA-DOG/go-sqlmock`
   1.5.2 for tests).
 
+### Fixed
+- **A site that ignores `?page=` no longer runs an export out of memory.** Such
+  a server answers every page with the first one, and the media walk asked for
+  page after page of the same records for ever, holding all of them — as did
+  categories, tags, users, the WooCommerce products walk and the four
+  `--resume` walks. Comments and the storefront products walk ended only on a
+  short page, so a site with a full first page never let them end either;
+  posts, pages and custom types were stopped by the 10,000-page ceiling (#37),
+  after a million copies of the first page. Every walk now ends the same way,
+  through one piece of shared code: at the page count the site states in
+  `X-WP-TotalPages`, at a page whose records are those of the page before —
+  which needs no header to be seen — and at the ceiling. A repeat is reported
+  as a gap with the first page kept, not mistaken for the end of the
+  collection. A normal listing is still read to the end.
+
 ## [1.8.19] - 2026-09-05
 
 ### Added

@@ -257,3 +257,17 @@ func startServer(t *testing.T, handler http.HandlerFunc) string {
 
 	return server.URL
 }
+
+// A storefront walk asked after the total is spent does not ask the shop.
+func TestStoreWalkWithASpentBudget(t *testing.T) {
+	client, asked := walkSite(t, listing{records: 5})
+	spent := NewLimits(1, 0, nil)
+	spent.Spend(1)
+	client.ShareLimits(spent)
+
+	products, route, ok := client.GetStoreProducts()
+	assert.Empty(t, products)
+	assert.Empty(t, route)
+	assert.False(t, ok)
+	assert.Zero(t, asked("/wp-json/wc/store/v1/products"))
+}
