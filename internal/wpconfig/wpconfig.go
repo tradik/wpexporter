@@ -169,8 +169,13 @@ func tablePrefix(code string, ev *evaluator, override string) (string, error) {
 		}
 		prefix = v.str
 	}
-	if !prefixPattern.MatchString(prefix) {
+	if !ValidPrefix(prefix) {
 		return "", fmt.Errorf("table_prefix %q may contain only letters, digits and underscores", prefix)
 	}
 	return prefix, nil
+}
+
+// ValidPrefix reports whether p is a table prefix this tool will put into SQL.
+func ValidPrefix(p string) bool {
+	return prefixPattern.MatchString(p)
 }
