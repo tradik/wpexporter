@@ -5,6 +5,122 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-11-14
+
+### Added
+- **`--origin`: the export without Cloudflare in the way.** Exporting a site
+  over its public address goes through whatever stands in front of it, and
+  behind Cloudflare that is usually where the export ends: the REST API answers
+  with a challenge page and the crawl is blocked. `--origin
+  scheme://host[:port]` sends every request for the site — its host and its
+  `www.` twin — straight to its web server, while the request still names the
+  site: the `Host` header and the TLS server name stay `example.com`, only the
+  address dialled changes, so the certificate is checked against the site and
+  the server answers as it would a visitor. A plain-HTTP origin behind a
+  TLS-terminating tunnel gets `X-Forwarded-Proto: https`, without which
+  WordPress redirects forever. A CDN or any other host is fetched as before.
+
+  `--origin-insecure` skips certificate checks on origin connections **only**
+  (a Cloudflare Origin CA certificate is not publicly trusted); every other host
+  is still verified. An origin that cannot be parsed is refused before the run
+  rather than quietly falling back to DNS. It works for the REST API, the crawl
+  and the media downloads alike.
+
+- **`--local`: the site read from its own database, on its own server.** Run
+  next to WordPress, `wpexporter export --local /var/www/html` reads
+  `wp-config.php` and the database instead of the REST API:
+
+  | Step | How |
+  |---|---|
+  | Settings | `wp-config.php` is read as text and **never executed**: string literals, concatenation, `getenv()`, `getenv_docker()` (the official image), `$_ENV`, `$_SERVER`, `__DIR__`, `ABSPATH`. A value computed any other way is an error naming the flag that supplies it — nothing is guessed |
+  | Database | One `READ ONLY` transaction on a consistent snapshot; nothing written, nothing locked. Every statement is checked before it is sent: a `SELECT`, naming none of `user_pass`, `user_email`, `user_login`, `user_activation_key`, `comment_author_email`, `comment_author_IP`, `comment_agent` |
+  | Content | Published documents without a password, their terms, authors, approved comments, menus and attachments — the same models the REST client fills, so all fifteen formats work unchanged |
+  | Addresses | WordPress is asked for each one: `/?p=ID`, `/?page_id=ID` and `/?post_type=T&p=ID` redirect to the canonical address, which carries what only PHP knows — a custom type's rewrite slug, WPML, custom permalinks |
+  | Bodies | The rendered page, crawled through the origin (found on `127.0.0.1` when `--origin` is not given). Where the crawl gives nothing, the stored body cleaned of block comments, and the report says how many documents that was and how many still hold shortcodes |
+  | Media | Copied from the uploads directory, with the same size limit; a path resolving outside it — `..` or a symbolic link — is refused |
+
+  `--url` becomes optional (the site's `home` option), `--db-host`,
+  `--db-name`, `--db-user`, `--db-prefix` override `wp-config.php`, `--blog-id`
+  picks a multisite site, and the password comes from `wp-config.php` or
+  `WPEXPORTER_DB_PASSWORD` — deliberately never a flag, which every user of the
+  machine can read in `ps`, and never a config key. Database settings are never
+  serialized into an export, a checkpoint or a log line. Options that make no
+  sense against a database (`--brute-force`, `--scan-range`, `--max-id`,
+  `--resume`, `--from-sitemap`, `--auth-*`) are refused with the reason.
+  `--limit`, `--limit-per-type` and the `--limit-<kind>` shortcuts mean what
+  they mean over REST — newest first, one total budget across kinds (shared
+  with the products read through the origin), a budget per kind with custom
+  types by slug — and are applied as an SQL `LIMIT`, so a preview of five posts
+  reads five rows; the summary's "limited from" comes from a `COUNT` under the
+  same filter, and a limited export copies only the media its documents
+  reference. Under a limit the site description reads only the front and
+  posts pages, and a limited page still carries its left-out parents in its
+  address. Menus, comments and users are not limited, as over REST. `--cache`
+  keeps the crawl through the origin, as it does for the REST path's crawl. WooCommerce products are not read from the database in this
+  release: with a web server answering they come over the REST API as before,
+  and without one the summary says how many were left out. The snap cannot
+  reach `/var/www` or the MySQL socket and says so. Local mode is deliberately
+  not offered through the MCP server. Guide: [docs/LOCAL.md](docs/LOCAL.md).
+
+  Verified against WordPress 7.1.4 on MariaDB 12.3.3 (`make test-integration`,
+  Docker, outside CI), which also found two faults no mock could: the database
+  charset was being sent as a session variable the server does not have, and a
+  run started from inside another snap was refused as if it were confined.
+
+### Security
+- **Go 1.27.1 → 1.27.4.** `govulncheck` reported ten standard-library
+  vulnerabilities this program actually reaches — every one of them on the path
+  from `seo.Crawler.fetchHTML` into `http.Client.Do`, which is the path that talks
+  to other people's servers. The ones that matter most for a tool that fetches
+  from hosts it does not control are on the client side: an HTTP/2 transport
+  that accepted malformed framing headers (GO-2026-6610), an HTTP/1 client that
+  could be desynchronised by a rejected `CONNECT` (GO-2026-6605), MIME header
+  parsing that could exceed its memory limit (GO-2026-6608), and intermediate
+  CAs that should no longer be trusted (GO-2026-6809). CI, the release binaries
+  and the snap now build on 1.27.4; `go.mod` keeps its `go 1.27.0` floor, which
+  is a minimum, not a pin. `govulncheck ./...` is clean.
+- **`golang.org/x/net` 0.58.0 → 0.62.0** (the same HTTP/2 fixes on the x/net
+  side), with `x/term` 0.48.0, `x/sys` 0.50.0, `x/text` 0.44.0, `spf13/pflag`
+  1.1.0, `go.yaml.in/yaml/v3` 3.0.6 and `mattn/go-runewidth` 0.0.31.
+
+### Changed
+- **gosec 2.28.0 → 2.30.0** in the `tools/` module. Its new rules find nothing
+  in this code base; no exclusion was added.
+- **CI actions**, each pinned to the commit of its release:
+  `codecov/codecov-action` 7.1.1, `docker/build-push-action` 7.4.0 (which stops a
+  workflow-command injection through metadata written to the log),
+  `docker/setup-buildx-action` 4.4.1, `docker/login-action` 4.8.0,
+  `actions/upload-artifact` 7.0.2, `actions/download-artifact` 8.0.2,
+  `softprops/action-gh-release` 3.0.4 and `spagu/ssg` 1.9.8 for the
+  documentation site.
+- **golangci-lint is pinned** (`v2.15.0`) instead of resolving `latest`, so a
+  new linter release cannot fail CI on a commit that changed no code.
+- `coverage.html` and `.golangci.yml.bak` are no longer tracked; both are
+  ignored, and `*.bak` with them.
+- **`runExport` is a list of stages** instead of one 660-line function: the REST
+  reads (in the order they always ran), the database reads, and the stages
+  both share. A characterization test of the REST export was written first and
+  the console output of the old and new code diffed; nothing changed.
+- `--url` is required unless `--local` is given. Without either the command
+  still stops at parsing, as it always did without `--url`.
+- New dependency: `go-sql-driver/mysql` 1.10.1 (and `DATA-DOG/go-sqlmock`
+  1.5.2 for tests).
+
+### Fixed
+- **A site that ignores `?page=` no longer runs an export out of memory.** Such
+  a server answers every page with the first one, and the media walk asked for
+  page after page of the same records for ever, holding all of them — as did
+  categories, tags, users, the WooCommerce products walk and the four
+  `--resume` walks. Comments and the storefront products walk ended only on a
+  short page, so a site with a full first page never let them end either;
+  posts, pages and custom types were stopped by the 10,000-page ceiling (#37),
+  after a million copies of the first page. Every walk now ends the same way,
+  through one piece of shared code: at the page count the site states in
+  `X-WP-TotalPages`, at a page whose records are those of the page before —
+  which needs no header to be seen — and at the ceiling. A repeat is reported
+  as a gap with the first page kept, not mistaken for the end of the
+  collection. A normal listing is still read to the end.
+
 ## [1.8.19] - 2026-09-05
 
 ### Added

@@ -24,6 +24,7 @@ A comprehensive WordPress content export toolkit.
 
 ```bash
 wpexporter export --url https://example.com -f ssg   # REST API export
+wpexporter export --local /var/www/html -f ssg       # on the server: database + origin
 wpexporter xmlrpc export --url ... --username ...    # XML-RPC export
 wpexporter mcp                                        # MCP server for AI assistants
 ```
@@ -70,6 +71,8 @@ The three tools are also installed as standalone binaries, which behave identica
 - 🧭 **Finds Things by Asking**: The sitemap comes from `robots.txt` when it is not where anyone would guess, the feed from the page's own `<link rel="alternate">`, and the REST API from whichever of its two spellings answers
 - 🎛️ **Sites Differ, So the Rules Bend**: `--builder-classes`, `--boilerplate-classes`, `--content-selector` and `--crawl-content-mode` let one site's theme, builder and markup be named instead of guessed
 - 🌐 **No Authentication**: Works with public WordPress REST API
+- 🛡️ **Past Cloudflare**: `--origin https://127.0.0.1` sends the site's own requests straight to its web server — same `Host`, same certificate name — so a proxy that blocks the REST API is simply not in the path
+- 🗄️ **Local Mode**: `--local /var/www/html`, run on the server, reads `wp-config.php` (never executing it) and the database read-only on a consistent snapshot, crawls the rendered pages through the origin, asks WordPress for each document's real address and copies media straight from the uploads directory — see [docs/LOCAL.md](docs/LOCAL.md)
 
 ### wpxmlrpc (XML-RPC Client)
 - 🔐 **Authenticated Access**: Access private content with WordPress credentials
@@ -103,6 +106,7 @@ Every guide lives in [docs/](docs/) and is published at
 | [Website builder formats](docs/FORMATS-BUILDERS.md) | Wix, Squarespace, Webflow, Weebly |
 | [Static site generator format](docs/SSG-FORMAT.md) | `-f ssg`: layout, front matter, content cleanup |
 | [Media and URL rewriting](docs/MEDIA.md) | Downloads, path styles, link styles, size variants |
+| [Local mode and `--origin`](docs/LOCAL.md) | Exporting from the server: the database, the origin, past Cloudflare |
 | [SEO metadata extraction](docs/SEO.md) | `--assisted-crawl`, site marketing metadata |
 | [HTML to Markdown](docs/MARKDOWN.md) | `--flat-html`, custom rules, Gutenberg blocks |
 | [Page builder rules](docs/PAGE-BUILDERS.md) | Bricks, Elementor, Divi, Oxygen, GenerateBlocks |
@@ -130,6 +134,12 @@ Other routes — `go install`, release tarballs, building from source — are in
 ```bash
 # Everything the REST API lists, as a static-site content source
 wpexporter export --url https://example.com -f ssg
+
+# On the WordPress server: the database read-only, pages crawled locally
+wpexporter export --local /var/www/html -f ssg
+
+# Behind Cloudflare: the REST export, straight to the web server
+wpexporter export --url https://example.com --origin https://127.0.0.1 -f ssg
 
 # Private content, over XML-RPC
 wpexporter xmlrpc export --url https://example.com --username admin --password '…'

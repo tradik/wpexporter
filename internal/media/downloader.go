@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/origin"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
@@ -29,10 +30,10 @@ type Downloader struct {
 func NewDownloader(cfg *config.Config) *Downloader {
 	return &Downloader{
 		config: cfg,
-		httpClient: &http.Client{
-			Timeout: time.Duration(cfg.Timeout) * time.Second,
-		},
-		mediaDir: cfg.GetMediaDir(),
+		// Routed to --origin when one is set; otherwise the plain client it
+		// always was (FEAT-001).
+		httpClient: origin.HTTPClient(cfg),
+		mediaDir:   cfg.GetMediaDir(),
 	}
 }
 
@@ -225,6 +226,17 @@ func (d *Downloader) downloadFile(downloadURL, filePath string) bool {
 			fmt.Printf("Invalid file path %s: %v\n", filePath, err)
 		}
 		return false
+	}
+
+	// Local mode: a file in the uploads directory is copied, not fetched.
+	switch src, where := d.locate(downloadURL); where {
+	case onDisk:
+		return d.copyLocal(src, filePath)
+	case refused:
+		d.logf("Refusing media outside the uploads directory: %s\n", downloadURL)
+		return false
+	case notLocal:
+		// Fetched over HTTP below, as always.
 	}
 
 	// Create request

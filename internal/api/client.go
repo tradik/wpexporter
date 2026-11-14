@@ -16,6 +16,7 @@ import (
 	"github.com/tradik/wpexporter/internal/cache"
 	"github.com/tradik/wpexporter/internal/checkpoint"
 	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/origin"
 	"github.com/tradik/wpexporter/pkg/models"
 )
 
@@ -34,7 +35,7 @@ type Client struct {
 	cache      *cache.FileCache // Optional cache (nil if disabled)
 	// limits caps how much this client fetches, so a preview of a site does not
 	// download the site (#60).
-	limits limits
+	limits *Limits
 	// stated remembers each collection's size as the site reported it, so a
 	// truncated export can say what it truncated.
 	stated   map[string]int
@@ -92,6 +93,13 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	// misbehaving endpoint (SEC-002).
 	httpClient.SetResponseBodyLimit(maxAPIResponseBytes)
 
+	// --origin: the site's own requests go to its web server, not through DNS
+	// to whatever fronts it. Left alone otherwise, so resty keeps its own
+	// transport exactly as before (FEAT-001).
+	if cfg.Origin != "" {
+		httpClient.SetTransport(origin.NewTransport(cfg, nil))
+	}
+
 	// Set authentication if configured
 	if cfg.AuthToken != "" {
 		httpClient.SetAuthToken(cfg.AuthToken)
@@ -104,7 +112,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 		httpClient: httpClient,
 		baseURL:    baseURL,
 		cache:      nil, // Set via SetCache()
-		limits:     newLimits(cfg.Limit, cfg.LimitPerType, cfg.LimitByType),
+		limits:     NewLimits(cfg.Limit, cfg.LimitPerType, cfg.LimitByType),
 	}, nil
 }
 
@@ -435,6 +443,7 @@ func (c *Client) GetProducts() ([]models.WooCommerceProduct, error) {
 
 	// WooCommerce uses a different API base
 	wooBaseURL := strings.Replace(c.baseURL, "/wp/v2", "/wc/v3", 1)
+	pg := pager{endpoint: "products"}
 
 	for {
 		// Apply rate limiting between requests
@@ -468,13 +477,20 @@ func (c *Client) GetProducts() ([]models.WooCommerceProduct, error) {
 			break
 		}
 
-		allProducts = append(allProducts, products...)
+		last, err := take(&pg, &allProducts, products, productID, page, pageCount(resp.Header()))
 
 		if budget > 0 && len(allProducts) >= budget {
 			allProducts = allProducts[:budget]
 			c.spendBudget(len(allProducts))
 
 			return allProducts, nil
+		}
+
+		if err != nil {
+			return allProducts, err
+		}
+		if last {
+			break
 		}
 
 		page++
@@ -537,6 +553,7 @@ func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
 	if budget > 0 && budget < perPage {
 		perPage = budget
 	}
+	pg := pager{endpoint: "media"}
 
 	for {
 		// Apply rate limiting between requests
@@ -582,13 +599,20 @@ func (c *Client) GetMedia() ([]models.WordPressMedia, error) {
 			break
 		}
 
-		allMedia = append(allMedia, media...)
+		last, err := take(&pg, &allMedia, media, mediaID, page, pageCount(resp.Header()))
 
 		if budget > 0 && len(allMedia) >= budget {
 			allMedia = allMedia[:budget]
 			c.spendBudget(len(allMedia))
 
 			return allMedia, nil
+		}
+
+		if err != nil {
+			return allMedia, err
+		}
+		if last {
+			break
 		}
 
 		page++
@@ -615,6 +639,7 @@ func (c *Client) GetCategories() ([]models.WordPressCategory, error) {
 	var allCategories []models.WordPressCategory
 	page := 1
 	perPage := 100
+	pg := pager{endpoint: "categories"}
 
 	for {
 		// Apply rate limiting between requests
@@ -657,7 +682,13 @@ func (c *Client) GetCategories() ([]models.WordPressCategory, error) {
 			break
 		}
 
-		allCategories = append(allCategories, categories...)
+		last, err := take(&pg, &allCategories, categories, categoryID, page, pageCount(resp.Header()))
+		if err != nil {
+			return allCategories, err
+		}
+		if last {
+			break
+		}
 		page++
 	}
 
@@ -680,6 +711,7 @@ func (c *Client) GetTags() ([]models.WordPressTag, error) {
 	var allTags []models.WordPressTag
 	page := 1
 	perPage := 100
+	pg := pager{endpoint: "tags"}
 
 	for {
 		// Apply rate limiting between requests
@@ -722,7 +754,13 @@ func (c *Client) GetTags() ([]models.WordPressTag, error) {
 			break
 		}
 
-		allTags = append(allTags, tags...)
+		last, err := take(&pg, &allTags, tags, tagID, page, pageCount(resp.Header()))
+		if err != nil {
+			return allTags, err
+		}
+		if last {
+			break
+		}
 		page++
 	}
 
@@ -745,6 +783,7 @@ func (c *Client) GetUsers() ([]models.WordPressUser, error) {
 	var allUsers []models.WordPressUser
 	page := 1
 	perPage := 100
+	pg := pager{endpoint: "users"}
 
 	for {
 		// Apply rate limiting between requests
@@ -787,7 +826,13 @@ func (c *Client) GetUsers() ([]models.WordPressUser, error) {
 			break
 		}
 
-		allUsers = append(allUsers, users...)
+		last, err := take(&pg, &allUsers, users, userID, page, pageCount(resp.Header()))
+		if err != nil {
+			return allUsers, err
+		}
+		if last {
+			break
+		}
 		page++
 	}
 
@@ -891,6 +936,7 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 	// What the site says the collection holds, from its own header. A walk that
 	// ends with fewer records than this has missed something (#43).
 	stated := 0
+	pg := pager{endpoint: endpoint}
 
 	for {
 		// Apply rate limiting between requests
@@ -920,7 +966,7 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 			c.recordStated(endpoint, stated)
 		}
 
-		allContent = append(allContent, result.content...)
+		last, err := take(&pg, &allContent, result.content, postID, page, result.pages)
 
 		// Stop as soon as the budget is spent. The records come newest first,
 		// which is the REST default, so the first N are the N worth previewing.
@@ -931,19 +977,17 @@ func (c *Client) getAllContent(endpoint string) ([]models.WordPressPost, error) 
 			return allContent, nil
 		}
 
-		page++
-
-		// A site that never says stop is bounded here: without a ceiling one
-		// that repeats its first page for ever is followed until memory runs
-		// out (#37).
-		if page > maxContentPages {
-			return allContent, &PartialError{
-				Endpoint: endpoint,
-				Page:     page,
-				Fetched:  len(allContent),
-				Err:      fmt.Errorf("collection did not end within %d pages", maxContentPages),
-			}
+		// A site that repeats a page, or never says stop, is bounded here (#37).
+		if err != nil {
+			return allContent, err
 		}
+		if last {
+			c.spendBudget(len(allContent))
+
+			return c.checkedContent(endpoint, allContent, stated, page)
+		}
+
+		page++
 	}
 }
 
@@ -1003,7 +1047,8 @@ func (c *Client) fetchContentPage(endpoint string, page, perPage, fetched int) p
 		return pageResult{done: true}
 	}
 
-	return pageResult{content: content, total: collectionTotal(resp.Header().Get(totalHeader))}
+	return pageResult{content: content, total: collectionTotal(resp.Header().Get(totalHeader)),
+		pages: pageCount(resp.Header())}
 }
 
 // checkedContent returns a finished walk, or the gap between what it read and
@@ -1071,6 +1116,7 @@ func (c *Client) GetPostsWithCheckpoint(state *checkpoint.State, onProgress Prog
 
 	page := startPage
 	perPage := 100
+	pg := pager{endpoint: "posts"}
 
 	for {
 		if page > 1 {
@@ -1108,7 +1154,10 @@ func (c *Client) GetPostsWithCheckpoint(state *checkpoint.State, onProgress Prog
 			break
 		}
 
-		allContent = append(allContent, content...)
+		last, err := take(&pg, &allContent, content, postID, page, pageCount(resp.Header()))
+		if err != nil {
+			return allContent, err
+		}
 
 		// Update checkpoint
 		if state != nil {
@@ -1125,6 +1174,9 @@ func (c *Client) GetPostsWithCheckpoint(state *checkpoint.State, onProgress Prog
 			}
 		}
 
+		if last {
+			break
+		}
 		page++
 	}
 
@@ -1152,6 +1204,7 @@ func (c *Client) GetPagesWithCheckpoint(state *checkpoint.State, onProgress Prog
 
 	page := startPage
 	perPage := 100
+	pg := pager{endpoint: "pages"}
 
 	for {
 		if page > 1 {
@@ -1189,7 +1242,10 @@ func (c *Client) GetPagesWithCheckpoint(state *checkpoint.State, onProgress Prog
 			break
 		}
 
-		allContent = append(allContent, content...)
+		last, err := take(&pg, &allContent, content, postID, page, pageCount(resp.Header()))
+		if err != nil {
+			return allContent, err
+		}
 
 		if state != nil {
 			ids := make([]int, len(content))
@@ -1205,6 +1261,9 @@ func (c *Client) GetPagesWithCheckpoint(state *checkpoint.State, onProgress Prog
 			}
 		}
 
+		if last {
+			break
+		}
 		page++
 	}
 
@@ -1232,6 +1291,7 @@ func (c *Client) GetProductsWithCheckpoint(state *checkpoint.State, onProgress P
 
 	page := startPage
 	perPage := 100
+	pg := pager{endpoint: "products"}
 	wooBaseURL := strings.Replace(c.baseURL, "/wp/v2", "/wc/v3", 1)
 
 	for {
@@ -1268,7 +1328,10 @@ func (c *Client) GetProductsWithCheckpoint(state *checkpoint.State, onProgress P
 			break
 		}
 
-		allProducts = append(allProducts, products...)
+		last, err := take(&pg, &allProducts, products, productID, page, pageCount(resp.Header()))
+		if err != nil {
+			return allProducts, err
+		}
 
 		if state != nil {
 			ids := make([]int, len(products))
@@ -1284,6 +1347,9 @@ func (c *Client) GetProductsWithCheckpoint(state *checkpoint.State, onProgress P
 			}
 		}
 
+		if last {
+			break
+		}
 		page++
 	}
 
@@ -1311,6 +1377,7 @@ func (c *Client) GetMediaWithCheckpoint(state *checkpoint.State, onProgress Prog
 
 	page := startPage
 	perPage := 100
+	pg := pager{endpoint: "media"}
 
 	for {
 		if page > 1 {
@@ -1353,7 +1420,10 @@ func (c *Client) GetMediaWithCheckpoint(state *checkpoint.State, onProgress Prog
 			break
 		}
 
-		allMedia = append(allMedia, media...)
+		last, err := take(&pg, &allMedia, media, mediaID, page, pageCount(resp.Header()))
+		if err != nil {
+			return allMedia, err
+		}
 
 		if state != nil {
 			ids := make([]int, len(media))
@@ -1369,6 +1439,9 @@ func (c *Client) GetMediaWithCheckpoint(state *checkpoint.State, onProgress Prog
 			}
 		}
 
+		if last {
+			break
+		}
 		page++
 	}
 

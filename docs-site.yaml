@@ -140,7 +140,7 @@ variables:
   # Header version chip. Committed as the current release; the Docs Site workflow
   # rewrites it from the VERSION file before building, so a release bump reaches
   # the site even when this line lags behind.
-  version: "1.8.15"
+  version: "1.9.0"
 
   # No `gtag` and no `gtm_id`: this site ships no analytics, so it also needs no
   # consent banner. Add either variable (and cookie_consent alongside it) if that
@@ -189,6 +189,7 @@ variables:
     - install          # first thing anyone does
     - quickstart       # then run something
     - cli              # then tune it
+    - local            # then: a site behind Cloudflare, or read on its server
     - formats          # then pick a destination
     - formats-ecommerce
     - formats-cms

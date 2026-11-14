@@ -68,13 +68,14 @@ func (c *Client) GetComments() ([]models.WordPressComment, error) {
 	}
 
 	var all []models.WordPressComment
+	pg := pager{endpoint: "comments"}
 
 	for page := 1; ; page++ {
 		if page > 1 {
 			c.applyRateLimit()
 		}
 
-		batch, err := c.fetchCommentsPage(page)
+		batch, pages, err := c.fetchCommentsPage(page)
 		if err != nil {
 			return nil, err
 		}
@@ -82,9 +83,11 @@ func (c *Client) GetComments() ([]models.WordPressComment, error) {
 			break
 		}
 
-		all = append(all, batch...)
-
-		if len(batch) < commentsPerPage {
+		last, err := take(&pg, &all, batch, commentID, page, pages)
+		if err != nil {
+			return all, err
+		}
+		if last || len(batch) < commentsPerPage {
 			break
 		}
 	}
@@ -98,30 +101,31 @@ func (c *Client) GetComments() ([]models.WordPressComment, error) {
 	return all, nil
 }
 
-// fetchCommentsPage reads one page of the comment collection.
-func (c *Client) fetchCommentsPage(page int) ([]models.WordPressComment, error) {
+// fetchCommentsPage reads one page of the comment collection, and the page
+// count the site states.
+func (c *Client) fetchCommentsPage(page int) ([]models.WordPressComment, int, error) {
 	url := fmt.Sprintf("%s/comments?page=%d&per_page=%d&order=asc&orderby=date",
 		c.baseURL, page, commentsPerPage)
 
 	resp, err := c.httpClient.R().Get(url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get comments page %d: %w", page, err)
+		return nil, 0, fmt.Errorf("failed to get comments page %d: %w", page, err)
 	}
 
 	switch resp.StatusCode() {
 	case http.StatusOK:
 	case http.StatusBadRequest:
 		// Past the last page — WordPress answers rest_post_invalid_page_number.
-		return nil, nil
+		return nil, 0, nil
 	case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
-		return nil, refusalReason(resp.Body())
+		return nil, 0, refusalReason(resp.Body())
 	default:
-		return nil, fmt.Errorf("API returned status %d for comments page %d", resp.StatusCode(), page)
+		return nil, 0, fmt.Errorf("API returned status %d for comments page %d", resp.StatusCode(), page)
 	}
 
 	var restComments []restComment
 	if err := json.Unmarshal(resp.Body(), &restComments); err != nil {
-		return nil, fmt.Errorf("failed to parse comments response: %w", err)
+		return nil, 0, fmt.Errorf("failed to parse comments response: %w", err)
 	}
 
 	comments := make([]models.WordPressComment, 0, len(restComments))
@@ -129,7 +133,7 @@ func (c *Client) fetchCommentsPage(page int) ([]models.WordPressComment, error) 
 		comments = append(comments, rc.toModel())
 	}
 
-	return comments, nil
+	return comments, pageCount(resp.Header()), nil
 }
 
 // refusalReason tells a switched-off comment system apart from a gated one, so

@@ -16,6 +16,7 @@ import (
 
 	"github.com/tradik/wpexporter/internal/cache"
 	"github.com/tradik/wpexporter/internal/config"
+	"github.com/tradik/wpexporter/internal/origin"
 	"github.com/tradik/wpexporter/internal/rx"
 	"github.com/tradik/wpexporter/pkg/models"
 )
@@ -36,10 +37,10 @@ type Crawler struct {
 func NewCrawler(cfg *config.Config) *Crawler {
 	return &Crawler{
 		config: cfg,
-		httpClient: &http.Client{
-			Timeout: time.Duration(cfg.Timeout) * time.Second,
-		},
-		cache: nil,
+		// Routed to --origin when one is set; otherwise the plain client it
+		// always was (FEAT-001).
+		httpClient: origin.HTTPClient(cfg),
+		cache:      nil,
 	}
 }
 

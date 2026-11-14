@@ -95,7 +95,7 @@ jobs:
       # can run this step and nothing else.
       - name: Build the site (pull request)
         if: github.event_name == 'pull_request'
-        uses: spagu/ssg@c9e51ddb54e7526c7bf34a755e47bee37ba75e5b # v1.8.44
+        uses: spagu/ssg@3e0df0061f8157a4e1cb01508519f2f63a1d5ab9 # v1.9.8
         with:
           config: docs-site.yaml
           # Pinned like everything else here. Left unset the action resolves
@@ -106,7 +106,7 @@ jobs:
           #
           # The "v" is not decoration: the value goes straight into the release
           # download URL, and the tags are v-prefixed. Without it the URL 404s.
-          version: "v1.8.44"
+          version: "v1.9.8"
           # The action forwards its own directory defaults, so the config's
           # output_dir would otherwise be overridden with ./output.
           output-dir: .site
@@ -140,10 +140,10 @@ jobs:
       # so nothing half-built reaches the CDN.
       - name: Build and deploy to Cloudflare Pages
         if: github.event_name != 'pull_request'
-        uses: spagu/ssg@c9e51ddb54e7526c7bf34a755e47bee37ba75e5b # v1.8.44
+        uses: spagu/ssg@3e0df0061f8157a4e1cb01508519f2f63a1d5ab9 # v1.9.8
         with:
           config: docs-site.yaml
-          version: "v1.8.44"
+          version: "v1.9.8"
           output-dir: .site
           clean: "true"
           deploy: cloudflare

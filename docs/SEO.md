@@ -44,6 +44,15 @@ wpexportjson export --url https://example.com --rate-limit 500 -f markdown
 wpexportjson export --url https://example.com --resume -f markdown
 ```
 
+## Behind Cloudflare, and in local mode
+
+The crawl goes wherever `--origin` points: the rendered page is fetched from the
+site's own web server, by the site's name, so a proxy that challenges crawlers
+is not in the way. In local mode (`--local`) `--assisted-crawl` and
+`--crawl-content` are on by default whenever a web server answers, with
+`--crawl-content-mode always` — the stored body in the database is never the
+rendered page. See [LOCAL.md](LOCAL.md).
+
 ## Site-level marketing metadata
 
 `--assisted-crawl` also reads the home page once and records the site's marketing

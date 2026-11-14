@@ -10,6 +10,7 @@ dist/
 *.test
 coverage.out
 coverage.html
+*.bak
 
 # Temporary files
 *.tmp
@@ -75,3 +76,6 @@ audit/
 .ssg-cache/
 templates/
 assets/
+
+# Integration test working directory (make test-integration)
+test/integration/.work/

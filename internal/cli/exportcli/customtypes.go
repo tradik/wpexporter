@@ -21,7 +21,7 @@ import (
 // fetchCustomTypes discovers the site's custom post types and fetches every
 // entry of each. A discovery or fetch failure is a warning, never fatal: the
 // rest of the export is still worth having.
-func fetchCustomTypes(client *api.Client, cfg *config.Config) []models.CustomTypeSet {
+func fetchCustomTypes(client customTypeSource, cfg *config.Config) []models.CustomTypeSet {
 	if cfg.NoCustomTypes {
 		logln("Skipping custom post types (--no-custom-types)")
 		return nil

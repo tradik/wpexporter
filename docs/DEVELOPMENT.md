@@ -66,6 +66,19 @@ make format
 make check
 ```
 
+### Integration test (local mode)
+
+```bash
+make test-integration
+```
+
+Starts WordPress and MariaDB in Docker (`test/integration/compose.yaml`, ports
+bound to 127.0.0.1 only), fills the site with `wp-cli`, checks what WordPress
+answers for `/?p=ID`, `/?page_id=ID` and `/?post_type=T&p=ID`, and runs a real
+`wpexporter export --local` against it. The stack, its volume and the working
+directory are removed whatever the result. Needs Docker; not run in CI. The
+test file builds only with `-tags integration`.
+
 `make sec` builds gosec from the `tools/` module rather than expecting it on
 `PATH`, so it is the same binary — and the same exclusion list — the pipeline
 uses. Nothing to install; the first run compiles it into `build/`.

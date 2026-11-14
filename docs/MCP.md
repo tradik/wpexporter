@@ -47,6 +47,10 @@ from, so `stats.comments` is where a site whose comment route is closed shows up
 as a zero. `noPosts`, `noPages`, `noProducts` and `noComments` switch a
 collection off, matching the `--no-…` flags in [the CLI reference](CLI.md).
 
+Local mode (`--local`, `--db-*`) is deliberately not exposed as a tool
+parameter: a remote agent must not be able to make the server read
+`wp-config.php` and its database — see [LOCAL.md](LOCAL.md).
+
 ## Gaps: `incomplete`
 
 An assistant has no console. Anything a human operator would have read as a

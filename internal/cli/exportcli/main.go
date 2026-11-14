@@ -2,30 +2,22 @@ package exportcli
 
 import (
 	"archive/zip"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"golang.org/x/term"
 
 	"github.com/tradik/wpexporter/internal/api"
-	"github.com/tradik/wpexporter/internal/basichtml"
-	"github.com/tradik/wpexporter/internal/bruteforce"
 	"github.com/tradik/wpexporter/internal/cache"
-	"github.com/tradik/wpexporter/internal/checkpoint"
 	"github.com/tradik/wpexporter/internal/cli"
 	"github.com/tradik/wpexporter/internal/config"
 	"github.com/tradik/wpexporter/internal/export"
-	"github.com/tradik/wpexporter/internal/filter"
-	"github.com/tradik/wpexporter/internal/flathtml"
-	mediafilter "github.com/tradik/wpexporter/internal/media"
 	"github.com/tradik/wpexporter/internal/seo"
 	"github.com/tradik/wpexporter/internal/version"
 	"github.com/tradik/wpexporter/pkg/models"
@@ -133,9 +125,10 @@ var rootCmd = &cobra.Command{
 	Long: `WordPress content export tool
 
 Usage: wpexportjson export --url <site-url> [flags]
+       wpexportjson export --local <wordpress-dir> [flags]
 
 Export Flags:
-  -u, --url string            WordPress site URL (required)
+  -u, --url string            WordPress site URL (required unless --local)
   -o, --output string         Output directory (default: export/{domain}.{date})
   -f, --format string         Format: json|markdown|shopify|magento|wordpress|drupal|
                               wix|squarespace|webflow|weebly|prestashop|ghost|strapi|contentful
@@ -182,6 +175,19 @@ Content Filters:
       --max-sitemap-documents Read at most N sitemap-index children (0 = all)
       --read-more-phrases     The read-more text this theme appends, if it cannot be learned
 
+Reaching the site:
+      --origin URL            Send the site's own requests to this web server
+                              (scheme://host[:port]) instead of via DNS/Cloudflare
+      --origin-insecure       Skip certificate checks on --origin connections only
+
+Local mode (run on the WordPress server; see docs/LOCAL.md):
+      --local PATH            Read the site from this WordPress directory and its
+                              database (read only); --url defaults to the site's home
+      --db-host, --db-name, --db-user, --db-prefix
+                              Override what wp-config.php says
+                              (password: WPEXPORTER_DB_PASSWORD, never a flag)
+      --blog-id int           Multisite: which site to read (default: the main site)
+
 Advanced:
       --brute-force           Enable brute force ID discovery
       --max-id int            Max ID for brute force (default 10000)
@@ -219,7 +225,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 
 	// Export command flags
-	exportCmd.Flags().StringVarP(&url, "url", "u", "", "WordPress site URL (required)")
+	exportCmd.Flags().StringVarP(&url, "url", "u", "", "WordPress site URL (required unless --local)")
 	exportCmd.Flags().StringVarP(&output, "output", "o", "", "output directory or file (default: export/{domain-name}.{date}{time})")
 	exportCmd.Flags().StringVarP(&format, "format", "f", "json", "export format (json|markdown|shopify|magento)")
 	exportCmd.Flags().BoolVar(&bruteForce, "brute-force", false, "enable brute force ID discovery")
@@ -326,10 +332,8 @@ func init() {
 	exportCmd.Flags().StringVar(&cacheDir, "cache-dir", "", "cache directory (default: ~/.wpexporter/cache)")
 	exportCmd.Flags().BoolVar(&cacheClear, "cache-clear", false, "clear cache before export")
 
-	// Mark required flags
-	if err := exportCmd.MarkFlagRequired("url"); err != nil {
-		panic(fmt.Sprintf("Failed to mark url flag as required: %v", err))
-	}
+	// --url is required unless --local is given: see sourceflags.go, which
+	// registers --local and declares the pair.
 
 	rootCmd.AddCommand(exportCmd)
 }
@@ -641,6 +645,8 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *config.Config) error {
 		cfg.CacheClear = cacheClear
 	}
 
+	applySourceFlagOverrides(cmd, cfg)
+
 	return nil
 }
 
@@ -677,8 +683,10 @@ func initializeCache(cfg *config.Config, apiClient *api.Client) (*cache.FileCach
 		logln("Cache cleared")
 	}
 
-	// Set cache on API client
-	apiClient.SetCache(fileCache)
+	// Set cache on API client; local mode has none, only the crawl.
+	if apiClient != nil {
+		apiClient.SetCache(fileCache)
+	}
 
 	logf("Cache enabled (TTL: %s, dir: %s)\n", cfg.CacheTTL, fileCache.GetCacheDir())
 
@@ -695,7 +703,7 @@ func postIDSet(posts []models.WordPressPost) map[int]bool {
 }
 
 // scanPostRange rescans an ID range for a post-like content type ("posts"/"pages").
-func scanPostRange(sc *bruteforce.Scanner, kind string, start, end int) []models.WordPressPost {
+func scanPostRange(sc contentScanner, kind string, start, end int) []models.WordPressPost {
 	res, err := sc.ScanSpecificRange(kind, start, end)
 	if err != nil {
 		return nil
@@ -707,7 +715,7 @@ func scanPostRange(sc *bruteforce.Scanner, kind string, start, end int) []models
 // appendScanRange rescans the configured inclusive ID range for posts, pages and
 // media, appending items not already present (deduplicated by ID). Returns the
 // number of newly-added items.
-func appendScanRange(sc *bruteforce.Scanner, cfg *config.Config,
+func appendScanRange(sc contentScanner, cfg *config.Config,
 	posts, pages *[]models.WordPressPost, media *[]models.WordPressMedia) (int, error) {
 	start, end, ok, err := config.ParseScanRange(cfg.ScanRange)
 	if err != nil || !ok {
@@ -751,667 +759,6 @@ func appendScanRange(sc *bruteforce.Scanner, cfg *config.Config,
 	}
 
 	return found, nil
-}
-
-func runExport(cmd *cobra.Command, args []string) error {
-	// Start with default configuration
-	cfg := config.DefaultConfig()
-
-	// Load configuration file if specified or found
-	if cfgFile != "" || configFileExists() {
-		loadedCfg, err := config.LoadConfig(cfgFile)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-		cfg = loadedCfg
-	}
-
-	// Override config with command line flags
-	if err := applyFlagOverrides(cmd, cfg); err != nil {
-		return err
-	}
-
-	// Set global quiet mode for log functions
-	quietMode = cfg.Quiet
-
-	// Validate --no-files requires --zip
-	if cfg.NoFiles && !cfg.CreateZip {
-		return fmt.Errorf("--no-files requires --zip flag")
-	}
-
-	// Validate --flat-html and --basic-html are mutually exclusive
-	if cfg.FlatHTML && cfg.BasicHTML {
-		return fmt.Errorf("--flat-html and --basic-html are mutually exclusive")
-	}
-
-	// Generate default output path if not specified
-	if err := cfg.GenerateDefaultOutput(); err != nil {
-		return fmt.Errorf("failed to generate default output path: %w", err)
-	}
-
-	// Validate configuration
-	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("invalid configuration: %w", err)
-	}
-
-	// Fail before the export rather than after: a snap writing to /tmp reports
-	// success into a private namespace the user cannot reach (issue #19).
-	if err := snapPrivateTmpError(cfg.Output); err != nil {
-		return err
-	}
-
-	// Check output directory permissions before starting expensive operations
-	if err := checkOutputPermissions(cfg.Output); err != nil {
-		return fmt.Errorf("output directory check failed: %w", err)
-	}
-
-	// Create API client
-	apiClient, err := api.NewClient(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to create API client: %w", err)
-	}
-
-	// Initialize cache if enabled
-	fileCache, err := initializeCache(cfg, apiClient)
-	if err != nil {
-		return err
-	}
-	if fileCache != nil {
-		defer func() { _ = fileCache.Close() }()
-	}
-
-	// Create exporter
-	exporter := export.NewExporter(cfg)
-
-	// Create brute force scanner
-	scanner := bruteforce.NewScanner(cfg, apiClient)
-
-	// Create checkpoint manager
-	checkpointMgr := checkpoint.NewManager(cfg.Output, cfg.Resume)
-
-	// Load or create checkpoint state (the manager owns the state; see GetState()).
-	if checkpointMgr.IsEnabled() {
-		if _, err := checkpointMgr.Load(cfg.URL); err != nil {
-			return fmt.Errorf("failed to load checkpoint: %w", err)
-		}
-		if checkpointMgr.Exists() {
-			logf("Resuming from checkpoint: %s\n", checkpointMgr.GetFilePath())
-			logln(checkpointMgr.GetState().Summary())
-		}
-	}
-
-	// Progress callback to save checkpoint after each page
-	saveCheckpoint := func() error {
-		return checkpointMgr.Save()
-	}
-
-	logf("Starting WordPress export from: %s\n", cfg.URL)
-	logf("Output: %s (format: %s)\n", cfg.Output, cfg.Format)
-
-	if cfg.BruteForce {
-		logf("Brute force enabled (max ID: %d)\n", cfg.MaxID)
-	}
-
-	if cfg.DownloadMedia {
-		logf("Media download enabled (concurrent: %d)\n", cfg.Concurrent)
-	}
-
-	startTime := time.Now()
-
-	// Get site information
-	logln("\nFetching site information...")
-	siteInfo, err := apiClient.GetSiteInfo()
-	siteInfoGap, rootUnread := api.Gap(err)
-	if err != nil && !rootUnread {
-		return fmt.Errorf("failed to get site info: %w", err)
-	}
-	if rootUnread {
-		// A closed /wp-json root leaves the identity fields empty. The export
-		// goes on — the collections are read separately — but the run says the
-		// site was never described rather than presenting the blanks as the
-		// site's own answer (#79).
-		logln("Warning: " + siteInfoGap)
-	}
-
-	// A limited export downloads the media its documents reference, not the
-	// whole library: fetching 200 MB of images for a five-page preview is the
-	// thing #60 exists to stop. --relevant-media-only already has that logic,
-	// so the limit switches it on rather than growing a second copy.
-	if limitsActive(cfg) && !cfg.RelevantMediaOnly {
-		cfg.RelevantMediaOnly = true
-		logln("Limiting media to what the exported documents reference (--limit)")
-	}
-
-	// Collections the site would not read to the end. They are reported here,
-	// again in the summary and in metadata.json, and never silently dropped —
-	// but they do not end the export (#37). A root document that never answered
-	// is the same kind of hole, so it is carried in the same list (#79).
-	var gaps []string
-	if rootUnread {
-		gaps = append(gaps, siteInfoGap)
-	}
-
-	// Facts about the site itself rather than about any one collection: an API
-	// answering only at ?rest_route=, or a WordPress with no content API at all
-	// (#66, #68). They are learned while fetching, so they are collected after.
-	var notices []string
-
-	// Get content via API (respecting filter flags)
-	var posts []models.WordPressPost
-	if !cfg.NoPosts {
-		logln("Fetching posts...")
-		if cfg.Resume {
-			posts, err = apiClient.GetPostsWithCheckpoint(checkpointMgr.GetState(), saveCheckpoint)
-		} else {
-			posts, err = apiClient.GetPosts()
-		}
-		if err := noteIncomplete(&gaps, "posts", err); err != nil {
-			return err
-		}
-		logf("Found %d posts\n", len(posts))
-	} else {
-		logln("Skipping posts (--no-posts)")
-	}
-
-	var pages []models.WordPressPost
-	if !cfg.NoPages {
-		logln("Fetching pages...")
-		if cfg.Resume {
-			pages, err = apiClient.GetPagesWithCheckpoint(checkpointMgr.GetState(), saveCheckpoint)
-		} else {
-			pages, err = apiClient.GetPages()
-		}
-		if err := noteIncomplete(&gaps, "pages", err); err != nil {
-			return err
-		}
-		logf("Found %d pages\n", len(pages))
-	} else {
-		logln("Skipping pages (--no-pages)")
-	}
-
-	// By now something has been asked for, so the client knows which spelling
-	// this site answers to — or that it answers to neither (#66, #68).
-	noteSiteAPI(apiClient, &notices)
-
-	var products []models.WooCommerceProduct
-	// What to say about the products, when "0" and "could not read them" would
-	// otherwise print identically (#55).
-	var productsNotice string
-	if !cfg.NoProducts {
-		logln("Fetching WooCommerce products...")
-		if cfg.Resume {
-			products, err = apiClient.GetProductsWithCheckpoint(checkpointMgr.GetState(), saveCheckpoint)
-		} else {
-			products, err = apiClient.GetProducts()
-		}
-		switch {
-		case errors.Is(err, api.ErrProductsNeedKeys):
-			// The shop exists and will not talk to us without consumer keys.
-			// Its products are usually public on the ordinary WordPress route,
-			// which is a catalog without the commerce — and better than the
-			// zero this used to report (#55).
-			products, productsNotice = recoverPublicProducts(apiClient)
-		case err != nil:
-			// WooCommerce is optional: surface the failure but keep whatever was
-			// fetched, so a transient Woo error doesn't silently abort or truncate
-			// the rest of the export (GO-003).
-			logf("Warning: WooCommerce products may be incomplete: %v\n", err)
-		}
-
-		if productsNotice != "" {
-			logln(productsNotice)
-		} else if len(products) > 0 {
-			logf("Found %d WooCommerce products\n", len(products))
-		} else if err == nil {
-			logln("No WooCommerce products found (WooCommerce may not be installed)")
-		}
-	} else {
-		logln("Skipping products (--no-products)")
-	}
-
-	// The types a theme or plugin registered: Services, Portfolio, Team — content
-	// the site published that posts and pages alone never covered (#28). Fetched
-	// here so the SEO crawl below enriches them like everything else.
-	customTypes := fetchCustomTypes(apiClient, cfg)
-
-	// Apply path filter if specified
-	if cfg.PathFilter != "" {
-		pathFilter := filter.NewPathFilter(cfg.PathFilter)
-		originalPosts := len(posts)
-		originalPages := len(pages)
-		posts = pathFilter.FilterPosts(posts)
-		pages = pathFilter.FilterPosts(pages)
-		logf("Path filter '%s': %d/%d posts, %d/%d pages matched\n",
-			cfg.PathFilter, len(posts), originalPosts, len(pages), originalPages)
-	}
-
-	// Tracking identifiers and marketing wiring are properties of the site rather
-	// than of any one post, collected while crawling.
-	var (
-		siteAnalytics *models.Analytics
-		siteMarketing *models.SiteMarketing
-	)
-
-	// Crawl URLs for SEO data and/or content
-	if cfg.AssistedCrawl && cfg.CrawlContent {
-		// Combined crawl - fetch each page once for both SEO and content
-		logln("\nCrawling URLs for SEO metadata and content (combined)...")
-		crawler := seo.NewCrawler(cfg)
-		crawler.SetCache(fileCache)
-		if len(posts) > 0 {
-			posts = crawler.EnrichPostsWithSEOAndContent(posts)
-		}
-		if len(pages) > 0 {
-			pages = crawler.EnrichPostsWithSEOAndContent(pages)
-		}
-		enrichCustomTypes(customTypes, crawler.EnrichPostsWithSEOAndContent)
-		siteMarketing = crawler.SiteMarketing(homePageURL(siteInfo, cfg))
-		siteAnalytics = crawler.Analytics()
-		logln("SEO metadata and content extraction complete")
-	} else if cfg.AssistedCrawl {
-		// SEO only
-		logln("\nCrawling URLs for SEO metadata...")
-		crawler := seo.NewCrawler(cfg)
-		crawler.SetCache(fileCache)
-		if len(posts) > 0 {
-			posts = crawler.EnrichPostsWithSEO(posts)
-		}
-		if len(pages) > 0 {
-			pages = crawler.EnrichPostsWithSEO(pages)
-		}
-		enrichCustomTypes(customTypes, crawler.EnrichPostsWithSEO)
-		siteMarketing = crawler.SiteMarketing(homePageURL(siteInfo, cfg))
-		siteAnalytics = crawler.Analytics()
-		logln("SEO metadata extraction complete")
-	} else if cfg.CrawlContent {
-		// Content only
-		logln("\nCrawling pages with empty content...")
-		crawler := seo.NewCrawler(cfg)
-		crawler.SetCache(fileCache)
-		if len(posts) > 0 {
-			posts = crawler.EnrichPostsWithContent(posts)
-		}
-		if len(pages) > 0 {
-			pages = crawler.EnrichPostsWithContent(pages)
-		}
-		enrichCustomTypes(customTypes, crawler.EnrichPostsWithContent)
-	}
-
-	// Skip posts/pages with empty content if enabled
-	if cfg.SkipEmptyContent {
-		originalPosts := len(posts)
-		originalPages := len(pages)
-		posts = seo.FilterEmptyContent(posts)
-		pages = seo.FilterEmptyContent(pages)
-		logf("Skipped empty content: %d/%d posts, %d/%d pages\n",
-			originalPosts-len(posts), originalPosts, originalPages-len(pages), originalPages)
-	}
-
-	// Fetch and filter media BEFORE FlatHTML conversion (filter needs HTML tags)
-	var media []models.WordPressMedia
-	if cfg.DownloadMedia {
-		logln("Fetching media...")
-		if cfg.Resume {
-			media, err = apiClient.GetMediaWithCheckpoint(checkpointMgr.GetState(), saveCheckpoint)
-		} else {
-			media, err = apiClient.GetMedia()
-		}
-		// A page of the media listing that will not come is a gap like any
-		// other: the run keeps what it read and carries on. It used to end the
-		// export and discard everything already fetched — 1251 posts and 89
-		// pages, on the run that reported this (#57).
-		if err := noteIncomplete(&gaps, "media", err); err != nil {
-			return err
-		}
-		logf("Found %d media items\n", len(media))
-
-		// Fetch missing featured images that weren't returned by paginated API
-		// WordPress API may not return all media items (WPML, different post types, etc.)
-		missingMedia := fetchMissingFeaturedMedia(apiClient, posts, pages, media, cfg.Verbose)
-		if len(missingMedia) > 0 {
-			media = append(media, missingMedia...)
-			logf("Fetched %d additional featured images by ID\n", len(missingMedia))
-		}
-
-		// Filter to relevant media only if enabled
-		// Must happen BEFORE FlatHTML conversion because filter needs HTML <a href> and <img src> tags
-		if cfg.RelevantMediaOnly {
-			mf := mediafilter.NewFilter()
-			originalMedia := len(media)
-			media = mf.FilterRelevantMedia(posts, pages, media)
-			logf("Filtered to %d relevant media items (from %d total)\n", len(media), originalMedia)
-		}
-	} else {
-		logln("Skipping media (--no-media)")
-	}
-
-	// Convert HTML to Markdown if flat-html is enabled
-	// Must happen AFTER media filtering (filter needs HTML tags)
-	if cfg.FlatHTML {
-		logln("\nConverting HTML to Markdown...")
-		var preserveOpts *flathtml.PreserveOptions
-		if len(cfg.PreserveClasses) > 0 || len(cfg.PreserveIDs) > 0 {
-			preserveOpts = &flathtml.PreserveOptions{
-				Classes: cfg.PreserveClasses,
-				IDs:     cfg.PreserveIDs,
-			}
-		}
-		// Pick the narrowest constructor for the configured options.
-		var converter *flathtml.Converter
-		switch {
-		case preserveOpts != nil:
-			converter = flathtml.NewConverterWithOptions(cfg.FlatHTMLRules, preserveOpts)
-		case len(cfg.FlatHTMLRules) > 0:
-			converter = flathtml.NewConverterWithRules(cfg.FlatHTMLRules)
-		default:
-			converter = flathtml.NewConverter()
-		}
-		if len(posts) > 0 {
-			posts = converter.ConvertPosts(posts)
-		}
-		if len(pages) > 0 {
-			pages = converter.ConvertPosts(pages)
-		}
-		logln("HTML to Markdown conversion complete")
-	}
-
-	// Sanitize HTML to basic elements if basic-html is enabled
-	// Must happen AFTER media filtering (filter needs HTML tags)
-	if cfg.BasicHTML {
-		logln("\nSanitizing HTML to basic elements...")
-		var preserveOpts *basichtml.PreserveOptions
-		if len(cfg.PreserveClasses) > 0 || len(cfg.PreserveIDs) > 0 {
-			preserveOpts = &basichtml.PreserveOptions{
-				Classes: cfg.PreserveClasses,
-				IDs:     cfg.PreserveIDs,
-			}
-		}
-		var sanitizer *basichtml.Sanitizer
-		if preserveOpts != nil {
-			sanitizer = basichtml.NewSanitizerWithOptions(preserveOpts)
-		} else {
-			sanitizer = basichtml.NewSanitizer()
-		}
-		if len(posts) > 0 {
-			posts = sanitizer.SanitizePosts(posts)
-		}
-		if len(pages) > 0 {
-			pages = sanitizer.SanitizePosts(pages)
-		}
-		logln("HTML sanitization complete")
-	}
-
-	logln("Fetching categories...")
-	// Taxonomy is not the export: a site whose categories route is missing —
-	// a WordPress older than the one that introduced wp/v2, a plugin that hid
-	// it — still has its posts and pages, and used to lose them all here before
-	// --from-sitemap could even be reached (#68).
-	categories, err := apiClient.GetCategories()
-	if err := noteIncomplete(&gaps, "categories", err); err != nil {
-		return err
-	}
-	logf("Found %d categories\n", len(categories))
-
-	var tags []models.WordPressTag
-	if !cfg.NoTags {
-		logln("Fetching tags...")
-		tags, err = apiClient.GetTags()
-		if err := noteIncomplete(&gaps, "tags", err); err != nil {
-			return err
-		}
-		logf("Found %d tags\n", len(tags))
-	} else {
-		logln("Skipping tags (--no-tags)")
-	}
-
-	var users []models.WordPressUser
-	if !cfg.NoUsers {
-		logln("Fetching users...")
-		users, err = apiClient.GetUsers()
-		if err != nil {
-			// Don't fail on users fetch error, just warn and continue
-			logf("Warning: could not fetch users: %v\n", err)
-			users = []models.WordPressUser{}
-		} else {
-			logf("Found %d users\n", len(users))
-		}
-	} else {
-		logln("Skipping users (--no-users)")
-	}
-
-	// Fetch navigation menus. Menu structure is the one part of a site that
-	// cannot be reconstructed from the content afterwards.
-	var menus []models.WordPressMenu
-	if !cfg.NoMenus {
-		logln("Fetching menus...")
-		menus, err = apiClient.GetMenus()
-
-		switch {
-		case errors.Is(err, api.ErrMenusNotAccessible):
-			// WordPress gates menus behind edit_theme_options, so a public API
-			// still refuses them. Say what would make it work rather than just
-			// reporting a permission error.
-			logln("  Menus are not readable on this site — WordPress requires " +
-				"authentication for them. Pass --auth-user/--auth-pass or --auth-token to include them.")
-			menus = nil
-		case err != nil:
-			logf("Warning: could not fetch menus: %v\n", err)
-			menus = nil
-		default:
-			logf("Found %d menus\n", len(menus))
-		}
-	} else {
-		logln("Skipping menus (--no-menus)")
-	}
-
-	comments := fetchComments(apiClient, cfg)
-
-	// Perform brute force scanning if enabled
-	var bruteForceFound int
-	if cfg.BruteForce {
-		logln("\nPerforming brute force content discovery...")
-		scanResult, err := scanner.ScanForContent(posts, pages, media)
-		if err != nil {
-			return fmt.Errorf("brute force scan failed: %w", err)
-		}
-
-		// Merge brute force results
-		posts = append(posts, scanResult.Posts...)
-		pages = append(pages, scanResult.Pages...)
-		media = append(media, scanResult.Media...)
-		bruteForceFound = scanResult.Found
-	}
-
-	// Targeted range rescan (--scan-range) — pull a specific inclusive ID range
-	// for posts/pages/media and merge any items not already fetched.
-	if cfg.ScanRange != "" {
-		logf("\nRescanning ID range %s...\n", cfg.ScanRange)
-		n, err := appendScanRange(scanner, cfg, &posts, &pages, &media)
-		if err != nil {
-			return fmt.Errorf("scan-range failed: %w", err)
-		}
-		bruteForceFound += n
-		logf("Range rescan found %d new items\n", n)
-	}
-
-	// Asked again because a run told to skip posts and pages learns the shape of
-	// the site's API later than one that was not; noteSiteAPI says a thing once.
-	noteSiteAPI(apiClient, &notices)
-
-	fallBackToFeed(apiClient, cfg)
-
-	// Create export data
-	exportData := &models.ExportData{
-		Site:        *siteInfo,
-		Posts:       posts,
-		Pages:       pages,
-		Products:    products,
-		Media:       media,
-		Categories:  categories,
-		Tags:        tags,
-		Users:       users,
-		Menus:       menus,
-		Comments:    comments,
-		CustomTypes: customTypes,
-		Analytics:   siteAnalytics,
-		Marketing:   siteMarketing,
-		Stats: models.ExportStats{
-			TotalPosts:       len(posts),
-			TotalPages:       len(pages),
-			TotalCustomPosts: countCustomPosts(customTypes),
-			TotalProducts:    len(products),
-			TotalMedia:       len(media),
-			TotalCategories:  len(categories),
-			TotalTags:        len(tags),
-			TotalUsers:       len(users),
-			TotalComments:    len(comments),
-			BruteForceFound:  bruteForceFound,
-			Incomplete:       gaps,
-			Notices:          notices,
-		},
-	}
-
-	// What the site says it publishes, against what this run carries (#40). It
-	// costs a request or two, runs before the metadata is written so the answer
-	// lands in metadata.json as well as the console, and can only add a line to
-	// the report — a site that publishes neither inventory says so and nothing
-	// else changes.
-	if !cfg.NoInventoryCheck {
-		logln("\nReading the site's own inventory...")
-		inventory := apiClient.FetchInventory()
-		logf("Inventory: %s\n", inventory.Describe())
-		noteUnreadSitemaps(apiClient, &notices)
-
-		// A site whose /wp/v2/posts answers 500 for every request still serves
-		// its feed. Recovering titles, addresses, dates and bodies from it is
-		// what makes such a site exportable at all (#40).
-		recoverPostsFromFeed(cfg, inventory, exportData)
-
-		// And on a site with no content API at all, the sitemap is not a check
-		// on the export — it is the export. Its addresses answer 200 to anyone
-		// who asks, and 1.8.15 listed them and fetched none (#68).
-		recoverPagesFromSitemap(cfg, seo.NewCrawler(cfg), inventory, exportData)
-
-		exportData.Stats.Uncovered = checkCoverage(inventory, exportData)
-	}
-
-	// Export data
-	logln("\nExporting data...")
-	if err := exporter.Export(exportData); err != nil {
-		return fmt.Errorf("export failed: %w", err)
-	}
-
-	// Create ZIP archive if requested
-	var zipPath string
-	if cfg.CreateZip {
-		logln("Creating ZIP archive...")
-		zipPath = cfg.Output + ".zip"
-		if err := createZipArchive(cfg.Output, zipPath); err != nil {
-			return fmt.Errorf("failed to create ZIP archive: %w", err)
-		}
-		logf("ZIP archive created: %s\n", zipPath)
-
-		// Remove files if --no-files is set
-		if cfg.NoFiles {
-			logln("Removing export files...")
-			if err := os.RemoveAll(cfg.Output); err != nil {
-				return fmt.Errorf("failed to remove export files: %w", err)
-			}
-			logln("Export files removed")
-		}
-	}
-
-	// Print summary
-	duration := time.Since(startTime)
-	logf("\n=== Export Summary ===\n")
-	logf("Site: %s (%s)\n", siteInfo.Name, siteInfo.URL)
-	logf("%s\n", countLine("Posts", len(posts), apiClient.StatedTotal("posts"), apiClient.Limited()))
-	// Fetched against written: a count that used to match only because nobody
-	// compared them, while pages sharing a slug overwrote each other (#38).
-	if written := exportData.Stats.PagesWritten; written > 0 && written != len(pages) {
-		logf("Pages: %d fetched, %d written\n", len(pages), written)
-	} else {
-		logf("%s\n", countLine("Pages", len(pages), apiClient.StatedTotal("pages"), apiClient.Limited()))
-	}
-	// One line per custom type: "Services: 48" says more than a total, and the
-	// absence of a type a user expected is the point of reporting them (#28).
-	for _, set := range customTypes {
-		logf("%s (%s): %d\n", set.Name, set.Slug, len(set.Posts))
-	}
-	if productsNotice != "" {
-		logf("%s\n", productsNotice)
-	} else {
-		logf("%s\n", countLine("Products", len(products),
-			apiClient.StatedTotal("products"), apiClient.Limited()))
-	}
-	logf("%s\n", countLine("Media", len(media), apiClient.StatedTotal("media"), apiClient.Limited()))
-	logf("Categories: %d\n", len(categories))
-	logf("Tags: %d\n", len(tags))
-	logf("Users: %d\n", len(users))
-	// Reported unconditionally: a site with comments that exports zero of them
-	// is exactly the case a silent summary would hide (#35).
-	logf("Comments: %d\n", len(comments))
-
-	// Gaps last, where the eye stops. A summary that reports "Posts: 200"
-	// without saying the walk stopped at page 3 is the silence #37 is about;
-	// the same lines are in metadata.json, because a console scrolls away.
-	for _, gap := range gaps {
-		logf("Incomplete: %s\n", gap)
-	}
-
-	for _, notice := range notices {
-		logf("Note: %s\n", notice)
-	}
-
-	// And what the site says it has, against what this run wrote (#40). The
-	// export is already on disk: this can only add a sentence, never take one
-	// away.
-	for _, line := range exportData.Stats.Uncovered {
-		logf("%s\n", line)
-	}
-
-	if cfg.BruteForce && bruteForceFound > 0 {
-		logf("Brute force found: %d\n", bruteForceFound)
-	}
-
-	if cfg.DownloadMedia {
-		logf("Media downloaded: %d\n", exportData.Stats.MediaDownloaded)
-	}
-
-	logf("Duration: %v\n", duration)
-
-	// Calculate and display file sizes
-	if !cfg.NoFiles {
-		if totalSize, err := getDirSize(cfg.Output); err == nil {
-			logf("Export size: %s\n", formatFileSize(totalSize))
-		}
-		// Calculate media folder size separately if it exists
-		mediaDir := filepath.Join(cfg.Output, "media")
-		if mediaSize, err := getDirSize(mediaDir); err == nil && mediaSize > 0 {
-			logf("Media size: %s\n", formatFileSize(mediaSize))
-		}
-	}
-
-	if cfg.CreateZip {
-		if zipSize, err := getFileSize(zipPath); err == nil {
-			logf("ZIP size: %s\n", formatFileSize(zipSize))
-		}
-		logf("ZIP: %s\n", zipPath)
-		if !cfg.NoFiles {
-			logf("Output: %s\n", cfg.Output)
-		}
-	} else {
-		logf("Output: %s\n", cfg.Output)
-	}
-
-	// Delete checkpoint on successful completion
-	if cfg.Resume {
-		if err := checkpointMgr.Delete(); err != nil {
-			logf("Warning: failed to delete checkpoint: %v\n", err)
-		}
-	}
-
-	return nil
 }
 
 // homePageURL returns the address to read site-level marketing metadata from:

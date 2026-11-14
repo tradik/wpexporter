@@ -177,43 +177,75 @@ func TestStatedTotalIsRemembered(t *testing.T) {
 // TestLimitArithmetic covers the budget on its own, including the edges a flag
 // can be given.
 func TestLimitArithmetic(t *testing.T) {
-	unlimited := newLimits(0, 0, nil)
+	unlimited := NewLimits(0, 0, nil)
 	assert.Zero(t, unlimited.budget(CollectionPosts))
 	assert.False(t, unlimited.exhausted())
-	assert.False(t, unlimited.active())
+	assert.False(t, unlimited.Active())
 
-	total := newLimits(10, 0, nil)
+	total := NewLimits(10, 0, nil)
 	assert.Equal(t, 10, total.budget(CollectionPosts))
-	total.spend(10)
+	total.Spend(10)
 	assert.True(t, total.exhausted())
 	assert.Zero(t, total.budget(CollectionPosts))
 
 	// Spending more than the budget must not wrap into a negative one.
-	over := newLimits(3, 0, nil)
-	over.spend(9)
+	over := NewLimits(3, 0, nil)
+	over.Spend(9)
 	assert.True(t, over.exhausted())
 
-	perType := newLimits(0, 4, nil)
+	perType := NewLimits(0, 4, nil)
 	assert.Equal(t, 4, perType.budget(CollectionPosts))
-	perType.spend(4)
+	perType.Spend(4)
 	assert.Equal(t, 4, perType.budget(CollectionPosts), "a per-type budget is not shared")
 
-	negative := newLimits(-1, -5, map[string]int{"posts": -3})
+	negative := NewLimits(-1, -5, map[string]int{"posts": -3})
 	assert.Zero(t, negative.budget(CollectionPosts))
-	assert.False(t, negative.active(), "a negative flag value is not a budget")
+	assert.False(t, negative.Active(), "a negative flag value is not a budget")
 
 	// A kind named on its own beats the default for that kind, and only that
 	// kind: five of everything, ten media (#62).
-	shaped := newLimits(0, 5, map[string]int{CollectionMedia: 10})
+	shaped := NewLimits(0, 5, map[string]int{CollectionMedia: 10})
 	assert.Equal(t, 5, shaped.budget(CollectionPosts))
 	assert.Equal(t, 10, shaped.budget(CollectionMedia))
 	assert.Equal(t, 5, shaped.budget("services"), "a custom type takes the default")
 
 	// Named kinds with no default leave everything else unbounded.
-	namedOnly := newLimits(0, 0, map[string]int{CollectionPosts: 3})
+	namedOnly := NewLimits(0, 0, map[string]int{CollectionPosts: 3})
 	assert.Equal(t, 3, namedOnly.budget(CollectionPosts))
 	assert.Zero(t, namedOnly.budget(CollectionPages))
-	assert.True(t, namedOnly.active())
+	assert.True(t, namedOnly.Active())
+}
+
+// One budget, two readers: in local mode the database's walks and the REST
+// client's product walk draw on the same --limit, so a total is not granted
+// twice. Take is the question every walk asks first.
+func TestSharedLimits(t *testing.T) {
+	var none *Limits
+	budget, proceed := none.Take(CollectionPosts)
+	assert.Zero(t, budget)
+	assert.True(t, proceed, "no limits: every walk runs, unbounded")
+	none.Spend(5)
+	assert.False(t, none.Active())
+
+	shared := NewLimits(7, 0, nil)
+	budget, proceed = shared.Take(CollectionPosts)
+	assert.Equal(t, 7, budget)
+	assert.True(t, proceed)
+	shared.Spend(7)
+	_, proceed = shared.Take(CollectionProducts)
+	assert.False(t, proceed, "a spent total stops the next walk before it asks")
+
+	cfg := config.DefaultConfig()
+	cfg.Limit = 50
+	client, requests := countingSite(t, 75, cfg)
+	shared = NewLimits(3, 0, nil)
+	client.ShareLimits(shared)
+	posts, err := client.GetPosts()
+	require.NoError(t, err)
+	assert.Len(t, posts, 3, "the shared budget, not the client's own")
+	assert.Equal(t, int32(1), requests.Load())
+	assert.True(t, shared.exhausted(), "what the client took is gone for the database too")
+	assert.True(t, client.Limited())
 }
 
 // startServer runs a stub WordPress and returns its base URL.
@@ -224,4 +256,18 @@ func startServer(t *testing.T, handler http.HandlerFunc) string {
 	t.Cleanup(server.Close)
 
 	return server.URL
+}
+
+// A storefront walk asked after the total is spent does not ask the shop.
+func TestStoreWalkWithASpentBudget(t *testing.T) {
+	client, asked := walkSite(t, listing{records: 5})
+	spent := NewLimits(1, 0, nil)
+	spent.Spend(1)
+	client.ShareLimits(spent)
+
+	products, route, ok := client.GetStoreProducts()
+	assert.Empty(t, products)
+	assert.Empty(t, route)
+	assert.False(t, ok)
+	assert.Zero(t, asked("/wp-json/wc/store/v1/products"))
 }

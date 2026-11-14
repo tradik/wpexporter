@@ -61,3 +61,19 @@ func TestBuildFilesStampThisPackage(t *testing.T) {
 		}
 	}
 }
+
+// A stamped build names its commit and build time; an unstamped one only the
+// version.
+func TestString(t *testing.T) {
+	saved := GitCommit
+	t.Cleanup(func() { GitCommit = saved })
+
+	GitCommit = "unknown"
+	if got := String(); got != Version {
+		t.Errorf("unstamped: got %q, want %q", got, Version)
+	}
+	GitCommit = "abc1234"
+	if want := Version + " (abc1234, built " + BuildTime + ")"; String() != want {
+		t.Errorf("stamped: got %q, want %q", String(), want)
+	}
+}
