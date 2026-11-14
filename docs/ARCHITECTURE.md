@@ -34,6 +34,37 @@ graph TB
     O --> J
 ```
 
+## Three sources, one pipeline
+
+Since 1.9.0 an export reads the site from one of three sources, and everything
+after reading is shared:
+
+```mermaid
+graph LR
+    R[REST API<br/>internal/api] --> S[contentSource]
+    D[Database<br/>internal/localdb] --> S
+    X[XML-RPC<br/>internal/xmlrpc] --> XR[wpxmlrpc]
+    W[wp-config.php<br/>internal/wpconfig] --> D
+    O[--origin<br/>internal/origin] -.routes.-> R
+    O -.routes.-> C[Crawl<br/>internal/seo]
+    O -.routes.-> M[Media<br/>internal/media]
+    S --> F[path filter] --> C --> E[skip-empty] --> M --> V[flat/basic HTML] --> A[ExportData] --> G[Export Engine]
+    U[uploads dir] -.local mode.-> M
+```
+
+- `internal/cli/exportcli` runs an export as stages over one `exportRun`:
+  `remote.go`/`remoterest.go` read over REST (in the order they always did),
+  `local*.go` read from the database, and `stages.go`/`finish.go` are shared.
+  Both sources satisfy `contentSource` (`source.go`).
+- `internal/origin` wraps a transport so the site's own host is dialled at the
+  origin while `Host` and the TLS name stay the site's; it is used by the REST
+  client, the crawler and the media downloader alike.
+- `internal/wpconfig` reads `wp-config.php` statically; `internal/localdb` reads
+  the database inside one `READ ONLY` snapshot, with every statement checked
+  (SELECT only, no credential or contact columns) before it is sent;
+  `internal/phpserialize` decodes the serialized options and meta it needs,
+  refusing objects. See [LOCAL.md](LOCAL.md).
+
 ## High-Level Architecture
 
 ```mermaid
@@ -333,10 +364,15 @@ wpexportjson/
 │   ├── xmlrpc/            # XML-RPC client
 │   ├── config/            # Configuration management
 │   ├── export/            # Export engine
-│   ├── media/             # Media downloader
+│   ├── media/             # Media downloader (HTTP, or the uploads dir in local mode)
+│   ├── origin/            # --origin: dial the site's web server, keep its name
+│   ├── wpconfig/          # wp-config.php, read without PHP
+│   ├── localdb/           # the database as a read-only content source
+│   ├── phpserialize/      # PHP serialize() decoder, plain data only
 │   └── bruteforce/        # Brute force scanner
 ├── pkg/                   # Public packages
 │   └── models/            # Data models
+├── test/integration/      # make test-integration: WordPress + MariaDB in Docker
 ├── docs/                  # Documentation
 ├── build/                 # Build artifacts
 ├── dist/                  # Release binaries

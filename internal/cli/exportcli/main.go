@@ -125,9 +125,10 @@ var rootCmd = &cobra.Command{
 	Long: `WordPress content export tool
 
 Usage: wpexportjson export --url <site-url> [flags]
+       wpexportjson export --local <wordpress-dir> [flags]
 
 Export Flags:
-  -u, --url string            WordPress site URL (required)
+  -u, --url string            WordPress site URL (required unless --local)
   -o, --output string         Output directory (default: export/{domain}.{date})
   -f, --format string         Format: json|markdown|shopify|magento|wordpress|drupal|
                               wix|squarespace|webflow|weebly|prestashop|ghost|strapi|contentful
@@ -179,6 +180,14 @@ Reaching the site:
                               (scheme://host[:port]) instead of via DNS/Cloudflare
       --origin-insecure       Skip certificate checks on --origin connections only
 
+Local mode (run on the WordPress server; see docs/LOCAL.md):
+      --local PATH            Read the site from this WordPress directory and its
+                              database (read only); --url defaults to the site's home
+      --db-host, --db-name, --db-user, --db-prefix
+                              Override what wp-config.php says
+                              (password: WPEXPORTER_DB_PASSWORD, never a flag)
+      --blog-id int           Multisite: which site to read (default: the main site)
+
 Advanced:
       --brute-force           Enable brute force ID discovery
       --max-id int            Max ID for brute force (default 10000)
@@ -216,7 +225,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 
 	// Export command flags
-	exportCmd.Flags().StringVarP(&url, "url", "u", "", "WordPress site URL (required)")
+	exportCmd.Flags().StringVarP(&url, "url", "u", "", "WordPress site URL (required unless --local)")
 	exportCmd.Flags().StringVarP(&output, "output", "o", "", "output directory or file (default: export/{domain-name}.{date}{time})")
 	exportCmd.Flags().StringVarP(&format, "format", "f", "json", "export format (json|markdown|shopify|magento)")
 	exportCmd.Flags().BoolVar(&bruteForce, "brute-force", false, "enable brute force ID discovery")
@@ -323,10 +332,8 @@ func init() {
 	exportCmd.Flags().StringVar(&cacheDir, "cache-dir", "", "cache directory (default: ~/.wpexporter/cache)")
 	exportCmd.Flags().BoolVar(&cacheClear, "cache-clear", false, "clear cache before export")
 
-	// Mark required flags
-	if err := exportCmd.MarkFlagRequired("url"); err != nil {
-		panic(fmt.Sprintf("Failed to mark url flag as required: %v", err))
-	}
+	// --url is required unless --local is given: see sourceflags.go, which
+	// registers --local and declares the pair.
 
 	rootCmd.AddCommand(exportCmd)
 }

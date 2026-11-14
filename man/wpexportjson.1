@@ -1,10 +1,15 @@
-.TH WPEXPORTJSON 1 "August 2026" "wpexportjson 1.8.2" "User Commands"
+.TH WPEXPORTJSON 1 "November 2026" "wpexportjson 1.9.0" "User Commands"
 .SH NAME
 wpexportjson \- WordPress content export tool (REST API)
 .SH SYNOPSIS
 .B wpexportjson export
 .RB [ \-u | \-\-url ]
 .I URL
+.RB [ options ]
+.br
+.B wpexportjson export
+.B \-\-local
+.I DIR
 .RB [ options ]
 .SH DESCRIPTION
 .B wpexportjson
@@ -13,7 +18,24 @@ exports content from WordPress sites via the REST API. Supports multiple output 
 .SS "Required Options"
 .TP
 .BR \-u ", " \-\-url " " \fIURL\fR
-WordPress site URL (required)
+WordPress site URL (required unless \fB\-\-local\fR is given)
+.SS "Reaching the site"
+.TP
+.BR \-\-origin " " \fIURL\fR
+Send the site's own requests (its host and the www./bare twin) to this web server, as \fIscheme://host[:port]\fR, instead of wherever DNS points \- typically past Cloudflare. The \fBHost\fR header and the TLS server name stay the site's; other hosts are fetched as usual.
+.TP
+.BR \-\-origin\-insecure
+Do not verify the certificate on connections to \fB\-\-origin\fR; every other host is still verified.
+.SS "Local mode"
+.TP
+.BR \-\-local " " \fIDIR\fR
+Read the site from this WordPress directory, on the server: \fIwp\-config.php\fR is parsed (never executed), the database is read in one read\-only transaction, pages are crawled through the site's web server and media is copied from the uploads directory. See \fBLOCAL MODE\fR.
+.TP
+.BR \-\-db\-host ", " \-\-db\-name ", " \-\-db\-user ", " \-\-db\-prefix
+Override what \fIwp\-config.php\fR says. The password has no flag: see \fBWPEXPORTER_DB_PASSWORD\fR.
+.TP
+.BR \-\-blog\-id " " \fIN\fR
+Multisite: which site to read (default: the main site).
 .SS "Output Options"
 .TP
 .BR \-o ", " \-\-output " " \fIPATH\fR
@@ -248,6 +270,8 @@ WordPress serves its REST API two ways: the pretty \fI/wp\-json/wp/v2/\&...\fR, 
 The discovery is lazy, because the pretty spelling is what nearly every site answers to: it is tried first, nothing is probed until a request actually comes back \fB404\fR, and a site whose API works spends no extra request at all. The site that needs the fallback pays one. Which spelling was used is stated in the report and in \fBstats.notices\fR in \fBmetadata.json\fR, since the address there is not the one a reader would try by hand.
 .PP
 A WordPress older than \fB4.7\fR has neither spelling: the \fBwp/v2\fR content routes arrived in that release, and an older install answers \fBrest_no_route\fR to both. There is nothing to fall back to, so the run states it once, records it in \fBstats.notices\fR, and reads what the site still publishes in its feed \- an empty export that looks like an empty site is the failure this replaces.
+.SH "LOCAL MODE"
+Run on the WordPress server, \fB\-\-local\fR reads every published document, term, author, approved comment, menu and attachment from the database and nothing else: drafts, private and password\-protected documents are left out, and the columns holding passwords, logins, e\-mail and IP addresses are never selected. Each document's address is asked of the site itself (\fI/?p=ID\fR, \fI/?page_id=ID\fR, \fI/?post_type=T&p=ID\fR answer with a redirect to the canonical address), and each body is the rendered page; where the crawl gives none, the cleaned stored body is used and the report counts them. WooCommerce products are read over the REST API through the origin, not from the database. Options that make no sense against a database (\fB\-\-brute\-force\fR, \fB\-\-scan\-range\fR, \fB\-\-max\-id\fR, \fB\-\-resume\fR, \fB\-\-from\-sitemap\fR, \fB\-\-auth\-*\fR, \fB\-\-limit*\fR, \fB\-\-cache\fR) are refused. The snap cannot use local mode.
 .SH "THE WPEXPORTER COMMAND"
 The toolkit installs four binaries. Three are the individual tools:
 .BR wpexportjson " (REST API, this page), " wpxmlrpc " (XML-RPC) and " wpmcp " (MCP server)."
@@ -272,6 +296,14 @@ Export a WordPress site to JSON:
 .PP
 .RS
 wpexportjson export --url https://example.com
+.RE
+.SS "Behind Cloudflare"
+.RS
+wpexportjson export --url https://example.com --origin https://127.0.0.1 -f ssg
+.RE
+.SS "On the server"
+.RS
+wpexportjson export --local /var/www/html -f ssg
 .RE
 .SS "Markdown Export with SEO"
 Export to Markdown with SEO metadata:
@@ -312,6 +344,9 @@ Export only French art pages:
 wpexportjson export --url https://example.com --path-filter "/fr/arts/"
 .RE
 .SH ENVIRONMENT
+.TP
+.B WPEXPORTER_DB_PASSWORD
+Database password for \fB\-\-local\fR when \fIwp\-config.php\fR cannot give it. Deliberately not a flag, which every user could read in the process list.
 .TP
 .B WPEXPORT_URL
 WordPress site URL

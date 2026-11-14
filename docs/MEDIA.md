@@ -161,6 +161,17 @@ WordPress generates multiple image sizes (thumbnail, medium, large, full). The e
    (`photo-300x225.jpg`) instead of being left as a dead path. Run with `--verbose` to see
    each remap.
 
+## 💾 Local mode: media from disk
+
+With `--local`, a media URL under the site's uploads address
+(`upload_url_path`, or `{siteurl}/wp-content/uploads`, with `/sites/N` on a
+multisite) is copied from the uploads directory instead of downloaded — the
+same file names, folders and `--max-media-mb` limit. The path is resolved,
+symbolic links included, and must stay inside the uploads directory: `..` or a
+link pointing elsewhere is refused and logged with `--verbose`. A file that is
+not on disk (an offloaded library, a missing size) is fetched over HTTP as
+usual, through `--origin` when one is set. See [LOCAL.md](LOCAL.md).
+
 ## 🎯 Selective Media with `--relevant-media-only`
 
 For sites with large media libraries, use `--relevant-media-only` to download only used media:

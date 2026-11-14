@@ -36,6 +36,7 @@ type Source struct {
 	categories []models.WordPressCategory
 	tags       []models.WordPressTag
 	types      []api.PostType
+	products   int
 	notes      []string
 }
 

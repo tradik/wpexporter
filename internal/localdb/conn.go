@@ -3,6 +3,7 @@ package localdb
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"strings"
 	"time"
@@ -52,15 +53,20 @@ func Open(ctx context.Context, s *wpconfig.Settings, opts Options) (*Source, err
 	cfg.Net = ep.network
 	cfg.Addr = ep.addr
 	cfg.DBName = s.DBName
-	// The charset WordPress connects with, so a latin1 site's double-encoded
-	// text comes out the way the site itself shows it.
-	cfg.Params = map[string]string{"charset": s.DBCharset}
 	cfg.ParseTime = false // 0000-00-00 dates exist; they are read as text
 	cfg.Timeout = opts.Timeout
 	cfg.ReadTimeout = opts.Timeout
 	cfg.Logger = quietLogger{}
 
-	connector, err := newConnector(cfg)
+	// The charset WordPress connects with (SET NAMES), so a latin1 site's
+	// double-encoded text comes out the way the site itself shows it. Not a
+	// Params entry: the driver sends those as SET <name>=…, and the server
+	// has no variable called charset (found against MariaDB 12.3).
+	err = cfg.Apply(mysql.Charset(s.DBCharset, ""))
+	var connector driver.Connector
+	if err == nil {
+		connector, err = newConnector(cfg)
+	}
 	if err != nil {
 		return nil, redact(fmt.Errorf("database settings: %w", err), s.DBPassword)
 	}

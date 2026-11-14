@@ -58,3 +58,20 @@ func TestValidateSource(t *testing.T) {
 	cfg.OriginInsecure = true
 	assert.ErrorContains(t, validateSource(cfg), "--origin-insecure")
 }
+
+// --local stands in for --url at parse time; with neither, the command still
+// refuses to run, as it always refused a run without --url. (Found by the
+// integration test: url used to be a hard cobra requirement.)
+func TestURLOrLocalIsRequired(t *testing.T) {
+	resetExportFlags(t)
+	t.Cleanup(func() { resetExportFlags(t) })
+
+	assert.Error(t, exportCmd.ValidateFlagGroups(), "neither --url nor --local")
+	require.NoError(t, exportCmd.Flags().Set("local", "/var/www/html"))
+	assert.NoError(t, exportCmd.ValidateRequiredFlags())
+	assert.NoError(t, exportCmd.ValidateFlagGroups())
+
+	resetExportFlags(t)
+	require.NoError(t, exportCmd.Flags().Set("url", "https://example.com"))
+	assert.NoError(t, exportCmd.ValidateFlagGroups())
+}

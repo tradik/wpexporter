@@ -72,6 +72,9 @@ func TestCustomTypes(t *testing.T) {
 	assert.Equal(t, []string{"elementor_library", "nav_menu_item", "page", "portfolio", "post"}, slugs,
 		"WooCommerce types are not read from the database")
 	assert.Equal(t, "Elementor Library", types[0].Name)
+	products, err := src.PublishedProducts()
+	require.NoError(t, err)
+	assert.Equal(t, 3, products)
 
 	entries, err := src.GetCustomPosts("portfolio")
 	require.NoError(t, err)

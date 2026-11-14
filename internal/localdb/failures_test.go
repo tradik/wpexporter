@@ -57,6 +57,7 @@ func getters(src *Source) map[string]error {
 	_, errs["Media"] = src.GetMedia()
 	_, errs["Uploads"] = src.Uploads()
 	_, errs["Home"] = src.Home()
+	_, errs["Products"] = src.PublishedProducts()
 	return errs
 }
 

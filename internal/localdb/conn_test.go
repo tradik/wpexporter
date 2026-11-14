@@ -123,7 +123,8 @@ func TestOpenSucceeds(t *testing.T) {
 	mock.ExpectExec("START TRANSACTION").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("ROLLBACK").WillReturnResult(sqlmock.NewResult(0, 0))
 	newConnector = func(cfg *mysql.Config) (driver.Connector, error) {
-		assert.Equal(t, "utf8mb4", cfg.Params["charset"])
+		assert.Empty(t, cfg.Params, "no session variables: charset is not one")
+		assert.Contains(t, cfg.FormatDSN(), "charset=utf8mb4")
 		assert.False(t, cfg.ParseTime)
 		assert.False(t, cfg.MultiStatements)
 		assert.False(t, cfg.AllowAllFiles)

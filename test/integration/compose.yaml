@@ -1,0 +1,91 @@
+# WordPress on MariaDB for the local-mode integration test (make test-integration).
+# Never run in CI. Ports are bound to 127.0.0.1 only: the test on the host
+# reaches the web server as the origin and the database as --db-host, and
+# nothing else can. `make test-integration` takes it all down with its volume.
+name: wpexporter-it
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "1"
+
+x-resources: &resources
+  limits:
+    cpus: "1.0"
+    memory: 512M
+  reservations:
+    cpus: "0.25"
+    memory: 128M
+
+x-health-timing: &health-timing
+  interval: 5s
+  timeout: 5s
+  retries: 30
+  start_period: 10s
+
+x-db-env: &db-env
+  WORDPRESS_DB_HOST: db:3306
+  WORDPRESS_DB_USER: wordpress
+  WORDPRESS_DB_PASSWORD: it-db-password
+  WORDPRESS_DB_NAME: wordpress
+  WORDPRESS_TABLE_PREFIX: itwp_
+
+services:
+  db:
+    image: mariadb:12.3.3
+    environment:
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: it-db-password
+      MARIADB_RANDOM_ROOT_PASSWORD: "1"
+    volumes:
+      - db-data:/var/lib/mysql
+    ports:
+      - "127.0.0.1:${IT_DB_PORT:-13306}:3306"
+    healthcheck:
+      <<: *health-timing
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+    logging: *logging
+    deploy:
+      resources: *resources
+
+  wordpress:
+    image: wordpress:7.1.4-php8.3-apache
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *db-env
+    volumes:
+      - ${IT_WORK:?set IT_WORK}/site:/var/www/html
+    ports:
+      - "127.0.0.1:${IT_WEB_PORT:-18080}:80"
+    healthcheck:
+      <<: *health-timing
+      test: ["CMD-SHELL", "test -f /var/www/html/wp-config.php && curl -fsS -o /dev/null http://localhost/wp-includes/images/blank.gif"]
+    logging: *logging
+    deploy:
+      resources: *resources
+
+  # Fills the site (setup.sh) and cleans the bind mount afterwards. Only run
+  # on demand: `docker compose --profile setup run --rm cli ...`.
+  cli:
+    image: wordpress:cli-2.12.0-php8.3
+    profiles: ["setup"]
+    user: "33:33"
+    depends_on:
+      wordpress:
+        condition: service_healthy
+    environment:
+      <<: *db-env
+    volumes:
+      - ${IT_WORK:?set IT_WORK}/site:/var/www/html
+      - ${IT_WORK:?set IT_WORK}/out:/out
+      - ./fixtures:/fixtures:ro
+    logging: *logging
+    deploy:
+      resources: *resources
+
+volumes:
+  db-data:

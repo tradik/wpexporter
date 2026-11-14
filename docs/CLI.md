@@ -54,7 +54,12 @@ wpexportjson export --config config.yaml
 </tr>
 </thead>
 <tbody>
-<tr><td><code>--url</code></td><td>WordPress site URL</td><td>Required</td></tr>
+<tr><td><code>--url</code></td><td>WordPress site URL</td><td>Required, unless <code>--local</code> (then the site's <code>home</code> option)</td></tr>
+<tr><td><code>--origin</code></td><td>Send the site's own requests to this web server (<code>scheme://host[:port]</code>), keeping the site's name in <code>Host</code> and TLS — the export without Cloudflare in the way. See <a href="LOCAL.md">LOCAL.md</a></td><td>-</td></tr>
+<tr><td><code>--origin-insecure</code></td><td>Do not verify the certificate on connections to <code>--origin</code> (only those)</td><td><code>false</code></td></tr>
+<tr><td><code>--local</code></td><td>Read the site from this WordPress directory: <code>wp-config.php</code> and the database (read only), pages crawled through the origin. See <a href="LOCAL.md">LOCAL.md</a></td><td>-</td></tr>
+<tr><td><code>--db-host</code>, <code>--db-name</code>, <code>--db-user</code>, <code>--db-prefix</code></td><td>Override what <code>wp-config.php</code> says (<code>--local</code>). The password comes from <code>wp-config.php</code> or <code>WPEXPORTER_DB_PASSWORD</code>, never a flag</td><td>-</td></tr>
+<tr><td><code>--blog-id</code></td><td>Multisite: which site to read (<code>--local</code>)</td><td>main site</td></tr>
 <tr><td><code>--output</code></td><td>Output directory or file</td><td><code>./export</code></td></tr>
 <tr><td><code>--format</code></td><td>Export format (json/ markdown/ ssg/ shopify/ magento/ wordpress/ drupal/ wix/ squarespace/ webflow/ weebly/ prestashop/ ghost/ strapi/ contentful)</td><td><code>json</code></td></tr>
 <tr><td><code>--brute-force</code></td><td>Enable brute force ID discovery</td><td><code>false</code></td></tr>
@@ -119,6 +124,15 @@ wpexportjson export --config config.yaml
 <tr><td><code>--config</code></td><td>Configuration file path</td><td>-</td></tr>
 </tbody>
 </table>
+
+## Local mode
+
+On the WordPress server, `--local /var/www/html` reads the site from its own
+database instead of the REST API. It cannot be combined with `--brute-force`,
+`--scan-range`, `--max-id`, `--resume`, `--from-sitemap`, `--auth-*`,
+`--limit*` or `--cache`; the run names the conflict. Everything else — formats,
+filters, `--no-*`, conversions — works as usual. The full story is in
+[LOCAL.md](LOCAL.md).
 
 ## Resume / checkpoint
 

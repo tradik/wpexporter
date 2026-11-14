@@ -228,6 +228,17 @@ func (d *Downloader) downloadFile(downloadURL, filePath string) bool {
 		return false
 	}
 
+	// Local mode: a file in the uploads directory is copied, not fetched.
+	switch src, where := d.locate(downloadURL); where {
+	case onDisk:
+		return d.copyLocal(src, filePath)
+	case refused:
+		d.logf("Refusing media outside the uploads directory: %s\n", downloadURL)
+		return false
+	case notLocal:
+		// Fetched over HTTP below, as always.
+	}
+
 	// Create request
 	req, err := http.NewRequest("GET", downloadURL, nil)
 	if err != nil {

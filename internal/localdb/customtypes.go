@@ -32,6 +32,9 @@ func (s *Source) GetPostTypes() ([]api.PostType, error) {
 		if err := r.Scan(&slug, &count); err != nil {
 			return err
 		}
+		if slug == "product" {
+			s.products = count
+		}
 		if !strings.HasPrefix(slug, "product") {
 			types = append(types, api.PostType{Slug: slug, Name: humanize(slug), RestBase: slug})
 		}
@@ -70,4 +73,13 @@ func humanize(slug string) string {
 		words[i] = strings.ToUpper(w[:1]) + w[1:]
 	}
 	return strings.Join(words, " ")
+}
+
+// PublishedProducts counts the published WooCommerce products, which this
+// release does not read from the database: the caller says they were left out.
+func (s *Source) PublishedProducts() (int, error) {
+	if _, err := s.GetPostTypes(); err != nil {
+		return 0, err
+	}
+	return s.products, nil
 }

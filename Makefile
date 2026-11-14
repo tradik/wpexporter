@@ -72,7 +72,7 @@ GOSEC_EXCLUDE := G703,G704,G117,G122
 # The linter version CI pins in .github/workflows/ci.yml — keep the two equal.
 GOLANGCI_LINT_VERSION := v2.15.0
 
-.PHONY: help build clean test test-coverage deps run install dev lint vet sec check format build-prod release package packages docker-build docker-push version tag snap site site-serve site-check site-clean
+.PHONY: help build clean test test-integration test-coverage deps run install dev lint vet sec check format build-prod release package packages docker-build docker-push version tag snap site site-serve site-check site-clean
 
 help: ## Show this help message
 	@grep -h -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-40s\033[0m %s\n", $$1, $$2}'
@@ -110,6 +110,31 @@ clean: ## Clean build artifacts
 test: ## Run tests
 	@echo "${BLUE}Running tests...${RESET}"
 	$(GOTEST) -v ./...
+
+# Local mode against a real WordPress on MariaDB (test/integration/compose.yaml).
+# Needs Docker; never part of CI. Ports are bound to 127.0.0.1 only, and the
+# stack, its volume and the working directory are removed whatever the result.
+IT_DIR := $(CURDIR)/test/integration
+IT_WORK ?= $(IT_DIR)/.work
+IT_WEB_PORT ?= 18080
+IT_DB_PORT ?= 13306
+IT_COMPOSE := IT_WORK=$(IT_WORK) IT_WEB_PORT=$(IT_WEB_PORT) IT_DB_PORT=$(IT_DB_PORT) docker compose -f $(IT_DIR)/compose.yaml
+
+test-integration: ## Run the local-mode integration test against WordPress + MariaDB in Docker
+	@echo "${BLUE}Starting WordPress and MariaDB...${RESET}"
+	@mkdir -p $(IT_WORK)/site $(IT_WORK)/out
+	@# The setup container writes as www-data (uid 33); the directory is
+	@# temporary and removed below.
+	@chmod 0777 $(IT_WORK)/out
+	@status=0; \
+	$(IT_COMPOSE) up -d --wait db wordpress && \
+	$(IT_COMPOSE) --profile setup run --rm cli sh /fixtures/setup.sh && \
+	IT_WORK=$(IT_WORK) IT_WEB_PORT=$(IT_WEB_PORT) IT_DB_PORT=$(IT_DB_PORT) \
+		$(GOTEST) -tags integration -count=1 -v ./test/integration/ || status=$$?; \
+	$(IT_COMPOSE) --profile setup run --rm --no-deps cli sh -c 'rm -rf /var/www/html/* /var/www/html/.[!.]* /out/*' || true; \
+	$(IT_COMPOSE) --profile setup down -v --remove-orphans; \
+	rm -rf $(IT_WORK); \
+	exit $$status
 
 test-coverage: ## Run tests with coverage and generate HTML report
 	@echo "${BLUE}Running tests with coverage...${RESET}"

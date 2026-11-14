@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.9.0] - 2026-11-14
 
+### Added
+- **`--origin`: the export without Cloudflare in the way.** Exporting a site
+  over its public address goes through whatever stands in front of it, and
+  behind Cloudflare that is usually where the export ends: the REST API answers
+  with a challenge page and the crawl is blocked. `--origin
+  scheme://host[:port]` sends every request for the site — its host and its
+  `www.` twin — straight to its web server, while the request still names the
+  site: the `Host` header and the TLS server name stay `example.com`, only the
+  address dialled changes, so the certificate is checked against the site and
+  the server answers as it would a visitor. A plain-HTTP origin behind a
+  TLS-terminating tunnel gets `X-Forwarded-Proto: https`, without which
+  WordPress redirects forever. A CDN or any other host is fetched as before.
+
+  `--origin-insecure` skips certificate checks on origin connections **only**
+  (a Cloudflare Origin CA certificate is not publicly trusted); every other host
+  is still verified. An origin that cannot be parsed is refused before the run
+  rather than quietly falling back to DNS. It works for the REST API, the crawl
+  and the media downloads alike.
+
+- **`--local`: the site read from its own database, on its own server.** Run
+  next to WordPress, `wpexporter export --local /var/www/html` reads
+  `wp-config.php` and the database instead of the REST API:
+
+  | Step | How |
+  |---|---|
+  | Settings | `wp-config.php` is read as text and **never executed**: string literals, concatenation, `getenv()`, `getenv_docker()` (the official image), `$_ENV`, `$_SERVER`, `__DIR__`, `ABSPATH`. A value computed any other way is an error naming the flag that supplies it — nothing is guessed |
+  | Database | One `READ ONLY` transaction on a consistent snapshot; nothing written, nothing locked. Every statement is checked before it is sent: a `SELECT`, naming none of `user_pass`, `user_email`, `user_login`, `user_activation_key`, `comment_author_email`, `comment_author_IP`, `comment_agent` |
+  | Content | Published documents without a password, their terms, authors, approved comments, menus and attachments — the same models the REST client fills, so all fifteen formats work unchanged |
+  | Addresses | WordPress is asked for each one: `/?p=ID`, `/?page_id=ID` and `/?post_type=T&p=ID` redirect to the canonical address, which carries what only PHP knows — a custom type's rewrite slug, WPML, custom permalinks |
+  | Bodies | The rendered page, crawled through the origin (found on `127.0.0.1` when `--origin` is not given). Where the crawl gives nothing, the stored body cleaned of block comments, and the report says how many documents that was and how many still hold shortcodes |
+  | Media | Copied from the uploads directory, with the same size limit; a path resolving outside it — `..` or a symbolic link — is refused |
+
+  `--url` becomes optional (the site's `home` option), `--db-host`,
+  `--db-name`, `--db-user`, `--db-prefix` override `wp-config.php`, `--blog-id`
+  picks a multisite site, and the password comes from `wp-config.php` or
+  `WPEXPORTER_DB_PASSWORD` — deliberately never a flag, which every user of the
+  machine can read in `ps`, and never a config key. Database settings are never
+  serialized into an export, a checkpoint or a log line. Options that make no
+  sense against a database (`--brute-force`, `--scan-range`, `--max-id`,
+  `--resume`, `--from-sitemap`, `--auth-*`, `--limit*`, `--cache`) are refused
+  with the reason. WooCommerce products are not read from the database in this
+  release: with a web server answering they come over the REST API as before,
+  and without one the summary says how many were left out. The snap cannot
+  reach `/var/www` or the MySQL socket and says so. Local mode is deliberately
+  not offered through the MCP server. Guide: [docs/LOCAL.md](docs/LOCAL.md).
+
+  Verified against WordPress 7.1.4 on MariaDB 12.3.3 (`make test-integration`,
+  Docker, outside CI), which also found two faults no mock could: the database
+  charset was being sent as a session variable the server does not have, and a
+  run started from inside another snap was refused as if it were confined.
+
 ### Security
 - **Go 1.27.1 → 1.27.4.** `govulncheck` reported ten standard-library
   vulnerabilities this program actually reaches — every one of them on the path
@@ -37,6 +88,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   new linter release cannot fail CI on a commit that changed no code.
 - `coverage.html` and `.golangci.yml.bak` are no longer tracked; both are
   ignored, and `*.bak` with them.
+- **`runExport` is a list of stages** instead of one 660-line function: the REST
+  reads (in the order they always ran), the database reads, and the stages
+  both share. A characterization test of the REST export was written first and
+  the console output of the old and new code diffed; nothing changed.
+- `--url` is required unless `--local` is given. Without either the command
+  still stops at parsing, as it always did without `--url`.
+- New dependency: `go-sql-driver/mysql` 1.10.1 (and `DATA-DOG/go-sqlmock`
+  1.5.2 for tests).
 
 ## [1.8.19] - 2026-09-05
 

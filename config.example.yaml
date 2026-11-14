@@ -88,3 +88,26 @@ verbose: false
 # Crawl actual URLs to extract SEO metadata (title, description, og tags)
 # Useful for extracting RankMath/Yoast SEO data not exposed via REST API
 assisted_crawl: false
+
+# --- Reaching the site, and local mode (docs/LOCAL.md) ------------------------
+
+# Send the site's own requests to this web server instead of wherever DNS
+# points (Cloudflare, typically). Host header and TLS name stay the site's.
+# origin: "https://127.0.0.1"
+
+# Skip certificate checks on origin connections only (Cloudflare Origin CA).
+# origin_insecure: false
+
+# Read the site from this WordPress directory and its database, read only.
+# Run on the server. url becomes optional (the site's home option is used).
+# local_path: "/var/www/html"
+
+# Override what wp-config.php says. The password is never a config key: it
+# comes from wp-config.php or the WPEXPORTER_DB_PASSWORD environment variable.
+# db_host: "127.0.0.1:3306"
+# db_name: "wordpress"
+# db_user: "wp_readonly"
+# db_prefix: "wp_"
+
+# Multisite: which site to read (0 or 1 = the main site).
+# blog_id: 0

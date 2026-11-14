@@ -184,6 +184,24 @@ type Config struct {
 	// only (a Cloudflare Origin CA certificate is not publicly trusted). Every
 	// other host is verified as usual.
 	OriginInsecure bool `mapstructure:"origin_insecure" json:"origin_insecure,omitempty"`
+	// LocalPath is the WordPress directory (ABSPATH) of a site on this
+	// machine. Set, the export reads wp-config.php and the database instead of
+	// the REST API, and URL defaults to the site's home option (FEAT-001).
+	LocalPath string `mapstructure:"local_path" json:"local_path,omitempty"`
+	// DBHost, DBName, DBUser and DBPrefix override what wp-config.php says.
+	// They are never serialized: an export, a checkpoint or a log line has no
+	// business carrying database details. The password is not a field at all;
+	// it comes from wp-config.php or WPEXPORTER_DB_PASSWORD.
+	DBHost   string `mapstructure:"db_host" json:"-"`
+	DBName   string `mapstructure:"db_name" json:"-"`
+	DBUser   string `mapstructure:"db_user" json:"-"`
+	DBPrefix string `mapstructure:"db_prefix" json:"-"`
+	// BlogID is the multisite site to read; 0 or 1 is the main site.
+	BlogID int `mapstructure:"blog_id" json:"blog_id,omitempty"`
+	// UploadsURL and UploadsDir are set by local mode, never configured: media
+	// published under UploadsURL is read from UploadsDir instead of fetched.
+	UploadsURL string `mapstructure:"-" json:"-"`
+	UploadsDir string `mapstructure:"-" json:"-"`
 }
 
 // FlatHTMLRule defines a custom HTML to Markdown conversion rule
@@ -389,8 +407,13 @@ func LoadConfig(configFile string) (*Config, error) {
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
-	if c.URL == "" {
+	// Local mode learns the address from the database when none is given.
+	if c.URL == "" && c.LocalPath == "" {
 		return fmt.Errorf("URL is required")
+	}
+
+	if c.BlogID < 0 {
+		return fmt.Errorf("blog_id cannot be negative")
 	}
 
 	validFormats := map[string]bool{

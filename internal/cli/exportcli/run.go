@@ -73,6 +73,12 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if cfg.LocalPath != "" {
+		return exportLocal(cmd, cfg)
+	}
+	if err := checkOutput(cfg); err != nil {
+		return err
+	}
 	return exportRemote(cfg)
 }
 
@@ -144,7 +150,7 @@ func prepareConfig(cmd *cobra.Command) (*config.Config, error) {
 		return nil, fmt.Errorf("--flat-html and --basic-html are mutually exclusive")
 	}
 
-	return cfg, checkOutput(cfg)
+	return cfg, nil
 }
 
 // checkOutput validates the configuration and the output location.

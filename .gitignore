@@ -75,3 +75,6 @@ audit/
 # belong in git.
 .site/
 .ssg-cache/
+
+# Integration test working directory (make test-integration)
+test/integration/.work/
