@@ -26,12 +26,16 @@ type Options struct {
 	Limits *api.Limits
 }
 
-// snapshot is the one transaction every query runs in: read only, and
-// REPEATABLE READ, so every read sees the snapshot InnoDB takes at the first
-// one — an export of a live site is one moment of it. The driver sends SET
-// TRANSACTION ISOLATION LEVEL REPEATABLE READ and START TRANSACTION READ ONLY;
-// Close rolls it back, since nothing was written.
-var snapshot = sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true}
+// The one transaction every query runs in: read only, on a snapshot taken when
+// it starts, so an export of a live site is one moment of it. A consistent
+// snapshot exists only at REPEATABLE READ, so that level is asked for first
+// rather than assumed of the server. Nothing is written, so it ends in a
+// rollback.
+const (
+	snapshotIsolation = "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"
+	beginSnapshot     = "START TRANSACTION READ ONLY, WITH CONSISTENT SNAPSHOT"
+	endSnapshot       = "ROLLBACK"
+)
 
 // quietLogger drops the driver's own log lines: they go to stderr past every
 // redaction this package does.

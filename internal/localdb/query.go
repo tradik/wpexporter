@@ -27,7 +27,9 @@ var tablePattern = regexp.MustCompile(`\{([a-z_]+)\}`)
 // querier runs this package's queries in the snapshot transaction, after
 // checking each one is a read that touches nothing it should not.
 type querier struct {
-	tx     *sql.Tx
+	// run sends a statement on the snapshot connection, under the context
+	// the source was opened with (see New).
+	run    func(query string, args ...any) (*sql.Rows, error)
 	prefix string
 	blogID int
 }
@@ -64,14 +66,12 @@ func guard(query string) error {
 
 // query runs the SELECT in tmpl with args bound to its ? placeholders. An
 // argument made with list stands for a whole IN (…) list.
-// The transaction carries the context it was begun with: canceling that
-// ends it, and every query in it.
 func (q *querier) query(tmpl string, args ...any) (*sql.Rows, error) {
 	stmt, flat := bindLists(q.expand(tmpl), args)
 	if err := guard(stmt); err != nil {
 		return nil, err
 	}
-	return q.tx.Query(stmt, flat...) // #nosec G701 -- table names from a validated prefix; values bound as ?
+	return q.run(stmt, flat...) // #nosec G701 -- table names from a validated prefix; values bound as ?
 }
 
 // each runs tmpl and calls scan for every row.

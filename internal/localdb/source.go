@@ -26,7 +26,9 @@ import (
 // the same questions as the REST client, with the same signatures.
 type Source struct {
 	db       *sql.DB
+	conn     *sql.Conn
 	q        *querier
+	end      func() error
 	settings *wpconfig.Settings
 	opts     Options
 
@@ -44,9 +46,9 @@ type Source struct {
 }
 
 // New starts the read-only snapshot on db and returns the source. ctx governs
-// the snapshot transaction for the source's whole life: canceling it ends
-// every read. Open is the usual way in; New exists so tests can hand in a mock
-// database.
+// the snapshot for the source's whole life: every read is sent under it, and
+// canceling it ends them. Open is the usual way in; New exists so tests can
+// hand in a mock database.
 func New(ctx context.Context, db *sql.DB, s *wpconfig.Settings, opts Options) (*Source, error) {
 	if !wpconfig.ValidPrefix(s.TablePrefix) {
 		return nil, fmt.Errorf("table prefix %q is not valid", s.TablePrefix)
@@ -55,15 +57,23 @@ func New(ctx context.Context, db *sql.DB, s *wpconfig.Settings, opts Options) (*
 		return nil, fmt.Errorf("--blog-id %d: wp-config.php does not enable MULTISITE", opts.BlogID)
 	}
 
-	tx, err := db.BeginTx(ctx, &snapshot)
+	// One dedicated connection: a transaction belongs to a session.
+	conn, err := db.Conn(ctx)
 	if err != nil {
+		_ = db.Close()
+		return nil, redact(err, s.DBPassword)
+	}
+	if err := startSnapshot(ctx, conn); err != nil {
+		_ = conn.Close()
 		_ = db.Close()
 		return nil, redact(err, s.DBPassword)
 	}
 
 	return &Source{
 		db:       db,
-		q:        &querier{tx: tx, prefix: s.TablePrefix, blogID: opts.BlogID},
+		conn:     conn,
+		end:      snapshotEnder(ctx, conn),
+		q:        &querier{run: boundQuery(ctx, conn), prefix: s.TablePrefix, blogID: opts.BlogID},
 		settings: s,
 		opts:     opts,
 		docs:     map[string][]models.WordPressPost{},
@@ -74,9 +84,41 @@ func New(ctx context.Context, db *sql.DB, s *wpconfig.Settings, opts Options) (*
 
 // Close ends the snapshot and releases the connection.
 func (s *Source) Close() error {
-	err := s.q.tx.Rollback()
+	err := s.end()
+	_ = s.conn.Close()
 	_ = s.db.Close()
 	return s.fail(err)
+}
+
+// startSnapshot opens the read-only snapshot on conn.
+func startSnapshot(ctx context.Context, conn *sql.Conn) error {
+	for _, stmt := range []string{snapshotIsolation, beginSnapshot} {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// boundQuery sends queries on conn under ctx.
+func boundQuery(ctx context.Context, conn *sql.Conn) func(string, ...any) (*sql.Rows, error) {
+	return func(query string, args ...any) (*sql.Rows, error) {
+		return conn.QueryContext(ctx, query, args...)
+	}
+}
+
+// snapshotEnder returns what ends the snapshot: a ROLLBACK under ctx. Once ctx
+// is done no statement can be sent under it, and none is tried: Close then
+// closes the connection and the database, which ends the session on the
+// server and the transaction with it.
+func snapshotEnder(ctx context.Context, conn *sql.Conn) func() error {
+	return func() error {
+		if ctx.Err() != nil {
+			return nil
+		}
+		_, err := conn.ExecContext(ctx, endSnapshot)
+		return err
+	}
 }
 
 // Notes are facts about the site learned while reading it, worded for the

@@ -121,8 +121,9 @@ func (c mockConnector) Driver() driver.Driver                        { return c.
 func TestOpenSucceeds(t *testing.T) {
 	db, mock, err := sqlmock.NewWithDSN("localdb-open-test")
 	require.NoError(t, err)
-	mock.ExpectBegin()
-	mock.ExpectRollback()
+	mock.ExpectExec("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("START TRANSACTION READ ONLY, WITH CONSISTENT SNAPSHOT").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("ROLLBACK").WillReturnResult(sqlmock.NewResult(0, 0))
 	newConnector = func(cfg *mysql.Config) (driver.Connector, error) {
 		assert.Empty(t, cfg.Params, "no session variables: charset is not one")
 		assert.Contains(t, cfg.FormatDSN(), "charset=utf8mb4")

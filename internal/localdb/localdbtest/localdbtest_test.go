@@ -40,7 +40,9 @@ type fatal struct {
 	msg string
 }
 
-func (f *fatal) Helper()                        {}
+func (f *fatal) Helper() {
+	// Nothing to mark: this fake only records the failure.
+}
 func (f *fatal) Fatalf(format string, _ ...any) { f.msg = format }
 
 func TestNewReportsMockFailure(t *testing.T) {

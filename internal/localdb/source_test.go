@@ -2,10 +2,10 @@ package localdb
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -77,7 +77,8 @@ func TestNewRefusals(t *testing.T) {
 
 func TestNewBeginFails(t *testing.T) {
 	db, mock, _ := localdbtest.New(t)
-	mock.ExpectBegin().WillReturnError(errors.New("denied for hunter2"))
+	mock.ExpectExec(localdbtest.Isolation).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(localdbtest.Begin).WillReturnError(errors.New("denied for hunter2"))
 	_, err := New(context.Background(), db, settings(), Options{})
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "hunter2")
@@ -94,8 +95,8 @@ func TestNewConnFails(t *testing.T) {
 
 func TestCloseReportsRollbackError(t *testing.T) {
 	db, mock, _ := localdbtest.New(t)
-	mock.ExpectBegin()
-	mock.ExpectRollback().WillReturnError(errors.New("gone"))
+	localdbtest.ExpectSnapshotStart(mock)
+	mock.ExpectExec(localdbtest.End).WillReturnError(errors.New("gone"))
 	src, err := New(context.Background(), db, settings(), Options{})
 	require.NoError(t, err)
 	assert.ErrorContains(t, src.Close(), "gone")
@@ -122,14 +123,32 @@ func TestEveryStatementIsAReadOfAllowedColumns(t *testing.T) {
 	require.NotEmpty(t, statements)
 	for _, s := range statements {
 		require.NoError(t, localdbtest.Check(s), s)
-		assert.Regexp(t, `^SELECT `, s)
-		assert.NotContains(t, s, "SELECT *")
+		if s != localdbtest.Isolation && s != localdbtest.Begin && s != localdbtest.End {
+			assert.Regexp(t, `^SELECT `, s)
+			assert.NotContains(t, s, "SELECT *")
+		}
 	}
+	// The session is read only — the server refuses any write in it — on one
+	// snapshot taken at the start, at the level where a snapshot exists.
+	assert.Contains(t, statements, localdbtest.Begin)
+	assert.Contains(t, statements, localdbtest.Isolation)
+	assert.Equal(t, localdbtest.Begin, beginSnapshot)
+	assert.Contains(t, beginSnapshot, "READ ONLY")
+	assert.Equal(t, localdbtest.Isolation, snapshotIsolation)
+	assert.Equal(t, localdbtest.End, endSnapshot)
 }
 
-// The snapshot is a read-only transaction at REPEATABLE READ: the server
-// refuses any write in it, and every read sees the same moment.
-func TestSnapshotIsReadOnlyRepeatableRead(t *testing.T) {
-	assert.True(t, snapshot.ReadOnly)
-	assert.Equal(t, sql.LevelRepeatableRead, snapshot.Isolation)
+// A canceled context cannot carry the ROLLBACK, and none is sent: closing the
+// connection and the database ends the session, and the transaction with it.
+func TestCloseAfterContextCanceled(t *testing.T) {
+	db, mock, _ := localdbtest.New(t)
+	localdbtest.ExpectSnapshotStart(mock)
+	mock.ExpectClose()
+	ctx, cancel := context.WithCancel(context.Background())
+	src, err := New(ctx, db, settings(), Options{})
+	require.NoError(t, err)
+
+	cancel()
+	require.NoError(t, src.Close(), "no ROLLBACK was sent: an unexpected one would fail here")
+	require.NoError(t, mock.ExpectationsWereMet(), "the snapshot was opened and the database closed")
 }

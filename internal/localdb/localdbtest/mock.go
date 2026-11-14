@@ -27,11 +27,23 @@ var openMock = func(m sqlmock.QueryMatcher) (*sql.DB, sqlmock.Sqlmock, error) {
 	return sqlmock.New(sqlmock.QueryMatcherOption(m))
 }
 
-// ExpectSnapshot expects the snapshot transaction to be begun and, at Close,
-// rolled back.
+// The statements that open and close the snapshot.
+const (
+	Isolation = "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"
+	Begin     = "START TRANSACTION READ ONLY, WITH CONSISTENT SNAPSHOT"
+	End       = "ROLLBACK"
+)
+
+// ExpectSnapshot expects the snapshot to be opened and, at Close, ended.
 func ExpectSnapshot(mock sqlmock.Sqlmock) {
-	mock.ExpectBegin()
-	mock.ExpectRollback()
+	ExpectSnapshotStart(mock)
+	mock.ExpectExec(End).WillReturnResult(sqlmock.NewResult(0, 0))
+}
+
+// ExpectSnapshotStart expects only the opening statements.
+func ExpectSnapshotStart(mock sqlmock.Sqlmock) {
+	mock.ExpectExec(Isolation).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(Begin).WillReturnResult(sqlmock.NewResult(0, 0))
 }
 
 // rows builds a result set.
